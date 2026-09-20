@@ -59,6 +59,12 @@ conscious decision for now: the shell treats the sidecar as a whole and
 attributes native calls to extensions for policy and auditing, not for
 in-process isolation.
 
+**Consent note:** declaring a native method or an httpHost in a manifest is
+NOT user consent — the shell trusts the manifest because, today, extensions
+load only from this repository's own folder (`flowkey-native/extensions/`).
+When third-party extension installation exists, a real consent prompt per
+capability is required before the gate alone is acceptable.
+
 ## Bun requirement
 
 The sidecar requires [bun](https://bun.sh) on PATH. If the shell cannot find

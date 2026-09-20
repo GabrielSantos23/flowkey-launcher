@@ -22,6 +22,8 @@ public partial class MainWindow : Window
 
     private const int HOTKEY_ID = 0x464B;
     private const int WM_HOTKEY = 0x0312;
+    private const int WM_CLIPBOARDUPDATE = 0x031D;
+    private const uint CF_UNICODETEXT = 13;
     private const uint MOD_ALT = 0x0001;
     private const uint MOD_CONTROL = 0x0002;
     private const uint VK_SPACE = 0x20;
@@ -35,6 +37,7 @@ public partial class MainWindow : Window
     private readonly Queue<(string Message, DateTime At)> toastLog = new();
     private readonly AppLauncherService appLauncher;
     private readonly HttpFetchService httpFetch = new();
+    private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
     private IntPtr previousForegroundWindow;
     private bool allowClose;
 
@@ -56,6 +59,13 @@ public partial class MainWindow : Window
         nativeMethods.Register("apps.list", p => ExecuteAppsList(p));
         nativeMethods.Register("apps.launch", p => ExecuteAppsLaunch(p));
         nativeMethods.Register("http.fetch", _ => NativeCallOutcome.Failure("notImplemented", "handled asynchronously"));
+        nativeMethods.Register("clipboard.read", p => ExecuteClipboardRead());
+        nativeMethods.Register("clipboard.history", p => ExecuteClipboardHistory(p));
+        nativeMethods.Register("clipboard.clearHistory", _ =>
+        {
+            clipboardHistory.Clear();
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        });
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -105,6 +115,10 @@ public partial class MainWindow : Window
     {
         var source = HwndSource.FromHwnd(Handle);
         source?.AddHook(WndProc);
+        if (!AddClipboardFormatListener(Handle))
+        {
+            DebugLog.Write("AddClipboardFormatListener failed: " + Marshal.GetLastWin32Error());
+        }
         if (!RegisterHotKey(Handle, HOTKEY_ID, HotkeyModifier, HotkeyVirtualKey))
         {
             var errorCode = Marshal.GetLastWin32Error();
@@ -146,6 +160,16 @@ public partial class MainWindow : Window
         if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
         {
             ToggleVisibility();
+            handled = true;
+        }
+        else if (msg == WM_CLIPBOARDUPDATE)
+        {
+            var text = ClipboardReader.TryCaptureText();
+            DebugLog.Write($"clipboard update captured=" + (text is not null) + " len=" + (text?.Length ?? 0));
+            if (text is not null)
+            {
+                clipboardHistory.Record(text, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+            }
             handled = true;
         }
         return IntPtr.Zero;
@@ -439,6 +463,31 @@ public partial class MainWindow : Window
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { apps = payload }));
     }
 
+    private NativeCallOutcome ExecuteClipboardRead()
+    {
+        var text = clipboardHistory.Latest();
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { text }));
+    }
+
+    private NativeCallOutcome ExecuteClipboardHistory(Dictionary<string, JsonElement>? parameters)
+    {
+        var query = parameters is not null && parameters.TryGetValue("query", out var q) && q.ValueKind == JsonValueKind.String
+            ? q.GetString() ?? ""
+            : "";
+        var limit = parameters is not null && parameters.TryGetValue("limit", out var l) && l.ValueKind == JsonValueKind.Number
+            ? l.GetInt32()
+            : 50;
+        var items = clipboardHistory.Query(query, limit)
+            .Select((e, i) => new Dictionary<string, object?>
+            {
+                ["id"] = i.ToString(),
+                ["text"] = e.Text,
+                ["timestamp"] = e.TimestampUnixMs,
+            })
+            .ToList();
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { items }));
+    }
+
     private NativeCallOutcome ExecuteAppsLaunch(Dictionary<string, JsonElement>? parameters)
     {
         if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
@@ -554,4 +603,7 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll")]
     private static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool AddClipboardFormatListener(IntPtr hwnd);
 }

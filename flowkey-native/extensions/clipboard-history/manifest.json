@@ -1,0 +1,24 @@
+{
+  "id": "clipboard-history",
+  "name": "Clipboard History",
+  "version": "1.0.0",
+  "description": "Browse and re-copy recent clipboard text.",
+  "icon": "\ud83d\udccb",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Clipboard History"
+    },
+    {
+      "id": "clear",
+      "title": "Clear Clipboard History"
+    }
+  ],
+  "nativeMethods": [
+    "clipboard.read",
+    "clipboard.history",
+    "clipboard.clearHistory",
+    "clipboard.write"
+  ],
+  "httpHosts": []
+}

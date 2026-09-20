@@ -30,7 +30,6 @@ export default defineExtension({
         items.push({
           id: 'allowed',
           title: `allowed: ${allowed.status} ${allowed.bodyText.slice(0, 60)}`,
-          actions: [{ id: 'copy', title: 'Copy', primary: true }],
         });
       } catch (error) {
         const err = error as { code: string; message: string };
@@ -45,17 +44,9 @@ export default defineExtension({
           id: 'denied',
           title: `denied as expected: ${err.code}`,
           subtitle: err.message,
-          actions: [{ id: 'copy', title: 'Copy', primary: true }],
         });
       }
       return { type: 'list', sections: [{ title: 'Results', items }], emptyView: { title: 'No results' } };
-    },
-    async onAction(actionId, item, ctx) {
-      if (!item || actionId !== 'copy') {
-        return null;
-      }
-      await ctx.native.call('clipboard.write', { text: item.title });
-      return null;
     },
   } as ExtensionModule['handlers'],
 });
