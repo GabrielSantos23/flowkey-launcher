@@ -15,12 +15,13 @@ namespace FlowKey.Shell.Windows;
 
 public partial class MainWindow : Window
 {
-    public const uint HotkeyModifier = MOD_CONTROL;
+    public const uint HotkeyModifier = MOD_CONTROL | MOD_ALT;
     public const uint HotkeyVirtualKey = VK_SPACE;
-    public const string HotkeyDisplayName = "Ctrl+Space";
+    public const string HotkeyDisplayName = "Ctrl+Alt+Space";
 
     private const int HOTKEY_ID = 0x464B;
     private const int WM_HOTKEY = 0x0312;
+    private const uint MOD_ALT = 0x0001;
     private const uint MOD_CONTROL = 0x0002;
     private const uint VK_SPACE = 0x20;
 
