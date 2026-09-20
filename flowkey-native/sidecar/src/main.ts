@@ -1,5 +1,5 @@
 import { PROTOCOL_VERSION, type HostMessage, type SidecarMessage } from '@flowkey/native-sdk';
-import { applyInit, handleMessage, loadExtensions, toReadyExtensions } from './loader';
+import { Dispatcher, applyInit, loadExtensions, toReadyExtensions } from './loader';
 
 const modules = loadExtensions();
 
@@ -7,12 +7,12 @@ function emit(message: SidecarMessage): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-let loaded = applyInit(modules, {
+let dispatcher = new Dispatcher(applyInit(modules, {
   type: 'init',
   protocolVersion: PROTOCOL_VERSION,
   extensionsDir: '',
   preferences: {},
-});
+}), emit);
 
 let buffer = '';
 process.stdin.setEncoding('utf8');
@@ -33,7 +33,7 @@ process.stdin.on('data', (chunk: string) => {
           });
           process.exit(2);
         }
-        loaded = applyInit(modules, message);
+        dispatcher = new Dispatcher(applyInit(modules, message), emit);
         emit({
           type: 'ready',
           protocolVersion: PROTOCOL_VERSION,
@@ -41,7 +41,11 @@ process.stdin.on('data', (chunk: string) => {
         });
         continue;
       }
-      handleMessage(message, loaded, emit);
+      if (message.type === 'nativeResult') {
+        dispatcher.handleNativeResult(message);
+        continue;
+      }
+      void dispatcher.handle(message, emit);
     } catch (error) {
       emit({ type: 'log', level: 'error', message: `bad message: ${String(error)}` });
     }

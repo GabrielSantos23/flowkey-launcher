@@ -1,48 +1,38 @@
 import { defineExtension, type UiItem, type UiSection, type ExtensionModule } from '@flowkey/native-sdk';
-import emojiData from './data/emoji.json';
-import symbolsData from './data/symbols.json';
-import kaomojiData from './data/kaomoji.json';
+import catalog from '../data/emoji.json';
 
-interface CatalogRecord {
-  char: string;
-  name: string;
-  shortcode?: string;
-  category?: string;
-  keywords?: string[];
+interface GemojiRecord {
+  emoji: string;
+  description: string;
+  category: string;
+  aliases?: string[];
+  tags?: string[];
 }
 
-interface KaomojiRecord {
-  text: string;
-  name: string;
-  category?: string;
-  keywords?: string[];
-}
-
-const EMOJI = emojiData as CatalogRecord[];
-const SYMBOLS = symbolsData as CatalogRecord[];
-const KAOMOJI = kaomojiData as KaomojiRecord[];
-
+const DATA = catalog as GemojiRecord[];
 const recents: string[] = [];
 
-function score(record: { name: string; keywords?: string[] }, query: string): number {
+function score(record: GemojiRecord, query: string): number {
   const q = query.trim().toLowerCase();
   if (!q) return 0;
-  const name = record.name.toLowerCase();
-  if (name === q) return 100;
-  if (name.startsWith(q)) return 80;
-  const words = name.split(/\s+/);
-  if (words.some((w) => w.startsWith(q))) return 60;
-  const kw = (record.keywords ?? []).find((k) => k.toLowerCase().includes(q));
-  if (kw) return 40;
+  const description = record.description.toLowerCase();
+  if (description === q) return 100;
+  if (description.startsWith(q)) return 80;
+  if (description.split(/\s+/).some((w) => w.startsWith(q))) return 60;
+  if ((record.aliases ?? []).some((a) => a.toLowerCase() === q)) return 70;
+  if ((record.aliases ?? []).some((a) => a.toLowerCase().startsWith(q))) return 55;
+  if ((record.tags ?? []).some((t) => t.toLowerCase() === q)) return 45;
+  if ((record.tags ?? []).some((t) => t.toLowerCase().includes(q))) return 30;
   return 0;
 }
 
-function emojiItem(record: CatalogRecord): UiItem {
+function item(record: GemojiRecord): UiItem {
+  const alias = record.aliases?.[0];
   return {
-    id: record.char,
-    title: `${record.char} ${titleCase(record.name)}`,
-    subtitle: record.keywords?.slice(0, 4).join(', '),
-    icon: record.char,
+    id: record.emoji,
+    title: `${record.emoji} ${titleCase(record.description)}`,
+    subtitle: [alias ? `:${alias}:` : null, ...(record.tags ?? [])].filter(Boolean).join('  '),
+    icon: record.emoji,
     actions: [{ id: 'copy', title: 'Copy', primary: true }],
   };
 }
@@ -55,12 +45,24 @@ function sectionFor(title: string, items: UiItem[]): UiSection | null {
   return items.length > 0 ? { title, items } : null;
 }
 
+const CATEGORIES = [
+  'Smileys & Emotion',
+  'People & Body',
+  'Animals & Nature',
+  'Food & Drink',
+  'Travel & Places',
+  'Activities',
+  'Objects',
+  'Symbols',
+  'Flags',
+];
+
 export default defineExtension({
   manifest: {
     id: 'emoji',
     name: 'Emoji',
-    version: '1.0.0',
-    description: 'Emoji, symbol, and kaomoji picker with categories and keyword search.',
+    version: '2.0.0',
+    description: 'Emoji picker with categories and keyword search.',
     icon: '😀',
     commands: [{ id: 'open', title: 'Emoji & Symbols' }],
     nativeMethods: ['clipboard.write'],
@@ -69,68 +71,37 @@ export default defineExtension({
   handlers: {
     async search(query) {
       const q = query.trim().toLowerCase();
+      const emptyView = { title: 'No matches', description: 'Try another keyword' };
+
       if (!q) {
         const recentItems = recents
-          .map((char) => [...EMOJI, ...SYMBOLS].find((r) => r.char === char))
-          .filter((r): r is CatalogRecord => Boolean(r))
-          .map(emojiItem);
+          .map((char) => DATA.find((r) => r.emoji === char))
+          .filter((r): r is GemojiRecord => Boolean(r))
+          .map(item);
         const sections = [
           sectionFor('Frequently Used', recentItems),
-          sectionFor(
-            'Smileys & People',
-            EMOJI.filter((r) => r.category === 'smileys-people').slice(0, 60).map(emojiItem),
-          ),
-          sectionFor(
-            'Symbols',
-            SYMBOLS.slice(0, 60).map(emojiItem),
-          ),
-          sectionFor(
-            'Kaomoji',
-            KAOMOJI.slice(0, 30).map((k) => ({
-              id: k.text,
-              title: k.text,
-              subtitle: k.name,
-              actions: [{ id: 'copy', title: 'Copy', primary: true }],
-            })),
-          ),
+          ...CATEGORIES.map((c) => sectionFor(c, DATA.filter((r) => r.category === c).map(item))),
         ].filter((s): s is UiSection => s !== null);
-        return { type: 'list', sections, emptyView: { title: 'No matches', description: 'Try another keyword' } };
+        return { type: 'list', sections, emptyView };
       }
 
-      const ranked = [...EMOJI, ...SYMBOLS]
-        .map((r) => ({ r, s: score(r, q) }))
+      const ranked = DATA.map((r) => ({ r, s: score(r, q) }))
         .filter((x) => x.s > 0)
         .sort((a, b) => b.s - a.s)
-        .slice(0, 100)
-        .map((x) => emojiItem(x.r));
+        .slice(0, 200)
+        .map((x) => item(x.r));
 
-      const kaomojiItems = KAOMOJI.filter(
-        (k) => k.name.toLowerCase().includes(q) || (k.keywords ?? []).some((kw) => kw.toLowerCase().includes(q)),
-      )
-        .slice(0, 30)
-        .map((k) => ({
-          id: k.text,
-          title: k.text,
-          subtitle: k.name,
-          actions: [{ id: 'copy', title: 'Copy', primary: true }],
-        }));
-
-      const sections = [
-        sectionFor('Emoji', ranked),
-        sectionFor('Kaomoji', kaomojiItems),
-      ].filter((s): s is UiSection => s !== null);
-
-      return { type: 'list', sections, emptyView: { title: 'No matches', description: 'Try another keyword' } };
+      const sections = [sectionFor('Emoji', ranked)].filter((s): s is UiSection => s !== null);
+      return { type: 'list', sections, emptyView };
     },
-    async onAction(actionId, item, ctx) {
-      if (!item) return null;
+    async onAction(actionId, itemRecord, ctx) {
+      if (!itemRecord) return null;
       if (actionId === 'copy') {
-        if (!recents.includes(item.id)) {
-          recents.unshift(item.id);
+        if (!recents.includes(itemRecord.id)) {
+          recents.unshift(itemRecord.id);
           if (recents.length > 20) recents.pop();
         }
-        await ctx.native.call('clipboard.write', { text: item.id });
-        return null;
+        await ctx.native.call('clipboard.write', { text: itemRecord.id });
       }
       return null;
     },

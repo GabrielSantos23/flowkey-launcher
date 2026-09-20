@@ -124,7 +124,7 @@ export interface PreferencesMessage {
   values: Preferences;
 }
 
-export type HostMessage = InitMessage | SearchMessage | ActionMessage | PreferencesMessage;
+export type HostMessage = InitMessage | SearchMessage | ActionMessage | PreferencesMessage | NativeResultMessage;
 
 export interface ReadyMessage {
   type: 'ready';

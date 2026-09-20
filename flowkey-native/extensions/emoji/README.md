@@ -1,19 +1,16 @@
 # Emoji (flowkey-native model)
 
-Picker extension for the native shell: keyword search over emoji, symbols and
-kaomoji, grouped into sections, with a `copy` action that requests the host's
+Picker extension for the native shell: keyword search over the emoji catalog,
+grouped into category sections, with a `copy` action that requests the host's
 `clipboard.write` native method.
 
 ## Data provenance
 
-`src/data/emoji.json`, `symbols.json` and `kaomoji.json` are copied verbatim
-from the Asyar dogfood extension `extensions/emoji/src/data/` (gitignored in
-this repository, cloned by `setup.mjs`). Record shape: `char`, `name`,
-`shortcode`, `category`, `keywords`, `codepoints`, `htmlEntity` — a format
-consistent with a standard emoji keyword dataset (gemoji/emoji-mart style),
-but the upstream source is not recorded in the files themselves and could not
-be verified from this repository.
+`data/emoji.json` is the unmodified `db/emoji.json` from
+[github/gemoji](https://github.com/github/gemoji) **v4.1.0** (1870 entries,
+9 categories).
 
-**License status: unverified — flagged for follow-up.** Before shipping this
-extension outside development, the upstream dataset must be identified and its
-license recorded here.
+- Source: https://github.com/github/gemoji at tag `v4.1.0`
+- License: MIT, © 2019 GitHub, Inc. — full license text in
+  `data/LICENSE.gemoji` (the attribution file the MIT license requires to
+  accompany the copied dataset).
