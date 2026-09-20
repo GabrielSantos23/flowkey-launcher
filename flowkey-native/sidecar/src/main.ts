@@ -7,12 +7,15 @@ function emit(message: SidecarMessage): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
-let dispatcher = new Dispatcher(applyInit(modules, {
-  type: 'init',
-  protocolVersion: PROTOCOL_VERSION,
-  extensionsDir: '',
-  preferences: {},
-}), emit);
+let dispatcher = new Dispatcher(
+  applyInit(modules, {
+    type: 'init',
+    protocolVersion: PROTOCOL_VERSION,
+    extensionsDir: '',
+    preferences: {},
+  }),
+  emit,
+);
 
 let buffer = '';
 process.stdin.setEncoding('utf8');

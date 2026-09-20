@@ -42,7 +42,7 @@ public sealed class UiItem
     public string Title { get; set; } = "";
     public string? Subtitle { get; set; }
     public string? Icon { get; set; }
-    public List<UiAction>? Actions { get; set; }
+    public List<UiAction>? Actions { get; set; } = [];
 }
 
 public sealed class UiAction

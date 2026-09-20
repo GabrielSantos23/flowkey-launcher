@@ -64,7 +64,13 @@ export class Dispatcher {
         await this.runSearch(message.extensionId, message.query, message.requestId, emit);
         break;
       case 'action':
-        await this.runAction(message.extensionId, message.actionId, message.item, message.requestId, emit);
+        await this.runAction(
+          message.extensionId,
+          message.actionId,
+          message.item,
+          message.requestId,
+          emit,
+        );
         break;
       case 'preferences': {
         const ext = this.loaded.find((e) => e.manifest.id === message.extensionId);
@@ -72,7 +78,11 @@ export class Dispatcher {
         break;
       }
       default:
-        emit({ type: 'log', level: 'warn', message: `unhandled message type ${JSON.stringify(message)}` });
+        emit({
+          type: 'log',
+          level: 'warn',
+          message: `unhandled message type ${JSON.stringify(message)}`,
+        });
     }
   }
 
@@ -84,7 +94,11 @@ export class Dispatcher {
   ): Promise<void> {
     const ext = this.loaded.find((e) => e.manifest.id === extensionId);
     if (!ext) {
-      emit({ type: 'error', requestId, error: { code: 'unknownExtension', message: `extension ${extensionId} not loaded` } });
+      emit({
+        type: 'error',
+        requestId,
+        error: { code: 'unknownExtension', message: `extension ${extensionId} not loaded` },
+      });
       return;
     }
     this.lastQuery = query;
@@ -106,7 +120,11 @@ export class Dispatcher {
   ): Promise<void> {
     const ext = this.loaded.find((e) => e.manifest.id === extensionId);
     if (!ext) {
-      emit({ type: 'error', requestId, error: { code: 'unknownExtension', message: `extension ${extensionId} not loaded` } });
+      emit({
+        type: 'error',
+        requestId,
+        error: { code: 'unknownExtension', message: `extension ${extensionId} not loaded` },
+      });
       return;
     }
     try {

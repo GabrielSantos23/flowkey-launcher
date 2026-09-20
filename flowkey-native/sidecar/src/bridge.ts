@@ -14,7 +14,11 @@ export class NativeBridge {
 
   constructor(private emit: (message: SidecarMessage) => void) {}
 
-  call<T = unknown>(extensionId: string, method: string, params?: Record<string, unknown>): Promise<T> {
+  call<T = unknown>(
+    extensionId: string,
+    method: string,
+    params?: Record<string, unknown>,
+  ): Promise<T> {
     const requestId = `n${this.nextRequestId++}`;
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
@@ -22,7 +26,13 @@ export class NativeBridge {
         reject({ code: 'nativeTimeout', message: `native method ${method} timed out` });
       }, NATIVE_CALL_TIMEOUT_MS);
       this.pending.set(requestId, { resolve: resolve as (result: unknown) => void, reject, timer });
-      const message: NativeCallMessage = { type: 'nativeCall', requestId, extensionId, method, params };
+      const message: NativeCallMessage = {
+        type: 'nativeCall',
+        requestId,
+        extensionId,
+        method,
+        params,
+      };
       this.emit(message);
     });
   }

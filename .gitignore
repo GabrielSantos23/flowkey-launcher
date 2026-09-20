@@ -18,6 +18,7 @@ pnpm-lock.yaml
 # .NET build artifacts (flowkey-native shell)
 flowkey-native/**/bin/
 flowkey-native/**/obj/
+flowkey-native/shell/publish/
 
 # Local-only Claude config — never tracked, anywhere in the tree
 .claude/

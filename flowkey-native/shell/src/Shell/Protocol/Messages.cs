@@ -1,11 +1,10 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace FlowKey.Shell.Protocol;
 
 public sealed class InitMessage
 {
-    [JsonPropertyName("type")] public const string MessageType = "init";
+    public string Type { get; set; } = "init";
     public int ProtocolVersion { get; set; }
     public string ExtensionsDir { get; set; } = "";
     public Dictionary<string, Dictionary<string, JsonElement>> Preferences { get; set; } = [];
@@ -93,5 +92,12 @@ public sealed class NativeResultMessage
 public sealed class ProtocolError
 {
     public string Code { get; set; } = "";
+    public string Message { get; set; } = "";
+}
+
+public sealed class LogMessage
+{
+    public string Type { get; set; } = "log";
+    public string Level { get; set; } = "info";
     public string Message { get; set; } = "";
 }
