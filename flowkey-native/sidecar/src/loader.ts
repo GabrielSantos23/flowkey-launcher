@@ -10,10 +10,11 @@ import type {
 import { NativeBridge } from './bridge';
 import emoji from '@flowkey/extension-emoji';
 import apps from '@flowkey/extension-apps';
+import httpTest from '@flowkey/extension-http-test';
 
 type LoadedExtension = ExtensionModule & { preferences: Preferences };
 
-const REGISTRY: ExtensionModule[] = [emoji, apps];
+const REGISTRY: ExtensionModule[] = [emoji, apps, httpTest];
 
 export function loadExtensions(): ExtensionModule[] {
   return REGISTRY;

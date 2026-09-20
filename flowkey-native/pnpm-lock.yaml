@@ -20,6 +20,12 @@ importers:
         specifier: workspace:*
         version: link:../../sdk
 
+  extensions/http-test:
+    dependencies:
+      '@flowkey/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+
   sdk:
     devDependencies:
       '@types/bun':
@@ -37,6 +43,9 @@ importers:
       '@flowkey/extension-emoji':
         specifier: workspace:*
         version: link:../extensions/emoji
+      '@flowkey/extension-http-test':
+        specifier: workspace:*
+        version: link:../extensions/http-test
       '@flowkey/native-sdk':
         specifier: workspace:*
         version: link:../sdk

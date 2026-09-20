@@ -1,0 +1,19 @@
+{
+  "id": "http-test",
+  "name": "HTTP Test",
+  "version": "1.0.0",
+  "description": "Developer verification for the mediated http.fetch method.",
+  "icon": "\ud83c\udf10",
+  "commands": [
+    {
+      "id": "open",
+      "title": "HTTP Test"
+    }
+  ],
+  "nativeMethods": [
+    "http.fetch"
+  ],
+  "httpHosts": [
+    "api.github.com"
+  ]
+}

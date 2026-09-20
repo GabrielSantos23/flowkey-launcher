@@ -34,11 +34,11 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer searchDebounce;
     private readonly Queue<(string Message, DateTime At)> toastLog = new();
     private readonly AppLauncherService appLauncher;
+    private readonly HttpFetchService httpFetch = new();
     private IntPtr previousForegroundWindow;
     private bool allowClose;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
-    private IReadOnlyList<string> declaredNativeMethods = Array.Empty<string>();
 
     public MainWindow()
     {
@@ -55,6 +55,7 @@ public partial class MainWindow : Window
         appLauncher.SetRebuildDispatcher(Dispatcher);
         nativeMethods.Register("apps.list", p => ExecuteAppsList(p));
         nativeMethods.Register("apps.launch", p => ExecuteAppsLaunch(p));
+        nativeMethods.Register("http.fetch", _ => NativeCallOutcome.Failure("notImplemented", "handled asynchronously"));
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -301,7 +302,6 @@ public partial class MainWindow : Window
     private void OnSidecarReady(ReadyMessage ready)
     {
         readyExtensions = ready.Extensions;
-        declaredNativeMethods = ready.Extensions.SelectMany(e => e.NativeMethods).Distinct().ToList();
         var first = ready.Extensions.FirstOrDefault();
         Dispatcher.BeginInvoke(() =>
         {
@@ -463,7 +463,36 @@ public partial class MainWindow : Window
     private void OnNativeCallRequested(string requestId, string extensionId, string method, Dictionary<string, JsonElement>? parameters)
     {
         DebugLog.Write($"NativeCall req={requestId} ext={extensionId} method={method}");
-        var outcome = Dispatcher.Invoke(() => nativeMethods.Execute(method, declaredNativeMethods, parameters));
+        var extension = readyExtensions.FirstOrDefault(e => e.Id == extensionId);
+        var declared = extension?.NativeMethods ?? (IReadOnlyList<string>)Array.Empty<string>();
+        if (!declared.Contains(method, StringComparer.Ordinal))
+        {
+            CompleteNativeCall(requestId, method, NativeCallOutcome.Failure(
+                "methodNotDeclared",
+                $"extension did not declare native method '{method}' in its manifest"));
+            return;
+        }
+
+        if (method == "http.fetch")
+        {
+            var hosts = extension?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            _ = Task.Run(async () =>
+            {
+                var outcome = await httpFetch.FetchAsync(parameters, hosts, CancellationToken.None);
+                CompleteNativeCall(requestId, method, outcome);
+            });
+            return;
+        }
+
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            var outcome = nativeMethods.Execute(method, declared, parameters);
+            CompleteNativeCall(requestId, method, outcome);
+        });
+    }
+
+    private void CompleteNativeCall(string requestId, string method, NativeCallOutcome outcome)
+    {
         DebugLog.Write($"NativeCall outcome ok={outcome.Ok} code={outcome.Error?.Code ?? "none"}");
         if (!outcome.Ok)
         {
