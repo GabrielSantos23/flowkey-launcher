@@ -1,0 +1,74 @@
+{
+  "list": {
+    "type": "list",
+    "sections": [
+      {
+        "title": "Recently Used",
+        "items": [
+          {
+            "id": "🎉",
+            "title": "🎉 Party Popper",
+            "subtitle": "celebration, party, tada",
+            "icon": "🎉",
+            "actions": [
+              { "id": "copy", "title": "Copy", "primary": true },
+              { "id": "insert", "title": "Insert" }
+            ]
+          },
+          {
+            "id": "🚀",
+            "title": "🚀 Rocket",
+            "subtitle": "ship, launch",
+            "icon": "🚀",
+            "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+          }
+        ]
+      },
+      {
+        "title": "Smileys & People",
+        "items": [
+          {
+            "id": "😀",
+            "title": "😀 Grinning Face",
+            "subtitle": "happy, joy, smile",
+            "icon": "😀",
+            "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+          }
+        ]
+      }
+    ],
+    "emptyView": {
+      "title": "No matches",
+      "description": "Try a different keyword"
+    }
+  },
+  "detail": {
+    "type": "detail",
+    "title": "🚀 Rocket",
+    "fields": [
+      { "label": "Character", "value": "🚀" },
+      { "label": "Shortcode", "value": ":rocket:" },
+      { "label": "Codepoints", "value": "U+1F680" }
+    ],
+    "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+  },
+  "grid": {
+    "type": "grid",
+    "columns": 8,
+    "items": [
+      {
+        "id": "😀",
+        "title": "😀 Grinning Face",
+        "icon": "😀",
+        "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+      },
+      {
+        "id": "🎉",
+        "title": "🎉 Party Popper",
+        "icon": "🎉",
+        "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+      }
+    ],
+    "emptyView": { "title": "Nothing here" }
+  }
+}

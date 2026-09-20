@@ -1,0 +1,13 @@
+{
+  "name": "flowkey-native",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "sdk:test": "cd sdk && bun test",
+    "sdk:typecheck": "cd sdk && bunx tsc --noEmit",
+    "sidecar:typecheck": "cd sidecar && bunx tsc --noEmit",
+    "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
+    "shell:test": "cd shell && dotnet test FlowKey.sln",
+    "test": "pnpm sdk:test && pnpm shell:test"
+  }
+}

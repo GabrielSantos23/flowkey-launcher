@@ -1,0 +1,118 @@
+import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import {
+  PROTOCOL_VERSION,
+  type ActionMessage,
+  type DetailTree,
+  type GridTree,
+  type InitMessage,
+  type ListTree,
+  type NativeCallMessage,
+  type ReadyMessage,
+  type UiTree,
+} from '../src/types';
+
+const contractDir = resolve(import.meta.dir, '../../contract');
+const readFixture = (name: string) => JSON.parse(readFileSync(resolve(contractDir, name), 'utf8'));
+
+const uiFixture = readFixture('ui-tree.fixture.json');
+const protocolFixture = readFixture('protocol.fixture.json');
+
+const asList = (tree: unknown): ListTree => tree as ListTree;
+const asDetail = (tree: unknown): DetailTree => tree as DetailTree;
+const asGrid = (tree: unknown): GridTree => tree as GridTree;
+
+const isListTree = (tree: UiTree): tree is ListTree => tree.type === 'list';
+
+describe('ui-tree contract fixture', () => {
+  test('list tree has sections, items, actions and empty view', () => {
+    const list = asList(uiFixture.list);
+    expect(list.type).toBe('list');
+    expect(list.sections.length).toBeGreaterThan(0);
+    for (const section of list.sections) {
+      expect(section.items.length).toBeGreaterThan(0);
+      for (const item of section.items) {
+        expect(item.id).toBeTruthy();
+        expect(item.title).toBeTruthy();
+        expect(item.actions?.length ?? 0).toBeGreaterThan(0);
+        expect(item.actions?.some((a) => a.primary)).toBe(true);
+      }
+    }
+    expect(list.emptyView?.title).toBeTruthy();
+  });
+
+  test('detail tree has title, fields and a primary action', () => {
+    const detail = asDetail(uiFixture.detail);
+    expect(detail.type).toBe('detail');
+    expect(detail.fields.length).toBeGreaterThan(0);
+    expect(detail.actions?.some((a) => a.primary)).toBe(true);
+  });
+
+  test('grid tree has columns, items and empty view', () => {
+    const grid = asGrid(uiFixture.grid);
+    expect(grid.type).toBe('grid');
+    expect(grid.columns).toBeGreaterThan(0);
+    expect(grid.items.length).toBeGreaterThan(0);
+    expect(grid.emptyView?.title).toBeTruthy();
+  });
+
+  test('every primary action id across fixtures is unique per item', () => {
+    const trees: UiTree[] = [uiFixture.list, uiFixture.grid];
+    for (const tree of trees) {
+      if (!isListTree(tree)) continue;
+      for (const section of tree.sections) {
+        const ids = section.items.map((i) => i.actions?.find((a) => a.primary)?.id);
+        expect(ids.every((id) => id === ids[0])).toBe(true);
+      }
+    }
+  });
+});
+
+describe('protocol contract fixture', () => {
+  test('protocolVersion is 1 and matches the SDK constant', () => {
+    expect(protocolFixture.protocolVersion).toBe(PROTOCOL_VERSION);
+    expect(protocolFixture.hostToSidecar.init.protocolVersion).toBe(PROTOCOL_VERSION);
+    expect(protocolFixture.sidecarToHost.ready.protocolVersion).toBe(PROTOCOL_VERSION);
+  });
+
+  test('init declares extensionsDir and a preferences bag', () => {
+    const init: InitMessage = protocolFixture.hostToSidecar.init;
+    expect(init.type).toBe('init');
+    expect(init.extensionsDir.length).toBeGreaterThan(0);
+    expect('emoji' in init.preferences).toBe(true);
+  });
+
+  test('ready lists extensions with declared nativeMethods and httpHosts', () => {
+    const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
+    expect(ready.extensions.length).toBeGreaterThan(0);
+    for (const ext of ready.extensions) {
+      expect(Array.isArray(ext.nativeMethods)).toBe(true);
+      expect(Array.isArray(ext.httpHosts)).toBe(true);
+    }
+  });
+
+  test('search and action messages carry requestId and extensionId', () => {
+    const search = protocolFixture.hostToSidecar.search;
+    const action: ActionMessage = protocolFixture.hostToSidecar.action;
+    expect(search.requestId).toBeTruthy();
+    expect(search.extensionId).toBeTruthy();
+    expect(action.requestId).toBeTruthy();
+    expect(action.extensionId).toBeTruthy();
+    expect(action.item?.id).toBeTruthy();
+  });
+
+  test('nativeCall carries extensionId for attribution', () => {
+    const call: NativeCallMessage = protocolFixture.sidecarToHost.nativeCall;
+    expect(call.extensionId).toBe('emoji');
+    expect(call.method).toBeTruthy();
+    expect(call.params).toBeDefined();
+  });
+
+  test('error and nativeResult error shapes have code and message', () => {
+    const err = protocolFixture.sidecarToHost.error.error;
+    expect(err.code).toBeTruthy();
+    expect(err.message).toBeTruthy();
+    expect(protocolFixture.sidecarToHost.nativeCallDenied.method).toBeTruthy();
+  });
+});

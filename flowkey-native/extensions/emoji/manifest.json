@@ -1,0 +1,10 @@
+{
+  "id": "emoji",
+  "name": "Emoji",
+  "version": "1.0.0",
+  "description": "Emoji, symbol, and kaomoji picker with categories and keyword search.",
+  "icon": "😀",
+  "commands": [{ "id": "open", "title": "Emoji & Symbols" }],
+  "nativeMethods": ["clipboard.write"],
+  "httpHosts": []
+}

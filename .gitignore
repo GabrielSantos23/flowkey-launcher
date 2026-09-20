@@ -12,6 +12,13 @@ node_modules/
 pnpm-lock.yaml
 !/pnpm-lock.yaml
 
+# flowkey-native is its own independent pnpm workspace; its lockfile is real.
+!/flowkey-native/pnpm-lock.yaml
+
+# .NET build artifacts (flowkey-native shell)
+flowkey-native/**/bin/
+flowkey-native/**/obj/
+
 # Local-only Claude config — never tracked, anywhere in the tree
 .claude/
 .superpowers/

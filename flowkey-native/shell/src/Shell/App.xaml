@@ -1,0 +1,9 @@
+<Application x:Class="FlowKey.Shell.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+  <Application.Resources>
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#1E1E28" />
+    <SolidColorBrush x:Key="ForegroundBrush" Color="#E6E6EF" />
+  </Application.Resources>
+</Application>
