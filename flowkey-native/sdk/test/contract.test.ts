@@ -49,6 +49,12 @@ describe('ui-tree contract fixture', () => {
     expect(detail.actions?.some((a) => a.primary)).toBe(true);
   });
 
+  test('grid item iconUri parses into the UiItem type', () => {
+    const grid = asGrid(uiFixture.grid);
+    expect(typeof grid.items[0].iconUri).toBe('string');
+    expect(grid.items[0].iconUri?.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
   test('grid tree has columns, items and empty view', () => {
     const grid = asGrid(uiFixture.grid);
     expect(grid.type).toBe('grid');

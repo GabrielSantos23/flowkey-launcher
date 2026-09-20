@@ -22,6 +22,11 @@ public sealed class NativeMethodTable
         };
     }
 
+    public void Register(string method, Func<Dictionary<string, JsonElement>?, NativeCallOutcome> handler)
+    {
+        methods[method] = handler;
+    }
+
     public NativeCallOutcome Execute(string method, IReadOnlyList<string> declaredMethods, Dictionary<string, JsonElement>? parameters)
     {
         if (!declaredMethods.Contains(method, StringComparer.Ordinal))

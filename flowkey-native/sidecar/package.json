@@ -5,6 +5,7 @@
   "type": "module",
   "dependencies": {
     "@flowkey/extension-emoji": "workspace:*",
+    "@flowkey/extension-apps": "workspace:*",
     "@flowkey/native-sdk": "workspace:*"
   },
   "devDependencies": {

@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Threading;
 using FlowKey.Shell.Native;
 using FlowKey.Shell.Protocol;
@@ -32,10 +33,11 @@ public partial class MainWindow : Window
     private readonly SearchState searchState = new();
     private readonly DispatcherTimer searchDebounce;
     private readonly Queue<(string Message, DateTime At)> toastLog = new();
+    private readonly AppLauncherService appLauncher;
     private IntPtr previousForegroundWindow;
     private bool allowClose;
 
-    private string? currentExtensionId;
+    private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
     private IReadOnlyList<string> declaredNativeMethods = Array.Empty<string>();
 
     public MainWindow()
@@ -48,6 +50,11 @@ public partial class MainWindow : Window
             searchDebounce.Stop();
             SendSearch(SearchBox.Text);
         };
+
+        appLauncher = new AppLauncherService();
+        appLauncher.SetRebuildDispatcher(Dispatcher);
+        nativeMethods.Register("apps.list", p => ExecuteAppsList(p));
+        nativeMethods.Register("apps.launch", p => ExecuteAppsLaunch(p));
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -267,7 +274,7 @@ public partial class MainWindow : Window
     private void RunPrimaryAction()
     {
         DebugLog.Write("RunPrimaryAction");
-        if (ResultsList.SelectedItem is not ItemRow row || currentExtensionId is null)
+        if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null)
         {
             return;
         }
@@ -276,34 +283,29 @@ public partial class MainWindow : Window
         {
             return;
         }
-        sidecar.SendAction(currentExtensionId, action.Id, row.Item);
+        sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
     }
 
     private void SendSearch(string query)
     {
-        if (currentExtensionId is null)
+        if (readyExtensions.Count == 0)
         {
             UpdateEmptyView("Starting extensions…", "waiting for the sidecar");
             return;
         }
-        DebugLog.Write($"SendSearch query='{query}' ext={currentExtensionId}");
-        var requestId = sidecar.SendSearch(currentExtensionId, query);
-        searchState.SetCurrent(requestId);
+        DebugLog.Write("SendSearch query='" + query + "'");
+        var requests = readyExtensions.Select(ext => (ext.Id, sidecar.SendSearch(ext.Id, query))).ToList();
+        searchState.BeginQuery(requests);
     }
 
     private void OnSidecarReady(ReadyMessage ready)
     {
+        readyExtensions = ready.Extensions;
+        declaredNativeMethods = ready.Extensions.SelectMany(e => e.NativeMethods).Distinct().ToList();
         var first = ready.Extensions.FirstOrDefault();
-        if (first is null)
-        {
-            Dispatcher.BeginInvoke(() => UpdateEmptyView("No extensions", "the sidecar reported zero extensions"));
-            return;
-        }
-        currentExtensionId = first.Id;
-        declaredNativeMethods = first.NativeMethods;
         Dispatcher.BeginInvoke(() =>
         {
-            SetStatusBar($"{first.Name} v{first.Version} ready");
+            SetStatusBar(first is null ? "no extensions" : $"{first.Name} v{first.Version} ready");
             SendSearch(SearchBox.Text);
         });
     }
@@ -321,14 +323,56 @@ public partial class MainWindow : Window
                 ShowToast("received a non-list tree (not rendered in this phase)");
                 return;
             }
-            DebugLog.Write($"UiReceived req={message.RequestId} current={searchState.CurrentRequestId} rows incoming");
+            DebugLog.Write($"UiReceived req={message.RequestId}");
             var rows = searchState.ApplyResult(message.RequestId, list, out var stale);
             if (stale)
             {
                 return;
             }
+            LoadRowIcons(rows);
             ApplyRows(rows, list.EmptyView);
         });
+    }
+
+    private void LoadRowIcons(IReadOnlyList<UiRow> rows)
+    {
+        foreach (var row in rows.OfType<ItemRow>())
+        {
+            var uri = row.Item.IconUri;
+            if (uri is null)
+            {
+                continue;
+            }
+            try
+            {
+                if (IconUriPolicy.TryGetLocalPath(uri, out var path) && File.Exists(path))
+                {
+                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 32;
+                    bitmap.UriSource = new Uri(path);
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    row.Bitmap = bitmap;
+                }
+                else if (IconUriPolicy.DecodeDataUri(uri) is { } bytes)
+                {
+                    var image = new System.Windows.Media.Imaging.BitmapImage();
+                    image.BeginInit();
+                    image.DecodePixelWidth = 32;
+                    image.StreamSource = new MemoryStream(bytes);
+                    image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    image.EndInit();
+                    image.Freeze();
+                    row.Bitmap = image;
+                }
+            }
+            catch
+            {
+                row.Bitmap = null;
+            }
+        }
     }
 
     private void ApplyRows(IReadOnlyList<UiRow> rows, UiEmptyView? emptyView)
@@ -369,6 +413,51 @@ public partial class MainWindow : Window
             ShowToast($"{message.Error.Code}: {message.Error.Message}");
             SetStatusBar($"error: {message.Error.Code}");
         });
+    }
+
+    private NativeCallOutcome ExecuteAppsList(Dictionary<string, JsonElement>? parameters)
+    {
+        var query = parameters is not null && parameters.TryGetValue("query", out var q) && q.ValueKind == JsonValueKind.String
+            ? q.GetString() ?? ""
+            : "";
+        var pixelSize = (int)Math.Round(VisualTreeHelper.GetDpi(this).PixelsPerDip * 32);
+        var apps = appLauncher.List(query, pixelSize);
+        var payload = apps.Select(a =>
+        {
+            var item = new Dictionary<string, object?>
+            {
+                ["id"] = a.Entry.Id,
+                ["name"] = a.Entry.Name,
+                ["launchCount"] = 0,
+            };
+            if (a.Item2 is not null)
+            {
+                item["iconUri"] = new Uri(a.Item2).AbsoluteUri;
+            }
+            return item;
+        }).ToList();
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { apps = payload }));
+    }
+
+    private NativeCallOutcome ExecuteAppsLaunch(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "apps.launch requires a string 'id' parameter");
+        }
+        try
+        {
+            appLauncher.Launch(id.GetString()!);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NativeCallOutcome.Failure("appNotFound", $"no app with id '{id.GetString()}' is cached");
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("launchFailed", ex.Message);
+        }
     }
 
     private void OnNativeCallRequested(string requestId, string extensionId, string method, Dictionary<string, JsonElement>? parameters)

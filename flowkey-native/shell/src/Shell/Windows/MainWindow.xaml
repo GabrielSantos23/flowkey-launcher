@@ -85,7 +85,30 @@
           </DataTemplate>
           <DataTemplate DataType="{x:Type rows:ItemRow}">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="{Binding Item.Icon}" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center" />
+              <Image Source="{Binding Bitmap}" Width="20" Height="20" Margin="0,0,10,0" VerticalAlignment="Center">
+                <Image.Style>
+                  <Style TargetType="Image">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Bitmap}" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </Image.Style>
+              </Image>
+              <TextBlock Text="{Binding Item.Icon}" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center">
+                <TextBlock.Style>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="Visibility" Value="Visible" />
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding Bitmap}" Value="{x:Null}">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </TextBlock.Style>
+              </TextBlock>
               <StackPanel VerticalAlignment="Center">
                 <TextBlock Text="{Binding Item.Title}" FontSize="14" Foreground="{StaticResource TextBrush}" TextTrimming="CharacterEllipsis" />
                 <TextBlock Text="{Binding Item.Subtitle}" FontSize="11" Foreground="{StaticResource DimTextBrush}" TextTrimming="CharacterEllipsis">

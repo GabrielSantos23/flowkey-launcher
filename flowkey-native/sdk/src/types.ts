@@ -11,6 +11,7 @@ export interface UiItem {
   title: string;
   subtitle?: string;
   icon?: string;
+  iconUri?: string;
   actions?: UiAction[];
 }
 

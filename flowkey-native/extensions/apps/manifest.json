@@ -1,0 +1,18 @@
+{
+  "id": "apps",
+  "name": "Apps",
+  "version": "1.0.0",
+  "description": "Launch installed applications.",
+  "icon": "\ud83d\ude80",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Apps"
+    }
+  ],
+  "nativeMethods": [
+    "apps.list",
+    "apps.launch"
+  ],
+  "httpHosts": []
+}

@@ -80,7 +80,7 @@ public class SearchStateStaleTests
     public void StaleResultIsDiscarded()
     {
         var state = new SearchState();
-        state.SetCurrent("s2");
+        state.BeginQuery(new[] { ("emoji", "s2") });
 
         var rows = state.ApplyResult("s1", TreeWithEmoji("old"), out var staleOld);
         Assert.True(staleOld);
@@ -92,14 +92,31 @@ public class SearchStateStaleTests
     public void CurrentResultReplacesRows()
     {
         var state = new SearchState();
-        state.SetCurrent("s2");
+        state.BeginQuery(new[] { ("emoji", "s2") });
         state.ApplyResult("s1", TreeWithEmoji("old"), out _);
 
         var rows = state.ApplyResult("s2", TreeWithEmoji("new"), out var stale);
         Assert.False(stale);
         Assert.Single(rows.OfType<ItemRow>());
         Assert.Equal("new", rows.OfType<ItemRow>().First().Item.Id);
+        Assert.Equal("emoji", rows.OfType<ItemRow>().First().ExtensionId);
         Assert.Equal(rows, state.CurrentRows);
+    }
+
+    [Fact]
+    public void MultiExtensionResultsMergeInReadyOrder()
+    {
+        var state = new SearchState();
+        state.BeginQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
+        state.ApplyResult("s2", TreeWithEmoji("app"), out _);
+        var rows = state.ApplyResult("s1", TreeWithEmoji("emoji-first"), out _);
+
+        var items = rows.OfType<ItemRow>().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.Equal("emoji-first", items[0].Item.Id);
+        Assert.Equal("emoji", items[0].ExtensionId);
+        Assert.Equal("app", items[1].Item.Id);
+        Assert.Equal("apps", items[1].ExtensionId);
     }
 }
 

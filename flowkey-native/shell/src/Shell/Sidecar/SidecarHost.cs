@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
@@ -21,6 +22,9 @@ public sealed class SidecarHost : IDisposable
 
     private Process? process;
     private JobObject? job;
+    private readonly ConcurrentQueue<string> outbound = new();
+    private readonly AutoResetEvent outboundSignal = new(false);
+    private Thread? writerThread;
     private int restartAttempts;
     private bool disposed;
     private bool fatal;
@@ -119,6 +123,8 @@ public sealed class SidecarHost : IDisposable
 
         _ = Task.Run(() => ReadLoop(process));
         _ = Task.Run(() => ErrorLoop(process));
+        writerThread = new Thread(WriteLoop) { IsBackground = true };
+        writerThread.Start();
         process.Exited += (_, _) => OnExited();
         process.EnableRaisingEvents = true;
 
@@ -300,6 +306,7 @@ public sealed class SidecarHost : IDisposable
     public void Stop()
     {
         disposed = true;
+        outboundSignal.Set();
         try
         {
             if (process is { HasExited: false })
@@ -317,19 +324,43 @@ public sealed class SidecarHost : IDisposable
 
     private void Send<T>(T message)
     {
-        var p = process;
-        if (p is null || p.HasExited || p.StandardInput is null)
+        if (process is null || process.HasExited)
         {
             return;
         }
-        try
+        outbound.Enqueue(JsonSerializer.Serialize(message, Protocol.JsonOptions.Default));
+        outboundSignal.Set();
+    }
+
+    private void WriteLoop()
+    {
+        while (!disposed)
         {
-            p.StandardInput.WriteLine(JsonSerializer.Serialize(message, Protocol.JsonOptions.Default));
-            p.StandardInput.Flush();
-        }
-        catch (Exception ex)
-        {
-            log($"send failed: {ex.Message}");
+            if (outbound.IsEmpty)
+            {
+                outboundSignal.WaitOne(200);
+                continue;
+            }
+            var p = process;
+            if (p is null || p.HasExited)
+            {
+                outbound.Clear();
+                continue;
+            }
+            while (outbound.TryDequeue(out var line))
+            {
+                try
+                {
+                    p.StandardInput.WriteLine(line);
+                    p.StandardInput.Flush();
+                }
+                catch (Exception ex)
+                {
+                    log($"send failed: {ex.Message}");
+                    outbound.Clear();
+                    break;
+                }
+            }
         }
     }
 

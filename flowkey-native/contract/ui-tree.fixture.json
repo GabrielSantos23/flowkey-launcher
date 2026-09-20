@@ -11,8 +11,15 @@
             "subtitle": "celebration, party, tada",
             "icon": "🎉",
             "actions": [
-              { "id": "copy", "title": "Copy", "primary": true },
-              { "id": "insert", "title": "Insert" }
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              },
+              {
+                "id": "insert",
+                "title": "Insert"
+              }
             ]
           },
           {
@@ -20,7 +27,13 @@
             "title": "🚀 Rocket",
             "subtitle": "ship, launch",
             "icon": "🚀",
-            "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ]
           }
         ]
       },
@@ -32,7 +45,13 @@
             "title": "😀 Grinning Face",
             "subtitle": "happy, joy, smile",
             "icon": "😀",
-            "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ]
           }
         ]
       }
@@ -46,11 +65,26 @@
     "type": "detail",
     "title": "🚀 Rocket",
     "fields": [
-      { "label": "Character", "value": "🚀" },
-      { "label": "Shortcode", "value": ":rocket:" },
-      { "label": "Codepoints", "value": "U+1F680" }
+      {
+        "label": "Character",
+        "value": "🚀"
+      },
+      {
+        "label": "Shortcode",
+        "value": ":rocket:"
+      },
+      {
+        "label": "Codepoints",
+        "value": "U+1F680"
+      }
     ],
-    "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+    "actions": [
+      {
+        "id": "copy",
+        "title": "Copy",
+        "primary": true
+      }
+    ]
   },
   "grid": {
     "type": "grid",
@@ -60,15 +94,30 @@
         "id": "😀",
         "title": "😀 Grinning Face",
         "icon": "😀",
-        "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+        "actions": [
+          {
+            "id": "copy",
+            "title": "Copy",
+            "primary": true
+          }
+        ],
+        "iconUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
       },
       {
         "id": "🎉",
         "title": "🎉 Party Popper",
         "icon": "🎉",
-        "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+        "actions": [
+          {
+            "id": "copy",
+            "title": "Copy",
+            "primary": true
+          }
+        ]
       }
     ],
-    "emptyView": { "title": "Nothing here" }
+    "emptyView": {
+      "title": "Nothing here"
+    }
   }
 }

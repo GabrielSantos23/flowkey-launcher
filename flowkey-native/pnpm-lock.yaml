@@ -8,6 +8,12 @@ importers:
 
   .: {}
 
+  extensions/apps:
+    dependencies:
+      '@flowkey/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+
   extensions/emoji:
     dependencies:
       '@flowkey/native-sdk':
@@ -25,6 +31,9 @@ importers:
 
   sidecar:
     dependencies:
+      '@flowkey/extension-apps':
+        specifier: workspace:*
+        version: link:../extensions/apps
       '@flowkey/extension-emoji':
         specifier: workspace:*
         version: link:../extensions/emoji
