@@ -6,10 +6,11 @@ the sidecar). Idle = window hidden, no interaction, 5 minutes, each shell
 measured with the other closed. All numbers from Release builds on the same
 machine.
 
-| shell  | idle RAM (window hidden, 5 min): shell-only / sidecar / total | cold open (trigger → visible) | warm open |
-| ------ | ------------------------------------------------------------- | ----------------------------- | --------- |
-| tauri  | 79.2 / 0 (no sidecar at idle) / **210.2 MB**                   | not measured¹                  | not measured¹ |
-| native | 77.2 / 12.4 / **89.6 MB**                                      | **82 ms**²                     | **15 ms**² |
+| shell                                                        | idle RAM (window hidden, 5 min): shell-only / sidecar / total | cold open (trigger → visible) | warm open     |
+| ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------- | ------------- |
+| tauri                                                        | 79.2 / 0 (no sidecar at idle) / **210.2 MB**                  | not measured¹                 | not measured¹ |
+| native                                                       | 77.2 / 12.4 / **89.6 MB**                                     | **82 ms**²                    | **15 ms**²    |
+| native (phase 2: 4 extensions, app cache, clipboard history) | 89.7 / 15.8 / **105.5 MB**                                    | **93 ms**                     | **2 ms**      |
 
 **Headline, stated honestly:** the native shell saves ~120 MB at idle — but
 almost none of it comes from the app process itself (77.2 vs 79.2 MB). The
@@ -17,6 +18,18 @@ entire saving is the eliminated WebView2 group (~131 MB), which more than
 absorbs the 12.4 MB bun sidecar. If the Tauri shell also ran extensions in a
 bun sidecar at idle, its total would rise accordingly; conversely the native
 sidecar cost scales with loaded extensions, not with the shell.
+
+## Phase-2 delta, honestly stated
+
+Adding the app launcher (287-entry cache + icon cache + usage store), the
+clipboard history (in-memory list, DPAPI file) and two more loaded extensions
+cost **+12.5 MB** on the shell process and **+3.4 MB** on the sidecar versus
+Phase 1. The shell-only number is still below the Tauri app process alone.
+If the launcher window is never summoned after boot (no WPF render surfaces
+allocated), the same build idles at 49.8 + 14.1 = 63.9 MB total. Cold open
+went from 82 ms to 93 ms with the app cache present (background build, first
+open never blocked); warm open measured 2 ms this round (poll granularity
+dominates; Phase-1's 15 ms remains the more representative warm figure).
 
 ## Build details
 
