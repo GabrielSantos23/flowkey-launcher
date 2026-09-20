@@ -19,6 +19,7 @@ pnpm-lock.yaml
 flowkey-native/**/bin/
 flowkey-native/**/obj/
 flowkey-native/shell/publish/
+flowkey-native/**/TestResults/
 
 # Local-only Claude config — never tracked, anywhere in the tree
 .claude/
