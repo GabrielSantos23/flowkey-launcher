@@ -7,7 +7,7 @@ public static class ClipboardService
 {
     public static void WriteText(string text)
     {
-        for (var attempt = 0; attempt < 5; attempt++)
+        for (var attempt = 0; attempt < 25; attempt++)
         {
             try
             {
@@ -16,7 +16,7 @@ public static class ClipboardService
             }
             catch (System.Runtime.InteropServices.COMException)
             {
-                Thread.Sleep(20);
+                Thread.Sleep(Math.Min(25 * (attempt + 1), 120));
             }
         }
         throw new InvalidOperationException("clipboard busy");

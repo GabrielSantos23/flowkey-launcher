@@ -64,6 +64,7 @@ public class UiTreeFixtureTests
         var detail = Assert.IsType<DetailTree>(tree);
         Assert.Equal("🚀 Rocket", detail.Title);
         Assert.NotEmpty(detail.Fields);
+        Assert.Contains("**fast**", detail.Description);
         Assert.Contains(detail.Actions, a => a.Primary == true);
     }
 

@@ -84,7 +84,8 @@
         "title": "Copy",
         "primary": true
       }
-    ]
+    ],
+    "description": "### Rocket\nA **fast** ship with *style*.\n\n-Reusable\n1. Stage one\n\n`Raptor` engines:\n\n```\nthrust = 2.2 MN\n```\n\n[SpaceX](https://www.spacex.com) and [bad](javascript:alert(1))"
   },
   "grid": {
     "type": "grid",

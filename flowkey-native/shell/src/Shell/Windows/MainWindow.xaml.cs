@@ -8,6 +8,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using FlowKey.Shell.Native;
+using FlowKey.Shell.Rendering;
 using FlowKey.Shell.Protocol;
 using FlowKey.Shell.Sidecar;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -323,9 +324,11 @@ public partial class MainWindow : Window
         }
         if (row.IsCommand)
         {
+            DebugLog.Write("OpenCommand ext=" + row.ExtensionId + " cmd=" + row.CommandId);
             OpenCommand(row);
             return;
         }
+        DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
         sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
     }
 
@@ -405,6 +408,7 @@ public partial class MainWindow : Window
                 return row;
             })
             .ToList();
+        DebugLog.Write("display rows: commands=" + commandRows.Count + " ext=" + extensionRows.Count + " depth=" + searchState.Depth);
         var merged = new List<UiRow>(commandRows);
         merged.AddRange(extensionRows);
         return merged;
@@ -434,6 +438,18 @@ public partial class MainWindow : Window
             {
                 return;
             }
+            if (message.Tree is DetailTree detail)
+            {
+                var extensionId = searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId;
+                DetailHost.Content = DetailRenderer.Render(detail, action =>
+                    sidecar.SendAction(extensionId ?? "", action.Id,
+                        new UiItem { Id = detail.Title }));
+                DetailHost.Visibility = Visibility.Visible;
+                ResultsList.Visibility = Visibility.Collapsed;
+                EmptyView.Visibility = Visibility.Collapsed;
+                return;
+            }
+            DetailHost.Visibility = Visibility.Collapsed;
             if (message.Tree is not ListTree list)
             {
                 ShowToast("received a non-list tree (not rendered in this phase)");
@@ -449,6 +465,7 @@ public partial class MainWindow : Window
             {
                 return;
             }
+            DetailHost.Visibility = Visibility.Collapsed;
             var display = BuildDisplayRows();
             LoadRowIcons(display);
             ApplyRows(display, list.EmptyView);

@@ -44,10 +44,12 @@ describe('ui-tree contract fixture', () => {
     expect(list.emptyView?.title).toBeTruthy();
   });
 
-  test('detail tree has title, fields and a primary action', () => {
+  test('detail tree has title, fields, markdown description and a primary action', () => {
     const detail = asDetail(uiFixture.detail);
     expect(detail.type).toBe('detail');
     expect(detail.fields.length).toBeGreaterThan(0);
+    expect(typeof detail.description).toBe('string');
+    expect(detail.description).toContain('**fast**');
     expect(detail.actions?.some((a) => a.primary)).toBe(true);
   });
 

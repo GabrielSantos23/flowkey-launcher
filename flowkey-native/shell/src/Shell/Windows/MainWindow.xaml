@@ -132,6 +132,12 @@
         </ListBox.Resources>
       </ListBox>
 
+      <ScrollViewer x:Name="DetailHost"
+               Grid.Row="1"
+               Margin="0,0,0,6"
+               VerticalScrollBarVisibility="Auto"
+               Visibility="Collapsed" />
+
       <StackPanel x:Name="EmptyView"
                   Grid.Row="1"
                   VerticalAlignment="Center"

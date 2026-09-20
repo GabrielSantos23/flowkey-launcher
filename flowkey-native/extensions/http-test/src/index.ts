@@ -18,6 +18,27 @@ export default defineExtension({
   },
   handlers: {
     async search(query, ctx) {
+      if (ctx.commandId === 'open') {
+        return {
+          type: 'detail' as const,
+          title: 'HTTP fetch verification',
+          fields: [
+            { label: 'Allowed host', value: 'api.github.com' },
+            { label: 'Blocked host', value: 'example.com' },
+          ],
+          description: [
+            '### What you are seeing',
+            'This page is a **DetailTree** rendered by the shell: *native WPF*, no WebView2.',
+            '',
+            '- inline `code` sample',
+            '1. numbered item',
+            '',
+            'Open link: [GitHub](https://github.com)',
+            'Blocked link: [evil](javascript:alert(1))',
+          ].join('\n'),
+          actions: [{ id: 'rerun', title: 'Re-run checks', primary: true }],
+        };
+      }
       if (query.trim().length === 0) {
         return { type: 'list', sections: [], emptyView: { title: 'Type to run an http.fetch check' } };
       }

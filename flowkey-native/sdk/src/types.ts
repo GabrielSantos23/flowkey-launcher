@@ -40,6 +40,7 @@ export interface DetailTree {
   type: 'detail';
   title: string;
   fields: UiField[];
+  description?: string;
   actions?: UiAction[];
 }
 

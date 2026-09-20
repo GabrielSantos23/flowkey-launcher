@@ -20,6 +20,7 @@ public sealed class DetailTree : UiTree
 {
     public string Title { get; set; } = "";
     public List<UiField> Fields { get; set; } = [];
+    public string? Description { get; set; }
     public List<UiAction> Actions { get; set; } = [];
 }
 
