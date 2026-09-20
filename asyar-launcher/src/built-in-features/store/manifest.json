@@ -1,0 +1,37 @@
+{
+  "id": "store",
+  "name": "Extensions",
+  "description": "Install extensions from .asyar files or folders, and manage the ones you have.",
+  "version": "1.0.0",
+  "author": "Flowkey",
+  "icon": "icon:store",
+  "type": "extension",
+  "searchable": true,
+  "permissions": ["notifications:send"],
+  "commands": [
+    {
+      "id": "browse",
+      "name": "Manage Extensions",
+      "trigger": "store",
+      "description": "Install extensions from files or folders, review what is installed",
+      "icon": "icon:store",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ],
+  "walkthrough": [
+    {
+      "id": "install-an-extension",
+      "title": "Add something Flowkey does not do yet",
+      "summary": "Install your first extension from a file or folder",
+      "icon": "icon:store",
+      "order": 80,
+      "body": "Extensions are built on the same API the built-in features use, so anything you install behaves like it shipped with the app — same search, same actions, same keyboard rules.\n\n## To complete the task\n\nDownload an extension (.asyar package or unpacked folder) from anywhere, open **Manage Extensions**, and install it.",
+      "completion": {
+        "type": "state",
+        "probe": "extensions.installedCount",
+        "atLeast": 1
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "id": "create-extension",
+  "name": "Developer Tools",
+  "icon": "icon:dev-tools",
+  "version": "1.0.0",
+  "description": "Scaffold new Flowkey extensions",
+  "author": "Core",
+  "searchable": true,
+  "type": "extension",
+  "permissions": ["notifications:send"],
+  "commands": [
+    {
+      "id": "open",
+      "name": "Create Extension",
+      "icon": "icon:dev-tools",
+      "description": "Scaffold a new Flowkey extension for development",
+      "mode": "view",
+      "component": "DefaultView"
+    }
+  ],
+  "walkthrough": [
+    {
+      "id": "build-an-extension",
+      "title": "Build your first extension",
+      "summary": "Scaffold an extension and make Flowkey yours",
+      "icon": "icon:dev-tools",
+      "order": 100,
+      "body": "Every built-in feature you have used in this walkthrough is an extension using the same public API you get. If Flowkey is missing something you need, that gap is a few hours of work, not a feature request.\n\n## To complete the task\n\nRun **Developer Tools** and scaffold your first extension.",
+      "completion": {
+        "type": "launch",
+        "target": "cmd_create-extension_*"
+      }
+    }
+  ]
+}

@@ -1,0 +1,140 @@
+#!/usr/bin/env node
+/**
+ * Asyar Development Workspace Setup
+ *
+ * Clones bundled extensions, installs workspace dependencies, builds the SDK,
+ * and verifies the setup.
+ *
+ * Usage:
+ *   git clone https://github.com/Xoshbin/asyar.git
+ *   cd asyar
+ *   node setup.mjs
+ *
+ * Cross-platform (Node.js, no bash dependencies).
+ */
+import { execSync } from 'child_process';
+import { existsSync, mkdirSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { isVersionBelow } from './scripts/setup-version.mjs';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname);
+
+function run(cmd, opts = {}) {
+  execSync(cmd, { cwd: root, stdio: 'inherit', ...opts });
+}
+
+function step(msg) {
+  console.log(`\n── ${msg} ${'─'.repeat(Math.max(0, 60 - msg.length))}`);
+}
+
+// ── Preflight checks ─────────────────────────────────────────────────────────
+
+step('Checking prerequisites');
+
+const checks = [
+  { cmd: 'node --version', name: 'Node.js', minVersion: '20' },
+  { cmd: 'pnpm --version', name: 'pnpm', minVersion: '10.26' },
+  { cmd: 'rustc --version', name: 'Rust' },
+  { cmd: 'cargo --version', name: 'Cargo' },
+];
+
+let preflight = true;
+for (const check of checks) {
+  try {
+    const ver = execSync(check.cmd, { stdio: 'pipe' }).toString().trim();
+    if (check.minVersion && isVersionBelow(ver, check.minVersion)) {
+      console.error(`  ✗ ${check.name}: ${ver} (need ${check.minVersion}+)`);
+      preflight = false;
+    } else {
+      console.log(`  ✓ ${check.name}: ${ver}`);
+    }
+  } catch {
+    console.error(`  ✗ ${check.name}: not found`);
+    preflight = false;
+  }
+}
+
+if (!preflight) {
+  console.error('\nMissing prerequisites. See https://github.com/Xoshbin/asyar#prerequisites');
+  process.exit(1);
+}
+
+// ── Set up extensions directory ──────────────────────────────────────────────
+
+step('Setting up extensions directory');
+
+const extDir = resolve(root, 'extensions');
+if (!existsSync(extDir)) {
+  mkdirSync(extDir, { recursive: true });
+  console.log('  ✓ extensions/ created');
+} else {
+  console.log('  ✓ extensions/ already exists');
+}
+
+const extensions = [
+  { name: 'sdk-playground', url: 'https://github.com/Xoshbin/asyar-sdk-playground-extension.git' },
+];
+
+for (const ext of extensions) {
+  const dir = resolve(extDir, ext.name);
+  if (existsSync(dir)) {
+    console.log(`  ✓ extensions/${ext.name}/ already exists, skipping`);
+  } else {
+    console.log(`  Cloning extensions/${ext.name}...`);
+    run(`git clone ${ext.url} ${ext.name}`, { cwd: extDir });
+    console.log(`  ✓ extensions/${ext.name}`);
+  }
+}
+
+// ── Install dependencies ─────────────────────────────────────────────────────
+
+step('Installing dependencies (pnpm install)');
+
+run('pnpm install');
+
+console.log('  ✓ Dependencies installed and SDK workspace-linked');
+
+// ── Build and attach extensions ──────────────────────────────────────────────
+
+step('Setting up extensions (build + attach)');
+
+for (const ext of extensions) {
+  const dir = resolve(extDir, ext.name);
+  console.log(`  Building extensions/${ext.name}...`);
+  run('pnpm build', { cwd: dir });
+  console.log(`  Attaching extensions/${ext.name}...`);
+  run('pnpm exec asyar attach', { cwd: dir });
+  console.log(`  ✓ extensions/${ext.name} built and attached`);
+}
+
+// ── Verify setup ─────────────────────────────────────────────────────────────
+
+step('Verifying setup (asyar doctor)');
+
+try {
+  run('node dist/cli/index.js doctor', { cwd: resolve(root, 'asyar-sdk') });
+} catch {
+  console.error('\n⚠ Doctor reported issues — see above for details.');
+  console.error('  The workspace is installed but may need manual fixes.');
+  process.exit(1);
+}
+
+// ── Done ─────────────────────────────────────────────────────────────────────
+
+console.log(`
+${'─'.repeat(64)}
+
+  ✓ Asyar development workspace is ready!
+
+  Quick start:
+    pnpm dev          Build SDK and start the app
+    pnpm build:all    Build everything
+    pnpm check        Run doctor + type checks
+
+  Docs:
+    https://github.com/Xoshbin/asyar
+
+${'─'.repeat(64)}
+`);

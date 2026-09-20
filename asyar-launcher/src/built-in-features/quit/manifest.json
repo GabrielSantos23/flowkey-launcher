@@ -1,0 +1,21 @@
+{
+  "id": "quit",
+  "name": "Quit Flowkey",
+  "icon": "icon:power",
+  "version": "1.0.0",
+  "description": "Quit the Flowkey application",
+  "type": "extension",
+  "searchable": true,
+  "commands": [
+    {
+      "id": "quit-asyar",
+      "name": "Quit Flowkey",
+      "icon": "icon:power",
+      "description": "Quit the Flowkey application",
+      "mode": "background"
+    }
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
+}

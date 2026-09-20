@@ -1,0 +1,72 @@
+import type { Extension, ExtensionContext } from 'asyar-sdk/contracts';
+import { ActionContext } from 'asyar-sdk/contracts';
+import RunView from './RunView';
+import { viewManager } from '../../services/extension/viewManager';
+import { runService } from '../../services/run/runService';
+import { actionService, type ApplicationAction } from '../../services/action/actionService';
+
+const CLEAR_RECENT_ACTION_ID = 'runs:clear-recent';
+
+class RunsExtension implements Extension {
+  private inView = false;
+  private readonly handleKeydownBound = (event: KeyboardEvent) => this.handleKeydown(event);
+
+  onUnload = () => {};
+
+  async initialize(_context: ExtensionContext): Promise<void> {}
+
+  async executeCommand(commandId: string, args?: Record<string, unknown>): Promise<unknown> {
+    if (commandId === 'open-runs') {
+      const argsWithId = args as { arguments?: { id?: string } } | undefined;
+      const id = argsWithId?.arguments?.id;
+      runService.selectedRunId = id ?? null;
+      viewManager.navigateToView('runs/RunView');
+    }
+    return undefined;
+  }
+
+  async activate(): Promise<void> {}
+
+  async deactivate(): Promise<void> {}
+
+  async viewActivated(_viewPath: string): Promise<void> {
+    this.inView = true;
+    window.addEventListener('keydown', this.handleKeydownBound);
+
+    actionService.registerAction({
+      id: CLEAR_RECENT_ACTION_ID,
+      label: 'Clear Recent',
+      icon: 'icon:trash',
+      extensionId: 'runs',
+      context: ActionContext.EXTENSION_VIEW,
+      execute: async () => {
+        await runService.clearHistory();
+        actionService.refreshFiltered();
+      },
+      visible: () => (runService.recent?.length ?? 0) > 0,
+    } as ApplicationAction);
+
+    // Initial history load might complete after registerAction
+    runService.loadHistory().then(() => {
+      actionService.refreshFiltered();
+    });
+  }
+
+  async viewDeactivated(_viewPath: string): Promise<void> {
+    window.removeEventListener('keydown', this.handleKeydownBound);
+    this.inView = false;
+    actionService.unregisterAction(CLEAR_RECENT_ACTION_ID);
+  }
+
+  private handleKeydown(event: KeyboardEvent): void {
+    if (!this.inView) return;
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    if (runService.combined.length === 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    runService.moveSelection(event.key === 'ArrowUp' ? 'up' : 'down');
+  }
+}
+
+export default new RunsExtension();
+export { RunView };

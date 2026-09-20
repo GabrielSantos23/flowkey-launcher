@@ -1,0 +1,233 @@
+import { settingsService } from '../settings/settingsService';
+import { logService } from '../log/logService';
+import { isBuiltInFeature } from './extensionDiscovery';
+import {
+  discoverExtensions,
+  setExtensionEnabled,
+  uninstallExtension as uninstallExtensionCmd,
+} from '../../lib/ipc/commands';
+import { statusBarService } from '../statusBar/statusBarService';
+import { removeTheme } from '../theme/themeService';
+import type { ExtendedManifest } from '../../types/ExtendedManifest';
+import type { CompatibilityStatus } from '../../types/CompatibilityStatus';
+
+export class ExtensionStateManager {
+  public extensionUninstallInProgress: string | null = null;
+  public extensionUsageStats: Record<string, number> = {};
+  public extensionLastUsed: Record<string, number> = {};
+
+  /**
+   * Extensions whose declared manifest `runtimes` aren't all installed yet
+   * (download declined, failed, or never attempted). Populated by
+   * `extensionLoaderService` at load time — commands for these extensions
+   * are excluded from search/action indexing until the runtime resolves and
+   * `reloadExtensions()` runs again.
+   */
+  public needsRuntime: string[] = [];
+
+  markNeedsRuntime(extensionId: string): void {
+    if (!this.needsRuntime.includes(extensionId)) {
+      this.needsRuntime = [...this.needsRuntime, extensionId];
+    }
+  }
+
+  clearNeedsRuntime(extensionId: string): void {
+    if (this.needsRuntime.includes(extensionId)) {
+      this.needsRuntime = this.needsRuntime.filter((id) => id !== extensionId);
+    }
+  }
+
+  private manifestsById: Map<string, ExtendedManifest> = new Map();
+  private reloadExtensionsCallback: () => Promise<void> = async () => {};
+
+  public init(
+    manifestsById: Map<string, ExtendedManifest>,
+    reloadExtensionsCallback: () => Promise<void>,
+  ) {
+    this.manifestsById = manifestsById;
+    this.reloadExtensionsCallback = reloadExtensionsCallback;
+  }
+
+  isExtensionEnabled(extensionId: string): boolean {
+    if (isBuiltInFeature(extensionId)) {
+      return true;
+    }
+    return settingsService.isExtensionEnabled(extensionId);
+  }
+
+  setExtensionEnabled(extensionId: string, enabled: boolean): Promise<boolean> {
+    return this.toggleExtensionState(extensionId, enabled);
+  }
+
+  getExtensionCompatibility(extensionId: string): CompatibilityStatus | undefined {
+    const manifest = this.manifestsById.get(extensionId);
+    return manifest?.compatibility;
+  }
+
+  async toggleExtensionState(extensionId: string, enabled: boolean): Promise<boolean> {
+    if (isBuiltInFeature(extensionId) && !enabled) {
+      logService.warn(`Cannot disable built-in feature: ${extensionId}`);
+      return false;
+    }
+
+    try {
+      const ok = await setExtensionEnabled(extensionId, enabled);
+      if (!ok) {
+        logService.error(`Failed to set extension state for '${extensionId}'`);
+        return false;
+      }
+
+      logService.info(
+        `Extension '${extensionId}' state set to ${
+          enabled ? 'enabled' : 'disabled'
+        }. Reloading extensions...`,
+      );
+      await this.reloadExtensionsCallback();
+      return true;
+    } catch (error) {
+      logService.error(`Failed to toggle extension state for '${extensionId}': ${error}`);
+      return false;
+    }
+  }
+
+  async getAllExtensionsWithState(): Promise<any[]> {
+    try {
+      const records = await discoverExtensions();
+      const allExtensionsData: Array<any> = [];
+
+      for (const record of records ?? []) {
+        const manifest = record.manifest;
+        const rawIcon = (manifest as { icon?: string }).icon;
+        let iconUrl: string | undefined;
+        if (rawIcon) {
+          const isSystemScheme =
+            rawIcon.startsWith('icon:') ||
+            rawIcon.startsWith('asyar-icon://') ||
+            rawIcon.startsWith('asyar-extension://') ||
+            rawIcon.startsWith('data:image') ||
+            rawIcon.startsWith('http://') ||
+            rawIcon.startsWith('https://') ||
+            rawIcon.startsWith('file://') ||
+            rawIcon.startsWith('/');
+          if (isSystemScheme) {
+            iconUrl = rawIcon;
+          } else if (rawIcon.includes('.') || rawIcon.includes('/')) {
+            iconUrl = `asyar-extension://${manifest.id}/${rawIcon}`;
+          } else {
+            iconUrl = rawIcon;
+          }
+        }
+        allExtensionsData.push({
+          title: manifest.name,
+          subtitle: manifest.description || '',
+          type: manifest.type || 'unknown',
+          keywords:
+            manifest.commands
+              ?.map((cmd: { trigger?: string; name: string }) => cmd.trigger || cmd.name)
+              .join(' ') || '',
+          enabled: record.enabled,
+          id: manifest.id,
+          version: manifest.version || 'N/A',
+          iconUrl,
+          isBuiltIn: record.isBuiltIn,
+          compatibility: record.compatibility,
+          commands: manifest.commands ?? [],
+          preferences: manifest.preferences ?? [],
+          permissions: (manifest as ExtendedManifest).permissions ?? [],
+          permissionArgs: (manifest as ExtendedManifest).permissionArgs ?? {},
+        });
+      }
+      return allExtensionsData;
+    } catch (error) {
+      logService.error(`Error retrieving all extensions with state: ${error}`);
+      return [];
+    }
+  }
+
+  async getAllExtensions(navigateToView: (viewPath: string) => void): Promise<any[]> {
+    const allItems: any[] = [];
+    this.manifestsById.forEach((manifest) => {
+      const isBuiltIn = isBuiltInFeature(manifest.id);
+      if (isBuiltIn || this.isExtensionEnabled(manifest.id)) {
+        allItems.push({
+          title: manifest.name,
+          subtitle: manifest.description,
+          keywords: manifest.commands?.map((cmd) => cmd.trigger || cmd.name).join(' ') || '',
+          type: manifest.type,
+          action: () => {
+            const firstViewCmd = manifest.commands?.find(
+              (c: any) =>
+                c.mode === 'view' && typeof c.component === 'string' && c.component.length > 0,
+            );
+            if (firstViewCmd) {
+              navigateToView(`${manifest.id}/${firstViewCmd.component}`);
+            } else {
+              logService.info(
+                `Default action triggered for non-view/commandless extension: ${manifest.id}`,
+              );
+            }
+          },
+        });
+      }
+    });
+    return allItems;
+  }
+
+  public recordViewUsage(extensionId: string): void {
+    const manifest = this.manifestsById.get(extensionId);
+    if (manifest && manifest.id) {
+      logService.info(`Extension view opened for extension: ${manifest.id}`);
+      const now = Date.now();
+      const currentCount = this.extensionUsageStats[manifest.id!] || 0;
+      this.extensionUsageStats = { ...this.extensionUsageStats, [manifest.id!]: currentCount + 1 };
+      this.extensionLastUsed = { ...this.extensionLastUsed, [manifest.id!]: now };
+    } else {
+      logService.warn(`Could not find manifest for ID ${extensionId} while updating usage stats.`);
+    }
+  }
+
+  async uninstallExtension(
+    extensionId: string,
+    extensionName: string | undefined,
+    reloadCallback: () => Promise<void>,
+  ): Promise<boolean> {
+    logService.info(`Attempting to uninstall extension ID: ${extensionId}`);
+
+    try {
+      this.extensionUninstallInProgress = extensionId;
+
+      if (isBuiltInFeature(extensionId)) {
+        logService.error(`Cannot uninstall built-in feature: ${extensionId}`);
+        return false;
+      }
+
+      await uninstallExtensionCmd(extensionId);
+
+      statusBarService.clearItemsForExtension(extensionId);
+      settingsService.removeExtensionState(extensionId);
+
+      const currentSettings = settingsService.getSettings();
+      if (currentSettings.appearance?.activeTheme === extensionId) {
+        removeTheme();
+        await settingsService.updateSettings('appearance', { activeTheme: null });
+      }
+
+      logService.info('Reloading extensions and re-syncing index after uninstall...');
+      await reloadCallback();
+
+      logService.info(
+        `Extension ${extensionId}${extensionName ? ` (${extensionName})` : ''} uninstalled successfully.`,
+      );
+      return true;
+    } catch (error) {
+      logService.error(
+        `Failed to uninstall extension ${extensionId}${extensionName ? ` (${extensionName})` : ''}: ${error}`,
+      );
+      return false;
+    } finally {
+      this.extensionUninstallInProgress = null;
+    }
+  }
+}
+
+export const extensionStateManager = new ExtensionStateManager();

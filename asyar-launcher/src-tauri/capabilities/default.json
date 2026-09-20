@@ -1,0 +1,147 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main", "settings", "onboarding"],
+  "permissions": [
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled",
+    "clipboard-x:default",
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "opener:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
+    "log:default",
+    "notification:default",
+    "notification:allow-create-channel",
+    "notification:allow-list-channels",
+    "notification:allow-request-permission",
+    "notification:allow-register-action-types",
+    "notification:allow-show",
+    "dialog:default",
+    "shell:default",
+    "shell:allow-open",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        { "name": "npm", "cmd": "npm", "args": true },
+        { "name": "npm-cmd", "cmd": "npm.cmd", "args": true },
+        { "name": "pnpm", "cmd": "pnpm", "args": true },
+        { "name": "pnpm-cmd", "cmd": "pnpm.cmd", "args": true },
+        { "name": "code", "cmd": "code", "args": true },
+        { "name": "code-cmd", "cmd": "code.cmd", "args": true },
+        { "name": "open", "cmd": "open", "args": true },
+        { "name": "sh", "cmd": "/bin/sh", "args": true },
+        { "name": "cmd-exe", "cmd": "cmd.exe", "args": true }
+      ]
+    },
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "/Applications/**"
+        },
+        {
+          "path": "/System/Applications/**"
+        },
+        {
+          "path": "$APPDATA/Microsoft/Windows/Start Menu/Programs/**"
+        },
+        {
+          "path": "**/*.lnk"
+        }
+      ]
+    },
+    "fs:default",
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPDATA/dev_extensions.json" },
+        { "path": "$APPLOCALDATA/extensions/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-mkdir",
+      "allow": [
+        { "path": "$APPDATA/extensions" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions" },
+        { "path": "$APPLOCALDATA/extensions/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        { "path": "$APP/src/extensions" },
+        { "path": "$APP/src/extensions/**" },
+        { "path": "$APPDATA/extensions" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPDATA/dev_extensions.json" },
+        { "path": "$APPLOCALDATA/extensions" },
+        { "path": "$APPLOCALDATA/extensions/**" }
+      ]
+    },
+    "fs:allow-appconfig-read-recursive",
+    "fs:allow-appconfig-meta-recursive",
+    "fs:allow-resource-read-recursive",
+    "fs:allow-resource-meta-recursive",
+    {
+      "identifier": "fs:allow-read-dir",
+      "allow": [
+        { "path": "$APP/src/extensions" },
+        { "path": "$APP/src/extensions/**" },
+        { "path": "$APPDATA/extensions" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions" },
+        { "path": "$APPLOCALDATA/extensions/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [
+        { "path": "$APP/src/extensions/*/manifest.json" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPDATA/dev_extensions.json" },
+        { "path": "$APPLOCALDATA/extensions/**" }
+      ]
+    },
+    {
+      "identifier": "fs:allow-read-file",
+      "allow": [
+        { "path": "$APP/src/extensions/*/manifest.json" },
+        { "path": "$APP/src/extensions/*/index.*" },
+        { "path": "$APPDATA/extensions/**" },
+        { "path": "$APPLOCALDATA/extensions/**" },
+        { "path": "$APPDATA/clipboard_cache/**" }
+      ]
+    },
+    "store:allow-set",
+    "store:allow-get",
+    "store:allow-save",
+    "store:allow-delete",
+    "store:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-is-registered",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "http:allow-fetch",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://*/*" },
+        { "url": "http://localhost:*/*" },
+        { "url": "http://127.0.0.1:*/*" }
+      ]
+    },
+    "updater:default"
+  ]
+}

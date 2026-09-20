@@ -1,0 +1,80 @@
+{
+  "name": "Google Translate",
+  "id": "google-translate",
+  "version": "1.0.0",
+  "description": "Simple translation via Google Translate",
+  "type": "extension",
+  "searchable": true,
+  "permissions": ["network"],
+  "icon": "icon:globe",
+  "commands": [
+    {
+      "id": "translate",
+      "name": "Translate",
+      "description": "Simple translation via Google Translate",
+      "trigger": "tr",
+      "icon": "icon:globe",
+      "mode": "view",
+      "component": "DefaultView",
+      "searchBarPlaceholder": "Enter text to translate",
+      "searchBarAccessory": {
+        "type": "dropdown",
+        "default": "auto:pt",
+        "options": [
+          {
+            "value": "auto:pt",
+            "title": "Auto-Detect → Portuguese (Brazil)"
+          },
+          {
+            "value": "auto:en",
+            "title": "Auto-Detect → English"
+          },
+          {
+            "value": "auto:es",
+            "title": "Auto-Detect → Spanish"
+          },
+          {
+            "value": "auto:fr",
+            "title": "Auto-Detect → French"
+          },
+          {
+            "value": "auto:de",
+            "title": "Auto-Detect → German"
+          },
+          {
+            "value": "auto:it",
+            "title": "Auto-Detect → Italian"
+          },
+          {
+            "value": "auto:ja",
+            "title": "Auto-Detect → Japanese"
+          },
+          {
+            "value": "auto:zh-CN",
+            "title": "Auto-Detect → Chinese (Simplified)"
+          },
+          {
+            "value": "auto:ru",
+            "title": "Auto-Detect → Russian"
+          },
+          {
+            "value": "en:pt",
+            "title": "English → Portuguese (Brazil)"
+          },
+          {
+            "value": "pt:en",
+            "title": "Portuguese (Brazil) → English"
+          },
+          {
+            "value": "en:es",
+            "title": "English → Spanish"
+          },
+          {
+            "value": "es:en",
+            "title": "Spanish → English"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+# OS / editor
+.DS_Store
+.idea/
+*.swp
+*.swo
+
+# Workspace dependencies
+node_modules/
+
+# Only the workspace root lockfile is real; nested ones are stray artifacts of
+# running install inside a package directory.
+pnpm-lock.yaml
+!/pnpm-lock.yaml
+
+# Local-only Claude config — never tracked, anywhere in the tree
+.claude/
+.superpowers/
+docs/superpowers/
+
+# Dogfood extensions live in their own repos; setup.mjs clones them here
+/extensions/
+
+# Browser companions live in their own repos; developed here, extracted later.
+/browser-companions/
+
+# Build artifacts (subpackages have their own .gitignore too — this is belt + suspenders)
+dist/
+build/
+.svelte-kit/
+target/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+.vscode/Asyar-Project.code-workspace
+.agents/*
+!.agents/skills/
+!.agents/rules/

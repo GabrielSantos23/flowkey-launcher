@@ -1,0 +1,13 @@
+/* View override for org.asyar.emoji (v2, repo-built picker).
+   The picker is authored against the design tokens, so this only adds the
+   arrival fade the reference layout has and quiets the scrollbar rail. */
+
+.section {
+  animation: asyar-override-fade var(--dur-quick) var(--ease-emerge) backwards;
+}
+
+@keyframes asyar-override-fade {
+  from {
+    opacity: 0;
+  }
+}

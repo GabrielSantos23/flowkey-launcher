@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Flowkey Dev",
+  "identifier": "org.asyar.dev",
+  "bundle": {
+    "icon": ["icons/dev/icon.png"]
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["asyar-dev"]
+      }
+    }
+  }
+}

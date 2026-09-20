@@ -1,0 +1,7 @@
+packages:
+  - '.'
+  - 'src/built-in-features/*'
+  - '../asyar-sdk'
+allowBuilds:
+  esbuild: set this to true or false
+  keytar: set this to true or false

@@ -1,0 +1,114 @@
+{
+  "id": "spotify",
+  "name": "Spotify",
+  "icon": "icon:activity",
+  "version": "1.0.0",
+  "description": "Spotify player: now playing, search, your library, queue, devices, and lyrics \u2014 controlled from the launcher.",
+  "type": "extension",
+  "searchable": true,
+  "preferences": [
+    {
+      "name": "clientId",
+      "type": "textfield",
+      "title": "Spotify Client ID",
+      "description": "Create a free app at developer.spotify.com/dashboard, enable the Web API, and add these redirect URIs: asyar://oauth/callback and asyar-dev://oauth/callback. Paste the Client ID here.",
+      "default": ""
+    }
+  ],
+  "commands": [
+    {
+      "id": "now-playing",
+      "name": "Spotify: Now Playing",
+      "trigger": "spotify",
+      "description": "See and control what's playing on Spotify",
+      "icon": "icon:activity",
+      "mode": "view",
+      "component": "DefaultView"
+    },
+    {
+      "id": "search",
+      "name": "Spotify: Search",
+      "description": "Search tracks, artists, albums and playlists on Spotify",
+      "icon": "icon:search",
+      "mode": "view",
+      "component": "SearchView"
+    },
+    {
+      "id": "library",
+      "name": "Spotify: Your Library",
+      "description": "Browse your playlists and saved music",
+      "icon": "icon:bookmark",
+      "mode": "view",
+      "component": "LibraryView"
+    },
+    {
+      "id": "queue",
+      "name": "Spotify: Queue",
+      "description": "See what's coming up next in the queue",
+      "icon": "icon:history",
+      "mode": "view",
+      "component": "QueueView"
+    },
+    {
+      "id": "devices",
+      "name": "Spotify: Devices",
+      "description": "Move playback between your Spotify devices",
+      "icon": "icon:server",
+      "mode": "view",
+      "component": "DevicesView"
+    },
+    {
+      "id": "lyrics",
+      "name": "Spotify: Lyrics",
+      "description": "Lyrics for the currently playing track",
+      "icon": "icon:type",
+      "mode": "view",
+      "component": "LyricsView"
+    },
+    {
+      "id": "toggle-play-pause",
+      "name": "Spotify: Play/Pause",
+      "description": "Toggle play/pause on the active device",
+      "icon": "icon:activity",
+      "mode": "background"
+    },
+    {
+      "id": "next-track",
+      "name": "Spotify: Next Track",
+      "description": "Skip to the next track",
+      "icon": "icon:activity",
+      "mode": "background"
+    },
+    {
+      "id": "previous-track",
+      "name": "Spotify: Previous Track",
+      "description": "Back to the previous track",
+      "icon": "icon:activity",
+      "mode": "background"
+    },
+    {
+      "id": "toggle-shuffle",
+      "name": "Spotify: Toggle Shuffle",
+      "description": "Toggle shuffle on the active device",
+      "icon": "icon:refresh",
+      "mode": "background"
+    },
+    {
+      "id": "cycle-repeat",
+      "name": "Spotify: Cycle Repeat",
+      "description": "Cycle repeat mode: off \u2192 context \u2192 track",
+      "icon": "icon:refresh",
+      "mode": "background"
+    },
+    {
+      "id": "copy-track-url",
+      "name": "Spotify: Copy Track URL",
+      "description": "Copy the open.spotify.com link of the current track",
+      "icon": "icon:copy",
+      "mode": "background"
+    }
+  ],
+  "background": {
+    "main": "dist/worker.js"
+  }
+}

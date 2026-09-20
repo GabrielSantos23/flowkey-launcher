@@ -1,0 +1,88 @@
+/* View override for org.asyar.google-translate.
+   Restyles the bundles' existing classes toward the reference layout:
+   the primary result reads as a row — translation left, direction hint
+   right — and the in-flight state is a visible centered pulse.
+   Uses only tokens the host injects at runtime. */
+
+/* ── Primary result: row layout, direction hint right ───────────────── */
+
+.translate {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--separator);
+}
+
+.translate__meta {
+  order: 2;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.translate__output {
+  order: 1;
+  flex: 1;
+  font-size: var(--font-size-2xl);
+}
+
+.translate__pron {
+  order: 3;
+  flex-shrink: 0;
+  color: var(--text-tertiary);
+}
+
+/* Selection-result variant: same row rhythm for the inline answer. */
+.selection-result {
+  padding: var(--space-4) var(--space-5);
+}
+
+.selection-result .translated {
+  font-size: var(--font-size-2xl);
+}
+
+.selection-result .src {
+  background: transparent;
+  padding: 0;
+  color: var(--text-tertiary);
+}
+
+/* ── History: list rows with hover and a rounded selected band ──────── */
+
+.history__row {
+  border-bottom: none;
+  margin: 0 var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+.history__row--selected {
+  background: var(--bg-selected);
+  box-shadow: inset 0 0 2px 0.5px var(--kbd-rim);
+}
+
+.history__top {
+  font-size: var(--font-size-md);
+}
+
+.history__bottom {
+  color: var(--text-tertiary);
+}
+
+/* ── Loading state: centered, breathing pulse while the request runs ── */
+
+.translate__loading,
+.translate__hint {
+  align-self: center;
+  margin: var(--space-8) 0;
+  color: var(--text-tertiary);
+  animation: asyar-override-pulse 1.4s var(--ease-travel) infinite;
+}
+
+@keyframes asyar-override-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
