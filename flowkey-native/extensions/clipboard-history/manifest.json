@@ -3,15 +3,27 @@
   "name": "Clipboard History",
   "version": "1.0.0",
   "description": "Browse and re-copy recent clipboard text.",
-  "icon": "\ud83d\udccb",
+  "icon": "📋",
   "commands": [
     {
       "id": "open",
-      "title": "Clipboard History"
+      "title": "Clipboard History",
+      "mode": "view",
+      "keywords": [
+        "clipboard",
+        "history",
+        "paste"
+      ]
     },
     {
       "id": "clear",
-      "title": "Clear Clipboard History"
+      "title": "Clear Clipboard History",
+      "mode": "background",
+      "keywords": [
+        "clipboard",
+        "clear",
+        "wipe"
+      ]
     }
   ],
   "nativeMethods": [

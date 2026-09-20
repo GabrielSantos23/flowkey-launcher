@@ -1,4 +1,5 @@
 import { defineExtension, type UiItem, type ExtensionModule } from '@flowkey/native-sdk';
+import manifestJson from '../manifest.json';
 
 interface HistoryItem {
   id: string;
@@ -19,32 +20,15 @@ function toUiItem(entry: HistoryItem): UiItem {
 }
 
 export default defineExtension({
-  manifest: {
-    id: 'clipboard-history',
-    name: 'Clipboard History',
-    version: '1.0.0',
-    description: 'Browse and re-copy recent clipboard text.',
-    icon: '📋',
-    commands: [
-      { id: 'open', title: 'Clipboard History' },
-      { id: 'clear', title: 'Clear Clipboard History' },
-    ],
-    nativeMethods: ['clipboard.read', 'clipboard.history', 'clipboard.clearHistory', 'clipboard.write'],
-    httpHosts: [],
-  },
+  manifest: manifestJson as unknown as ExtensionModule['manifest'],
   handlers: {
+    async command(commandId, ctx) {
+      if (commandId === 'clear') {
+        await ctx.native.call('clipboard.clearHistory', {});
+      }
+    },
     async search(query, ctx) {
       const q = query.trim();
-      if (q.toLowerCase() === 'clear') {
-        return {
-          type: 'list',
-          sections: [{
-            title: 'Maintenance',
-            items: [{ id: '__clear__', title: 'Clear clipboard history', actions: [{ id: 'clearHistory', title: 'Clear', primary: true }] }],
-          }],
-          emptyView: { title: 'Nothing to clear' },
-        };
-      }
       lastQuery = q;
       const result = (await ctx.native.call<{ items: HistoryItem[] }>('clipboard.history', {
         query: q,

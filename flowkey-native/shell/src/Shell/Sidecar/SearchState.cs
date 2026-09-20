@@ -2,53 +2,151 @@ using FlowKey.Shell.Protocol;
 
 namespace FlowKey.Shell.Sidecar;
 
+public sealed class SearchLevel
+{
+    public string? ExtensionId { get; set; }
+    public string? CommandId { get; init; }
+    public string Query { get; set; } = "";
+    public List<string> RequestIds { get; } = new();
+    public Dictionary<string, string> ExtensionByRequest { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, IReadOnlyList<UiRow>> RowsByRequest { get; } = new(StringComparer.Ordinal);
+    public IReadOnlyList<UiRow> Rows { get; set; } = Array.Empty<UiRow>();
+}
+
 public sealed class SearchState
 {
-    private readonly HashSet<string> currentRequestIds = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> extensionByRequest = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, IReadOnlyList<UiRow>> rowsByRequest = new(StringComparer.Ordinal);
-    private readonly List<string> orderedRequestIds = new();
+    private readonly Stack<SearchLevel> levels = new();
+    private readonly HashSet<string> liveRequestIds = new(StringComparer.Ordinal);
+    private long generation;
 
-    public IReadOnlyList<UiRow> CurrentRows { get; private set; } = Array.Empty<UiRow>();
+    public const string OpenActionId = "__open__";
 
-    public void BeginQuery(IReadOnlyList<(string ExtensionId, string RequestId)> requests)
+    public int Depth => levels.Count;
+    public string CurrentQuery => levels.Count > 0 ? levels.Peek().Query : "";
+    public long Generation { get; private set; }
+
+    public void BeginRootQuery(string query, IReadOnlyList<(string ExtensionId, string RequestId)> requests)
     {
-        currentRequestIds.Clear();
-        rowsByRequest.Clear();
-        orderedRequestIds.Clear();
-        extensionByRequest.Clear();
-        foreach (var (extensionId, requestId) in requests)
+        generation++;
+        liveRequestIds.Clear();
+        var level = new SearchLevel { Query = query };
+        RegisterRequests(level, requests.Select(r => (r.ExtensionId, r.RequestId)));
+        levels.Clear();
+        levels.Push(level);
+    }
+
+    public void PushRequest(string requestId, string extensionId, string commandId)
+    {
+        generation++;
+        liveRequestIds.Clear();
+        var level = new SearchLevel { ExtensionId = extensionId, CommandId = commandId, Query = "" };
+        level.ExtensionByRequest[requestId] = extensionId;
+        level.RequestIds.Add(requestId);
+        level.RowsByRequest[requestId] = Array.Empty<UiRow>();
+        liveRequestIds.Add(requestId);
+        levels.Push(level);
+    }
+
+    public bool Pop()
+    {
+        if (levels.Count <= 1)
         {
-            currentRequestIds.Add(requestId);
-            extensionByRequest[requestId] = extensionId;
-            rowsByRequest[requestId] = Array.Empty<UiRow>();
-            orderedRequestIds.Add(requestId);
+            return false;
+        }
+        var top = levels.Pop();
+        liveRequestIds.Clear();
+        generation++;
+        foreach (var id in levels.Peek().RequestIds)
+        {
+            liveRequestIds.Add(id);
+        }
+        return true;
+    }
+
+    public void ResetToRoot()
+    {
+        while (levels.Count > 1)
+        {
+            levels.Pop();
+        }
+        liveRequestIds.Clear();
+        generation++;
+        if (levels.Count > 0)
+        {
+            foreach (var id in levels.Peek().RequestIds)
+            {
+                liveRequestIds.Add(id);
+            }
         }
     }
 
-    public bool IsCurrent(string requestId) =>
-        !string.IsNullOrEmpty(requestId) && currentRequestIds.Contains(requestId);
+    public SearchLevel? Top => levels.Count > 0 ? levels.Peek() : null;
+
+    public void BeginLevelQuery(IReadOnlyList<(string ExtensionId, string RequestId)> requests)
+    {
+        generation++;
+        liveRequestIds.Clear();
+        if (levels.Count == 0)
+        {
+            levels.Push(new SearchLevel());
+        }
+        var top = levels.Peek();
+        top.RequestIds.Clear();
+        top.RowsByRequest.Clear();
+        foreach (var (extensionId, requestId) in requests)
+        {
+            top.RequestIds.Add(requestId);
+            top.ExtensionByRequest[requestId] = extensionId;
+            top.RowsByRequest[requestId] = Array.Empty<UiRow>();
+            liveRequestIds.Add(requestId);
+        }
+    }
 
     public string? ExtensionFor(string requestId) =>
-        extensionByRequest.TryGetValue(requestId, out var id) ? id : null;
+        Top?.RequestIds.Contains(requestId) == true ? Top.ExtensionId : null;
+
+    public (string? ExtensionId, string? CommandId) RequestContext(string requestId)
+    {
+        var top = Top;
+        if (top is null || !top.RequestIds.Contains(requestId))
+        {
+            return (null, null);
+        }
+        return (top.ExtensionId, top.CommandId);
+    }
 
     public IReadOnlyList<UiRow> ApplyResult(string requestId, ListTree tree, out bool stale)
     {
-        if (!IsCurrent(requestId))
+        var top = Top;
+        if (top is null || !liveRequestIds.Contains(requestId))
         {
             stale = true;
             return CurrentRows;
         }
 
         stale = false;
-        rowsByRequest[requestId] = RowBuilder.Flatten(tree, ExtensionFor(requestId));
+        top.ExtensionByRequest.TryGetValue(requestId, out var extensionId);
+        top.RowsByRequest[requestId] = RowBuilder.Flatten(tree, extensionId);
         var merged = new List<UiRow>();
-        foreach (var id in orderedRequestIds)
+        foreach (var id in top.RequestIds)
         {
-            merged.AddRange(rowsByRequest[id]);
+            merged.AddRange(top.RowsByRequest[id]);
         }
+        top.Rows = merged;
         CurrentRows = merged;
         return CurrentRows;
+    }
+
+    public IReadOnlyList<UiRow> CurrentRows { get; private set; } = Array.Empty<UiRow>();
+
+    private void RegisterRequests(SearchLevel level, IEnumerable<(string ExtensionId, string RequestId)> requests)
+    {
+        foreach (var (extensionId, requestId) in requests)
+        {
+            level.RequestIds.Add(requestId);
+            level.RowsByRequest[requestId] = Array.Empty<UiRow>();
+            liveRequestIds.Add(requestId);
+        }
     }
 }
 
@@ -69,6 +167,8 @@ public sealed class ItemRow : UiRow
 {
     public UiItem Item { get; init; } = new();
     public System.Windows.Media.ImageSource? Bitmap { get; set; }
+    public bool IsCommand { get; set; }
+    public string? CommandId { get; set; }
 }
 
 public static class RowBuilder

@@ -35,6 +35,7 @@ public sealed class SidecarHost : IDisposable
     public event Action<Protocol.LogMessage>? Log;
     public event Action<string, string, string, Dictionary<string, JsonElement>?>? NativeCallRequested;
     public event Action<string>? SidecarCrashed;
+    public event Action<Protocol.AckMessage>? Ack;
     public event Action<string>? Fatal;
 
     public SidecarHost(string scriptPath, string extensionsDir, Action<string> log)
@@ -141,11 +142,11 @@ public sealed class SidecarHost : IDisposable
         Send(init);
     }
 
-    public string SendSearch(string extensionId, string query)
+    public string SendSearch(string extensionId, string query, string? commandId = null)
     {
         requestCounter++;
         var requestId = $"s{requestCounter}";
-        Send(new Protocol.SearchMessage { RequestId = requestId, ExtensionId = extensionId, Query = query });
+        Send(new Protocol.SearchMessage { RequestId = requestId, ExtensionId = extensionId, Query = query, CommandId = commandId });
         return requestId;
     }
 
@@ -220,6 +221,13 @@ public sealed class SidecarHost : IDisposable
                     if (ui is not null)
                     {
                         Ui?.Invoke(ui);
+                    }
+                    break;
+                case "ack":
+                    var ack = root.Deserialize<Protocol.AckMessage>(Protocol.JsonOptions.Default);
+                    if (ack is not null)
+                    {
+                        Ack?.Invoke(ack);
                     }
                     break;
                 case "error":

@@ -42,6 +42,7 @@ public partial class MainWindow : Window
     private bool allowClose;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
+    private readonly HashSet<string> pendingPushRequests = new(StringComparer.Ordinal);
 
     public MainWindow()
     {
@@ -75,6 +76,7 @@ public partial class MainWindow : Window
 
         sidecar.Ready += OnSidecarReady;
         sidecar.Ui += OnSidecarUi;
+        sidecar.Ack += OnSidecarAck;
         sidecar.Error += OnSidecarError;
         sidecar.Log += m => Dispatcher.BeginInvoke(() => SetStatusBar(m.Message));
         sidecar.NativeCallRequested += OnNativeCallRequested;
@@ -259,7 +261,18 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Escape:
-                HideWindow();
+                if (searchState.Depth > 1 && searchState.Pop())
+                {
+                    var restored = searchState.CurrentRows;
+                    LoadRowIcons(restored);
+                    ApplyRows(restored, null);
+                    SearchBox.Text = searchState.CurrentQuery;
+                    SendSearch(searchState.CurrentQuery);
+                }
+                else
+                {
+                    HideWindow();
+                }
                 e.Handled = true;
                 break;
         }
@@ -308,7 +321,32 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (row.IsCommand)
+        {
+            OpenCommand(row);
+            return;
+        }
         sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
+    }
+
+    private void OpenCommand(ItemRow row)
+    {
+        var requestId = sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
+            new UiItem { Id = row.CommandId, Title = row.Item.Title });
+        searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
+    }
+
+    private void OnSidecarAck(AckMessage ack)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (searchState.Depth > 1)
+            {
+                searchState.ResetToRoot();
+                SendSearch("");
+            }
+            ShowToast("Command completed");
+        });
     }
 
     private void SendSearch(string query)
@@ -319,13 +357,67 @@ public partial class MainWindow : Window
             return;
         }
         DebugLog.Write("SendSearch query='" + query + "'");
-        var requests = readyExtensions.Select(ext => (ext.Id, sidecar.SendSearch(ext.Id, query))).ToList();
-        searchState.BeginQuery(requests);
+        var top = searchState.Top;
+        if (top is null)
+        {
+            searchState.BeginLevelQuery(Array.Empty<(string, string)>());
+            top = searchState.Top;
+        }
+        top.Query = query;
+        if (top is { CommandId: not null, ExtensionId: not null })
+        {
+            var requestId = sidecar.SendSearch(top.ExtensionId, query, top.CommandId);
+            searchState.BeginLevelQuery(new[] { (ExtensionId: top.ExtensionId, RequestId: requestId) });
+        }
+        else
+        {
+            var requests = readyExtensions
+                .Select(ext => (ext.Id, sidecar.SendSearch(ext.Id, query)))
+                .ToList();
+            searchState.BeginLevelQuery(requests);
+        }
+        top.Query = query;
+    }
+
+    private IReadOnlyList<UiRow> BuildDisplayRows()
+    {
+        var extensionRows = searchState.CurrentRows;
+        if (searchState.Depth > 1)
+        {
+            return extensionRows;
+        }
+        var query = SearchBox.Text.Trim();
+        var commandRows = CommandCatalog
+            .Search(query, readyExtensions)
+            .Select(cmd =>
+            {
+                var row = UiRow.Item(new UiItem
+                {
+                    Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
+                    Title = cmd.Command.Title,
+                    Subtitle = cmd.ExtensionName + (cmd.Command.Mode == "background" ? " (background)" : ""),
+                    Icon = cmd.Extension.Icon,
+                    Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
+                });
+                row.ExtensionId = cmd.ExtensionId;
+                row.IsCommand = true;
+                row.CommandId = cmd.Command.Id;
+                return row;
+            })
+            .ToList();
+        var merged = new List<UiRow>(commandRows);
+        merged.AddRange(extensionRows);
+        return merged;
     }
 
     private void OnSidecarReady(ReadyMessage ready)
     {
         readyExtensions = ready.Extensions;
+        if (searchState.Depth > 1)
+        {
+            searchState.ResetToRoot();
+            ShowToast("Extensions restarted — returned to root");
+        }
         var first = ready.Extensions.FirstOrDefault();
         Dispatcher.BeginInvoke(() =>
         {
@@ -348,13 +440,18 @@ public partial class MainWindow : Window
                 return;
             }
             DebugLog.Write($"UiReceived req={message.RequestId}");
+            if (pendingPushRequests.Remove(message.RequestId))
+            {
+                DebugLog.Write("pushed view arrived req=" + message.RequestId);
+            }
             var rows = searchState.ApplyResult(message.RequestId, list, out var stale);
             if (stale)
             {
                 return;
             }
-            LoadRowIcons(rows);
-            ApplyRows(rows, list.EmptyView);
+            var display = BuildDisplayRows();
+            LoadRowIcons(display);
+            ApplyRows(display, list.EmptyView);
         });
     }
 

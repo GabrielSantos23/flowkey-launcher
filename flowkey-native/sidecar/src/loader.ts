@@ -18,7 +18,15 @@ type LoadedExtension = ExtensionModule & { preferences: Preferences };
 const REGISTRY: ExtensionModule[] = [emoji, apps, httpTest, clipboardHistory];
 
 export function loadExtensions(): ExtensionModule[] {
-  return REGISTRY;
+  return REGISTRY.filter((m) => {
+    const reserved = m.manifest.commands.some((c) => c.id === '__open__');
+    if (reserved) {
+      process.stderr.write(`extension ${m.manifest.id} declares reserved action id __open__; skipped
+`);
+      return false;
+    }
+    return true;
+  });
 }
 
 export function toReadyExtensions(modules: ExtensionModule[]): ReadyExtension[] {
@@ -26,6 +34,7 @@ export function toReadyExtensions(modules: ExtensionModule[]): ReadyExtension[] 
     id: m.manifest.id,
     name: m.manifest.name,
     version: m.manifest.version,
+    icon: m.manifest.icon,
     commands: m.manifest.commands,
     nativeMethods: m.manifest.nativeMethods,
     httpHosts: m.manifest.httpHosts,
@@ -43,6 +52,7 @@ export class Dispatcher {
   private bridge: NativeBridge;
   private lastQuery = '';
   private lastExtensionId = '';
+  private commandIdByRequest = new Map<string, string>();
 
   constructor(
     private loaded: LoadedExtension[],
@@ -64,6 +74,9 @@ export class Dispatcher {
       case 'init':
         break;
       case 'search':
+        if (message.commandId) {
+          this.commandIdByRequest.set(message.requestId, message.commandId);
+        }
         await this.runSearch(message.extensionId, message.query, message.requestId, emit);
         break;
       case 'action':
@@ -131,6 +144,38 @@ export class Dispatcher {
       return;
     }
     try {
+      if (actionId === '__open__') {
+        const commandId = item?.id ?? '';
+        const command = ext.manifest.commands.find((c) => c.id === commandId);
+        if (!command) {
+          emit({
+            type: 'error',
+            requestId,
+            error: {
+              code: 'unknownCommand',
+              message: `command '${commandId}' not found in ${extensionId}`,
+            },
+          });
+          return;
+        }
+        if (command.mode === 'background') {
+          if (!ext.handlers.command) {
+            emit({
+              type: 'error',
+              requestId,
+              error: { code: 'unknownCommand', message: `command '${commandId}' has no handler` },
+            });
+            return;
+          }
+          await ext.handlers.command(commandId, this.context(ext));
+          emit({ type: 'ack', requestId });
+          return;
+        }
+        const tree = await ext.handlers.search('', this.context(ext, commandId));
+        emit({ type: 'ui', requestId, tree });
+        return;
+      }
+
       const tree: UiTree | null | undefined = ext.handlers.onAction
         ? await ext.handlers.onAction(actionId, item, this.context(ext))
         : null;
@@ -147,9 +192,10 @@ export class Dispatcher {
     }
   }
 
-  private context(ext: LoadedExtension) {
+  private context(ext: LoadedExtension, commandId?: string) {
     return {
       preferences: ext.preferences,
+      commandId,
       native: {
         call: <T = unknown>(method: string, params?: Record<string, unknown>) =>
           this.bridge.call<T>(ext.manifest.id, method, params),

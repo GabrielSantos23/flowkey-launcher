@@ -5,13 +5,18 @@
       "type": "init",
       "protocolVersion": 1,
       "extensionsDir": "C:/app/extensions",
-      "preferences": { "emoji": { "skinTone": "none" } }
+      "preferences": {
+        "emoji": {
+          "skinTone": "none"
+        }
+      }
     },
     "search": {
       "type": "search",
       "requestId": "s-1",
       "extensionId": "emoji",
-      "query": "part"
+      "query": "part",
+      "commandId": null
     },
     "action": {
       "type": "action",
@@ -22,13 +27,28 @@
         "id": "🎉",
         "title": "🎉 Party Popper",
         "icon": "🎉",
-        "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+        "actions": [
+          {
+            "id": "copy",
+            "title": "Copy",
+            "primary": true
+          }
+        ]
       }
     },
     "preferences": {
       "type": "preferences",
       "extensionId": "emoji",
-      "values": { "skinTone": "1F3FD" }
+      "values": {
+        "skinTone": "1F3FD"
+      }
+    },
+    "searchWithCommand": {
+      "type": "search",
+      "requestId": "s-9",
+      "extensionId": "clipboard-history",
+      "query": "",
+      "commandId": "open"
     }
   },
   "sidecarToHost": {
@@ -40,9 +60,17 @@
           "id": "emoji",
           "name": "Emoji",
           "version": "1.0.0",
-          "commands": [{ "id": "open", "title": "Emoji & Symbols" }],
+          "commands": [
+            {
+              "id": "open",
+              "title": "Emoji & Symbols",
+              "keywords": ["emoji", "symbol", "kaomoji"],
+              "mode": "view"
+            }
+          ],
           "nativeMethods": ["clipboard.write"],
-          "httpHosts": []
+          "httpHosts": [],
+          "icon": "😀"
         }
       ]
     },
@@ -59,33 +87,56 @@
                 "title": "🎉 Party Popper",
                 "subtitle": "celebration, party",
                 "icon": "🎉",
-                "actions": [{ "id": "copy", "title": "Copy", "primary": true }]
+                "actions": [
+                  {
+                    "id": "copy",
+                    "title": "Copy",
+                    "primary": true
+                  }
+                ]
               }
             ]
           }
         ],
-        "emptyView": { "title": "No matches" }
+        "emptyView": {
+          "title": "No matches"
+        }
       }
     },
     "error": {
       "type": "error",
       "requestId": "a-1",
-      "error": { "code": "nativeMethodFailed", "message": "clipboard.write failed: access denied" }
+      "error": {
+        "code": "nativeMethodFailed",
+        "message": "clipboard.write failed: access denied"
+      }
     },
     "nativeCall": {
       "type": "nativeCall",
       "requestId": "n-1",
       "extensionId": "emoji",
       "method": "clipboard.write",
-      "params": { "text": "🎉" }
+      "params": {
+        "text": "🎉"
+      }
     },
     "nativeCallDenied": {
       "type": "nativeCall",
       "requestId": "n-2",
       "extensionId": "emoji",
       "method": "http.fetch",
-      "params": { "url": "https://evil.example.com/api" }
+      "params": {
+        "url": "https://evil.example.com/api"
+      }
     },
-    "log": { "type": "log", "level": "info", "message": "emoji catalog loaded (1878 items)" }
+    "log": {
+      "type": "log",
+      "level": "info",
+      "message": "emoji catalog loaded (1878 items)"
+    },
+    "ack": {
+      "type": "ack",
+      "requestId": "a-2"
+    }
   }
 }

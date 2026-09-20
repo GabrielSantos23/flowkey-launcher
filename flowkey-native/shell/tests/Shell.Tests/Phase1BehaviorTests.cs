@@ -80,7 +80,7 @@ public class SearchStateStaleTests
     public void StaleResultIsDiscarded()
     {
         var state = new SearchState();
-        state.BeginQuery(new[] { ("emoji", "s2") });
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
 
         var rows = state.ApplyResult("s1", TreeWithEmoji("old"), out var staleOld);
         Assert.True(staleOld);
@@ -92,7 +92,7 @@ public class SearchStateStaleTests
     public void CurrentResultReplacesRows()
     {
         var state = new SearchState();
-        state.BeginQuery(new[] { ("emoji", "s2") });
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
         state.ApplyResult("s1", TreeWithEmoji("old"), out _);
 
         var rows = state.ApplyResult("s2", TreeWithEmoji("new"), out var stale);
@@ -104,10 +104,56 @@ public class SearchStateStaleTests
     }
 
     [Fact]
+    public void PushedViewDiscardsStaleRootResponses()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "clipboard-history", "open");
+
+        state.ApplyResult("s1", TreeWithEmoji("late-root"), out var staleRoot);
+        Assert.True(staleRoot);
+
+        var rows = state.ApplyResult("s2", TreeWithEmoji("pushed"), out var stalePushed);
+        Assert.False(stalePushed);
+        Assert.Equal("pushed", rows.OfType<ItemRow>().Single().Item.Id);
+        Assert.Equal(2, state.Depth);
+    }
+
+    [Fact]
+    public void PopRestoresRootLevelAndDiscardsPushedResponses()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "clipboard-history", "open");
+        state.Pop();
+
+        state.ApplyResult("s2", TreeWithEmoji("dead-view"), out var stalePushed);
+        Assert.True(stalePushed);
+
+        var rows = state.ApplyResult("s1", TreeWithEmoji("root"), out var staleRoot);
+        Assert.False(staleRoot);
+        Assert.Equal(1, state.Depth);
+        Assert.Equal("root", rows.OfType<ItemRow>().Single().Item.Id);
+    }
+
+    [Fact]
+    public void ResetToRootAfterRestartPopsEverything()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "a", "open");
+        state.PushRequest("s3", "a", "open");
+        state.ResetToRoot();
+        Assert.Equal(1, state.Depth);
+        state.ApplyResult("s3", TreeWithEmoji("x"), out var stale);
+        Assert.True(stale);
+    }
+
+    [Fact]
     public void MultiExtensionResultsMergeInReadyOrder()
     {
         var state = new SearchState();
-        state.BeginQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
+        state.BeginLevelQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
         state.ApplyResult("s2", TreeWithEmoji("app"), out _);
         var rows = state.ApplyResult("s1", TreeWithEmoji("emoji-first"), out _);
 

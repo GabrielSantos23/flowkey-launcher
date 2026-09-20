@@ -126,6 +126,31 @@ public class ProtocolFixtureTests
     }
 
     [Fact]
+    public void SearchMayCarryCommandId()
+    {
+        var search = Root().GetProperty("hostToSidecar").GetProperty("searchWithCommand").Deserialize<SearchMessage>(JsonOptions.Default)!;
+        Assert.Equal("open", search.CommandId);
+        Assert.Equal("clipboard-history", search.ExtensionId);
+    }
+
+    [Fact]
+    public void CommandsMayDeclareKeywordsAndMode()
+    {
+        var ready = Root().GetProperty("sidecarToHost").GetProperty("ready").Deserialize<ReadyMessage>(JsonOptions.Default)!;
+        var command = ready.Extensions[0].Commands[0];
+        Assert.Contains("emoji", command.Keywords!);
+        Assert.Equal("view", command.Mode);
+    }
+
+    [Fact]
+    public void AckCarriesRequestIdOnly()
+    {
+        var ack = Root().GetProperty("sidecarToHost").GetProperty("ack").Deserialize<AckMessage>(JsonOptions.Default)!;
+        Assert.Equal("ack", ack.Type);
+        Assert.False(string.IsNullOrWhiteSpace(ack.RequestId));
+    }
+
+    [Fact]
     public void NativeCallCarriesExtensionId()
     {
         var root = Root();

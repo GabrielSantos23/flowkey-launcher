@@ -58,7 +58,7 @@ export interface ExtensionManifest {
   version: string;
   description?: string;
   icon?: string;
-  commands: { id: string; title: string }[];
+  commands: { id: string; title: string; keywords?: string[]; mode?: 'view' | 'background' }[];
   nativeMethods: string[];
   httpHosts: string[];
 }
@@ -67,6 +67,7 @@ export type Preferences = Record<string, unknown>;
 
 export interface ExtensionContext {
   preferences: Preferences;
+  commandId?: string;
   native: {
     call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   };
@@ -79,6 +80,7 @@ export interface SearchHandlers {
     item: UiItem | undefined,
     ctx: ExtensionContext,
   ): Promise<UiTree | null>;
+  command?(commandId: string, ctx: ExtensionContext): Promise<void>;
   detail?(item: UiItem, ctx: ExtensionContext): Promise<DetailTree>;
   grid?(query: string, ctx: ExtensionContext): Promise<GridTree>;
 }
@@ -92,7 +94,8 @@ export interface ReadyExtension {
   id: string;
   name: string;
   version: string;
-  commands: { id: string; title: string }[];
+  icon?: string;
+  commands: { id: string; title: string; keywords?: string[]; mode?: 'view' | 'background' }[];
   nativeMethods: string[];
   httpHosts: string[];
 }
@@ -109,6 +112,7 @@ export interface SearchMessage {
   requestId: string;
   extensionId: string;
   query: string;
+  commandId?: string;
 }
 
 export interface ActionMessage {
@@ -168,6 +172,11 @@ export type NativeResultMessage =
       error: { code: string; message: string };
     };
 
+export interface AckMessage {
+  type: 'ack';
+  requestId: string;
+}
+
 export interface LogMessage {
   type: 'log';
   level: 'debug' | 'info' | 'warn' | 'error';
@@ -175,7 +184,7 @@ export interface LogMessage {
 }
 
 export type SidecarMessage =
-  ReadyMessage | UiMessage | ErrorMessage | NativeCallMessage | NativeResultMessage | LogMessage;
+  ReadyMessage | UiMessage | ErrorMessage | AckMessage | NativeCallMessage | LogMessage;
 
 export function defineExtension(module: ExtensionModule): ExtensionModule {
   return module;

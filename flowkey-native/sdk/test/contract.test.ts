@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   PROTOCOL_VERSION,
+  type AckMessage,
   type ActionMessage,
   type DetailTree,
   type GridTree,
@@ -10,6 +11,7 @@ import {
   type ListTree,
   type NativeCallMessage,
   type ReadyMessage,
+  type SearchMessage,
   type UiTree,
 } from '../src/types';
 
@@ -106,6 +108,26 @@ describe('protocol contract fixture', () => {
     expect(action.requestId).toBeTruthy();
     expect(action.extensionId).toBeTruthy();
     expect(action.item?.id).toBeTruthy();
+  });
+
+  test('search with a command context carries commandId', () => {
+    const search: SearchMessage = protocolFixture.hostToSidecar.searchWithCommand;
+    expect(search.commandId).toBe('open');
+    expect(search.extensionId).toBe('clipboard-history');
+  });
+
+  test('ready commands may declare keywords and mode', () => {
+    const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
+    const command = ready.extensions[0].commands[0];
+    expect(Array.isArray(command.keywords)).toBe(true);
+    expect(['view', 'background']).toContain(command.mode);
+  });
+
+  test('ack is emitted on the success path only', () => {
+    const ack: AckMessage = protocolFixture.sidecarToHost.ack;
+    expect(ack.type).toBe('ack');
+    expect(ack.requestId).toBeTruthy();
+    expect('ok' in ack).toBe(false);
   });
 
   test('nativeCall carries extensionId for attribution', () => {

@@ -16,6 +16,7 @@ public sealed class SearchMessage
     public string RequestId { get; set; } = "";
     public string ExtensionId { get; set; } = "";
     public string Query { get; set; } = "";
+    public string? CommandId { get; set; }
 }
 
 public sealed class ActionMessage
@@ -46,6 +47,7 @@ public sealed class ReadyExtension
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Version { get; set; } = "";
+    public string? Icon { get; set; }
     public List<CommandInfo> Commands { get; set; } = [];
     public List<string> NativeMethods { get; set; } = [];
     public List<string> HttpHosts { get; set; } = [];
@@ -55,6 +57,14 @@ public sealed class CommandInfo
 {
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
+    public List<string>? Keywords { get; set; }
+    public string? Mode { get; set; }
+}
+
+public sealed class AckMessage
+{
+    public string Type { get; set; } = "ack";
+    public string RequestId { get; set; } = "";
 }
 
 public sealed class UiMessage
