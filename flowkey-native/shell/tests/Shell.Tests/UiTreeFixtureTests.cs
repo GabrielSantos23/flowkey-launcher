@@ -41,6 +41,8 @@ public class UiTreeFixtureTests
         var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
 
         var list = Assert.IsType<ListTree>(tree);
+        Assert.Equal("side-pane", list.Layout);
+        Assert.Equal("All Types", list.Filter!.Options[0].Label);
         Assert.NotEmpty(list.Sections);
         Assert.Equal("No matches", list.EmptyView!.Title);
         foreach (var section in list.Sections)
@@ -53,6 +55,19 @@ public class UiTreeFixtureTests
                 Assert.Contains(item.Actions!, a => a.Primary == true);
             }
         }
+    }
+
+    [Fact]
+    public void ListFixtureCarriesSelectionPane()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
+
+        var list = Assert.IsType<ListTree>(tree);
+        var rocket = list.Sections[0].Items.Single(i => i.Id == "🚀");
+        Assert.Equal("ship, launch", rocket.Pane!.Preview);
+        Assert.Equal(["Type", "Characters"], rocket.Pane.Fields!.Select(f => f.Label).ToList());
+        Assert.Null(list.Sections[0].Items[0].Pane);
     }
 
     [Fact]

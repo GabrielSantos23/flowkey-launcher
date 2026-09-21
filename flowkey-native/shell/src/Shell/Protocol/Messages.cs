@@ -17,6 +17,7 @@ public sealed class SearchMessage
     public string ExtensionId { get; set; } = "";
     public string Query { get; set; } = "";
     public string? CommandId { get; set; }
+    public string? FilterValue { get; set; }
 }
 
 public sealed class ActionMessage

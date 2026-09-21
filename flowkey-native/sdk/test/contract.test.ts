@@ -31,6 +31,9 @@ describe('ui-tree contract fixture', () => {
   test('list tree has sections, items, actions and empty view', () => {
     const list = asList(uiFixture.list);
     expect(list.type).toBe('list');
+    expect(list.layout).toBe('side-pane');
+    expect(list.filter?.options[0].label).toBe('All Types');
+    expect(list.filter?.options.length).toBeGreaterThan(1);
     expect(list.sections.length).toBeGreaterThan(0);
     for (const section of list.sections) {
       expect(section.items.length).toBeGreaterThan(0);
@@ -42,6 +45,14 @@ describe('ui-tree contract fixture', () => {
       }
     }
     expect(list.emptyView?.title).toBeTruthy();
+  });
+
+  test('list items may carry a selection pane', () => {
+    const list = asList(uiFixture.list);
+    const rocket = list.sections[0].items.find((i) => i.id === '🚀');
+    expect(rocket?.pane?.preview).toBe('ship, launch');
+    expect(rocket?.pane?.fields?.map((f) => f.label)).toEqual(['Type', 'Characters']);
+    expect(list.sections[0].items[0].pane).toBeUndefined();
   });
 
   test('detail tree has title, fields, markdown description and a primary action', () => {

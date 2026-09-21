@@ -1,6 +1,14 @@
 {
   "list": {
     "type": "list",
+    "layout": "side-pane",
+    "filter": {
+      "options": [
+        { "label": "All Types", "value": "all" },
+        { "label": "Text", "value": "text" },
+        { "label": "Image", "value": "image" }
+      ]
+    },
     "sections": [
       {
         "title": "Recently Used",
@@ -28,6 +36,13 @@
             "subtitle": "ship, launch",
             "kind": "Symbol",
             "icon": "🚀",
+            "pane": {
+              "preview": "ship, launch",
+              "fields": [
+                { "label": "Type", "value": "Text" },
+                { "label": "Characters", "value": "12" }
+              ]
+            },
             "actions": [
               {
                 "id": "copy",

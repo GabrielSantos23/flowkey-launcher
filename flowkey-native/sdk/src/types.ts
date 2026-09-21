@@ -6,6 +6,18 @@ export interface UiAction {
   primary?: boolean;
 }
 
+export interface UiPaneField {
+  label: string;
+  value: string;
+}
+
+export interface UiPane {
+  title?: string;
+  preview?: string;
+  previewImageUri?: string;
+  fields?: UiPaneField[];
+}
+
 export interface UiItem {
   id: string;
   title: string;
@@ -13,6 +25,7 @@ export interface UiItem {
   kind?: string;
   icon?: string;
   iconUri?: string;
+  pane?: UiPane;
   actions?: UiAction[];
 }
 
@@ -26,8 +39,15 @@ export interface UiSection {
   items: UiItem[];
 }
 
+export interface UiFilterOption {
+  label: string;
+  value: string;
+}
+
 export interface ListTree {
   type: 'list';
+  layout?: string;
+  filter?: { options: UiFilterOption[] };
   sections: UiSection[];
   emptyView?: UiEmptyView;
 }
@@ -78,6 +98,7 @@ export type Preferences = Record<string, unknown>;
 export interface ExtensionContext {
   preferences: Preferences;
   commandId?: string;
+  filterValue?: string;
   native: {
     call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
   };
@@ -140,6 +161,7 @@ export interface SearchMessage {
   extensionId: string;
   query: string;
   commandId?: string;
+  filterValue?: string;
 }
 
 export interface ActionMessage {

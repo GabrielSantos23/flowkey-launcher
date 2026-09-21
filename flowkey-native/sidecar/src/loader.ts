@@ -56,6 +56,7 @@ export class Dispatcher {
   private lastQuery = '';
   private lastExtensionId = '';
   private lastCommandId?: string;
+  private lastFilterValue?: string;
   private commandIdByRequest = new Map<string, string>();
 
   constructor(
@@ -81,7 +82,7 @@ export class Dispatcher {
         if (message.commandId) {
           this.commandIdByRequest.set(message.requestId, message.commandId);
         }
-        await this.runSearch(message.extensionId, message.query, message.requestId, emit);
+        await this.runSearch(message.extensionId, message.query, message.requestId, emit, message.filterValue);
         break;
       case 'action':
         await this.runAction(
@@ -111,6 +112,7 @@ export class Dispatcher {
     query: string,
     requestId: string,
     emit: (message: SidecarMessage) => void,
+    filterValue?: string,
   ): Promise<void> {
     const ext = this.loaded.find((e) => e.manifest.id === extensionId);
     if (!ext) {
@@ -125,8 +127,9 @@ export class Dispatcher {
     this.lastExtensionId = extensionId;
     const commandId = this.commandIdByRequest.get(requestId);
     this.lastCommandId = commandId;
+    this.lastFilterValue = filterValue;
     try {
-      const tree = await ext.handlers.search(query, this.context(ext, commandId));
+      const tree = await ext.handlers.search(query, this.context(ext, commandId, filterValue));
       emit({ type: 'ui', requestId, tree });
     } catch (error) {
       emit({ type: 'error', requestId, error: toProtocolError(error) });
@@ -183,6 +186,7 @@ export class Dispatcher {
         this.lastQuery = '';
         this.lastExtensionId = extensionId;
         this.lastCommandId = commandId;
+        this.lastFilterValue = undefined;
         emit({ type: 'ui', requestId, tree });
         return;
       }
@@ -195,7 +199,7 @@ export class Dispatcher {
         return;
       }
       if (this.lastExtensionId === extensionId) {
-        const refreshed = await ext.handlers.search(this.lastQuery, this.context(ext, this.lastCommandId));
+        const refreshed = await ext.handlers.search(this.lastQuery, this.context(ext, this.lastCommandId, this.lastFilterValue));
         emit({ type: 'ui', requestId, tree: refreshed });
       }
     } catch (error) {
@@ -203,10 +207,11 @@ export class Dispatcher {
     }
   }
 
-  private context(ext: LoadedExtension, commandId?: string) {
+  private context(ext: LoadedExtension, commandId?: string, filterValue?: string) {
     return {
       preferences: ext.preferences,
       commandId,
+      filterValue,
       native: {
         call: <T = unknown>(method: string, params?: Record<string, unknown>) =>
           this.bridge.call<T>(ext.manifest.id, method, params),

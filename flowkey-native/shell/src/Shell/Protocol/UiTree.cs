@@ -12,8 +12,21 @@ public abstract class UiTree
 
 public sealed class ListTree : UiTree
 {
+    public string? Layout { get; set; }
+    public UiFilter? Filter { get; set; }
     public List<UiSection> Sections { get; set; } = [];
     public UiEmptyView? EmptyView { get; set; }
+}
+
+public sealed class UiFilter
+{
+    public List<UiFilterOption> Options { get; set; } = [];
+}
+
+public sealed class UiFilterOption
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
 }
 
 public sealed class DetailTree : UiTree
@@ -46,7 +59,22 @@ public sealed class UiItem
     public string? Kind { get; set; }
     public string? Icon { get; set; }
     public string? IconUri { get; set; }
+    public UiPane? Pane { get; set; }
     public List<UiAction>? Actions { get; set; } = [];
+}
+
+public sealed class UiPane
+{
+    public string? Title { get; set; }
+    public string? Preview { get; set; }
+    public string? PreviewImageUri { get; set; }
+    public List<UiPaneField>? Fields { get; set; }
+}
+
+public sealed class UiPaneField
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
 }
 
 public sealed class UiAction
