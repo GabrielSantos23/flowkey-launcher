@@ -66,7 +66,8 @@ public class UiTreeFixtureTests
         var list = Assert.IsType<ListTree>(tree);
         var rocket = list.Sections[0].Items.Single(i => i.Id == "🚀");
         Assert.Equal("ship, launch", rocket.Pane!.Preview);
-        Assert.Equal(["Type", "Characters"], rocket.Pane.Fields!.Select(f => f.Label).ToList());
+        Assert.Equal(["Source", "Type", "Characters"], rocket.Pane.Fields!.Select(f => f.Label).ToList());
+        Assert.True(rocket.Pane.Fields[0].ValueIconUri!.StartsWith("data:image/png;base64,"));
         Assert.Null(list.Sections[0].Items[0].Pane);
     }
 

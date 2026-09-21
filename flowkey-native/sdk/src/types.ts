@@ -9,6 +9,7 @@ export interface UiAction {
 export interface UiPaneField {
   label: string;
   value: string;
+  valueIconUri?: string;
 }
 
 export interface UiPane {

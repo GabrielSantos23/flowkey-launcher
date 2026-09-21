@@ -51,7 +51,8 @@ describe('ui-tree contract fixture', () => {
     const list = asList(uiFixture.list);
     const rocket = list.sections[0].items.find((i) => i.id === '🚀');
     expect(rocket?.pane?.preview).toBe('ship, launch');
-    expect(rocket?.pane?.fields?.map((f) => f.label)).toEqual(['Type', 'Characters']);
+    expect(rocket?.pane?.fields?.map((f) => f.label)).toEqual(['Source', 'Type', 'Characters']);
+    expect(rocket?.pane?.fields?.[0].valueIconUri?.startsWith('data:image/png;base64,')).toBe(true);
     expect(list.sections[0].items[0].pane).toBeUndefined();
   });
 

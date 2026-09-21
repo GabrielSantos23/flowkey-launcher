@@ -77,6 +77,7 @@ public sealed class UiPaneField
 {
     public string Label { get; set; } = "";
     public string Value { get; set; } = "";
+    public string? ValueIconUri { get; set; }
 }
 
 public sealed class UiAction
