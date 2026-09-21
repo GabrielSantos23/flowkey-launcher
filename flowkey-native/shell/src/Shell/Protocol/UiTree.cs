@@ -58,6 +58,8 @@ public sealed class UiItem
     public string? Subtitle { get; set; }
     public string? Kind { get; set; }
     public string? Icon { get; set; }
+    public string? IconName { get; set; }
+    public string? IconColor { get; set; }
     public string? IconUri { get; set; }
     public UiPane? Pane { get; set; }
     public List<UiAction>? Actions { get; set; } = [];

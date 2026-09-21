@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Media;
 using FlowKey.Shell.Protocol;
+using Application = System.Windows.Application;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using Color = System.Windows.Media.Color;
@@ -14,6 +15,21 @@ public sealed class GridCellVm : DependencyObject
 
     public static readonly DependencyProperty CellBackgroundProperty = DependencyProperty.Register(
         nameof(CellBackground), typeof(Brush), typeof(GridCellVm), new PropertyMetadata(Brushes.Transparent));
+
+    public static readonly DependencyProperty OutlineBrushProperty = DependencyProperty.Register(
+        nameof(OutlineBrush), typeof(Brush), typeof(GridCellVm), new PropertyMetadata(Brushes.Transparent));
+
+    public static readonly DependencyProperty OutlineThicknessProperty = DependencyProperty.Register(
+        nameof(OutlineThickness), typeof(Thickness), typeof(GridCellVm), new PropertyMetadata(new Thickness(0)));
+
+    public static readonly DependencyProperty CellSizeProperty = DependencyProperty.Register(
+        nameof(CellSize), typeof(double), typeof(GridCellVm), new PropertyMetadata(62.0));
+
+    public static readonly DependencyProperty GlyphSizeProperty = DependencyProperty.Register(
+        nameof(GlyphSize), typeof(double), typeof(GridCellVm), new PropertyMetadata(26.0));
+
+    public static readonly DependencyProperty IconSizeProperty = DependencyProperty.Register(
+        nameof(IconSize), typeof(double), typeof(GridCellVm), new PropertyMetadata(34.0));
 
     public static readonly DependencyProperty BitmapProperty = DependencyProperty.Register(
         nameof(Bitmap), typeof(ImageSource), typeof(GridCellVm), new PropertyMetadata(null));
@@ -31,6 +47,36 @@ public sealed class GridCellVm : DependencyObject
     {
         get => (Brush)GetValue(CellBackgroundProperty);
         set => SetValue(CellBackgroundProperty, value);
+    }
+
+    public Brush OutlineBrush
+    {
+        get => (Brush)GetValue(OutlineBrushProperty);
+        set => SetValue(OutlineBrushProperty, value);
+    }
+
+    public Thickness OutlineThickness
+    {
+        get => (Thickness)GetValue(OutlineThicknessProperty);
+        set => SetValue(OutlineThicknessProperty, value);
+    }
+
+    public double CellSize
+    {
+        get => (double)GetValue(CellSizeProperty);
+        set => SetValue(CellSizeProperty, value);
+    }
+
+    public double GlyphSize
+    {
+        get => (double)GetValue(GlyphSizeProperty);
+        set => SetValue(GlyphSizeProperty, value);
+    }
+
+    public double IconSize
+    {
+        get => (double)GetValue(IconSizeProperty);
+        set => SetValue(IconSizeProperty, value);
     }
 
     public ImageSource? Bitmap
@@ -55,9 +101,25 @@ public sealed class GridCellVm : DependencyObject
     private static void OnSelectedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var cell = (GridCellVm)d;
-        cell.CellBackground = cell.Selected
-            ? new SolidColorBrush(Color.FromRgb(0x2E, 0x3A, 0x50))
-            : Brushes.Transparent;
+        var background = (Brush)Application.Current.FindResource("CellBackgroundBrush");
+        var outline = (Brush)Application.Current.FindResource("CellSelectedOutlineBrush");
+        cell.CellBackground = cell.Selected ? Lighten(background) : background;
+        cell.OutlineBrush = outline;
+        cell.OutlineThickness = cell.Selected ? new Thickness(2) : new Thickness(0);
+    }
+
+    private static Brush Lighten(Brush brush)
+    {
+        if (brush is SolidColorBrush solid)
+        {
+            var lighter = new SolidColorBrush(Color.FromRgb(
+                (byte)Math.Min(255, solid.Color.R + 16),
+                (byte)Math.Min(255, solid.Color.G + 16),
+                (byte)Math.Min(255, solid.Color.B + 16)));
+            lighter.Freeze();
+            return lighter;
+        }
+        return brush;
     }
 }
 

@@ -20,12 +20,13 @@
   <SolidColorBrush x:Key="KeycapBackgroundBrush" Color="#353535" />
   <SolidColorBrush x:Key="EnterKeycapBackgroundBrush" Color="#1F1F1F" />
   <SolidColorBrush x:Key="KeycapBorderBrush" Color="#4B4B4B" />
+  <SolidColorBrush x:Key="PaneLabelBrush" Color="#6B7A99" />
   <SolidColorBrush x:Key="AccentBrush" Color="#4F8CFF" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#262626" />
   <SolidColorBrush x:Key="SurfaceAltBrush" Color="#161616" />
   <SolidColorBrush x:Key="CellBackgroundBrush" Color="#2A2A2C" />
   <SolidColorBrush x:Key="CellSelectedOutlineBrush" Color="#FFFFFF" />
-  <SolidColorBrush x:Key="ActionPanelBackgroundBrush" Color="#F0222230" />
+  <SolidColorBrush x:Key="ActionPanelBackgroundBrush" Color="#1E1E1E" />
 
   <CornerRadius x:Key="WindowCornerRadius">10</CornerRadius>
   <CornerRadius x:Key="RowCornerRadius">8</CornerRadius>
@@ -64,6 +65,8 @@
   <Thickness x:Key="TitleSubtitleMargin">8,0,8,0</Thickness>
   <Thickness x:Key="ListInset">8</Thickness>
   <Thickness x:Key="SearchBarPadding">16,0,16,0</Thickness>
+  <Thickness x:Key="DropdownPadding">12,7,12,7</Thickness>
+  <sys:Double x:Key="DropdownMinWidth">150</sys:Double>
   <Thickness x:Key="BackButtonMargin">12,0,4,0</Thickness>
   <Thickness x:Key="DetailMargin">0,0,0,6</Thickness>
   <Thickness x:Key="CellMargin">1</Thickness>
@@ -77,6 +80,10 @@
   <Thickness x:Key="ActionsLabelMargin">0,0,6,0</Thickness>
   <Thickness x:Key="ToastHostMargin">16,0,16,16</Thickness>
   <Thickness x:Key="ToastItemMargin">0,4,0,0</Thickness>
+  <sys:Double x:Key="PanelRowMinHeight">28</sys:Double>
+  <Thickness x:Key="PanelRowPadding">10,4</Thickness>
+  <sys:Double x:Key="FilterOptionMinHeight">26</sys:Double>
+  <Thickness x:Key="FilterOptionPadding">10,4</Thickness>
   <Thickness x:Key="ToastPadding">12,8,12,8</Thickness>
 
   <CornerRadius x:Key="BackButtonCornerRadius">16</CornerRadius>

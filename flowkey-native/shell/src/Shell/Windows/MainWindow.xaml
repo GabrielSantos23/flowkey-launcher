@@ -11,6 +11,7 @@
         FontFamily="{DynamicResource AppFontFamily}"
         Visibility="Hidden"
         Deactivated="OnDeactivated"
+        PreviewKeyDown="OnWindowPreviewKeyDown"
         SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded">
   <Window.Resources>
@@ -39,6 +40,7 @@
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" />
           <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
         <Border x:Name="BackButton"
                 Grid.Column="0"
@@ -63,8 +65,7 @@
                    Background="Transparent"
                    BorderThickness="0"
                    CaretBrush="{DynamicResource TextPrimaryBrush}"
-                   TextChanged="OnSearchTextChanged"
-                   KeyDown="OnSearchKeyDown" />
+                   TextChanged="OnSearchTextChanged" />
           <TextBlock x:Name="SearchPlaceholder"
                      Text="Type to search…"
                      FontSize="{DynamicResource SearchFontSize}"
@@ -83,11 +84,96 @@
             </TextBlock.Style>
           </TextBlock>
         </Grid>
+        <Grid x:Name="FilterDropdown" Grid.Column="2" Visibility="Collapsed" Margin="{DynamicResource SearchBarPadding}">
+          <Border x:Name="FilterButton"
+                  Background="Transparent"
+                  BorderBrush="{DynamicResource KeycapBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="{DynamicResource KeycapCornerRadius}"
+                  Padding="{DynamicResource DropdownPadding}"
+                  MinWidth="{DynamicResource DropdownMinWidth}"
+                  MouseLeftButtonUp="OnFilterButtonClick">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="&#xE71E;"
+                         FontFamily="{DynamicResource GlyphFontFamily}"
+                         FontSize="12"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock x:Name="FilterLabel"
+                         Grid.Column="1"
+                         FontSize="{DynamicResource TitleFontSize}"
+                         FontWeight="Medium"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         VerticalAlignment="Center" />
+              <TextBlock Text="&#xE70D;"
+                         Grid.Column="2"
+                         FontFamily="{DynamicResource GlyphFontFamily}"
+                         FontSize="{DynamicResource GlyphFontSize}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+          <Popup x:Name="FilterPopup"
+                 PlacementTarget="{Binding ElementName=FilterButton}"
+                 Placement="Bottom"
+                 StaysOpen="False"
+                 AllowsTransparency="True">
+            <Border Background="{DynamicResource WindowBackgroundBrush}"
+                    BorderBrush="{DynamicResource KeycapBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{DynamicResource RowCornerRadius}"
+                    Margin="6" MinWidth="190">
+              <ListBox x:Name="FilterList"
+                       BorderThickness="0"
+                       Background="Transparent"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       SelectionChanged="OnFilterListSelectionChanged"
+                       PreviewMouseLeftButtonDown="OnFilterListClick">
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Padding" Value="{DynamicResource FilterOptionPadding}" />
+                    <Setter Property="MinHeight" Value="{DynamicResource FilterOptionMinHeight}" />
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                          <Border x:Name="Bd" Background="Transparent" CornerRadius="{DynamicResource KeycapCornerRadius}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" />
+                          </Border>
+                          <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBackgroundBrush}" />
+                            </Trigger>
+                          </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Label}" FontSize="{DynamicResource SecondaryFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" />
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+              </ListBox>
+            </Border>
+          </Popup>
+        </Grid>
       </Grid>
     </Border>
 
-    <ListBox x:Name="ResultsList"
-             Grid.Row="1"
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition x:Name="ListColumn" Width="*" />
+        <ColumnDefinition Width="Auto" />
+        <ColumnDefinition x:Name="PaneColumn" Width="0" />
+      </Grid.ColumnDefinitions>
+      <ListBox x:Name="ResultsList"
+             Grid.Column="0"
              Margin="{DynamicResource ListInset}"
              Background="Transparent"
              BorderThickness="0"
@@ -100,7 +186,6 @@
              SelectionMode="Single"
              SelectionChanged="OnSelectionChanged"
              MouseDoubleClick="OnListDoubleClick"
-             KeyDown="OnListKeyDown"
              Visibility="Collapsed">
       <ListBox.ItemContainerStyle>
         <Style TargetType="ListBoxItem">
@@ -220,53 +305,78 @@
       </ListBox.Resources>
     </ListBox>
 
+      <Border x:Name="PaneDivider" Grid.Column="1" Width="1" Background="{DynamicResource DividerBrush}" Visibility="Collapsed" />
+      <Grid x:Name="PaneHost" Grid.Column="2" Visibility="Collapsed">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="*" />
+          <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="PanePreview" Margin="14,10,14,10" />
+        </ScrollViewer>
+        <StackPanel x:Name="PaneInfo" Grid.Row="1" Margin="14,0,14,10" />
+      </Grid>
+    </Grid>
+
     <ScrollViewer x:Name="DetailHost"
              Grid.Row="1"
              Margin="{DynamicResource DetailMargin}"
              VerticalScrollBarVisibility="Auto"
              Visibility="Collapsed" />
 
-    <ListBox x:Name="GridHost"
+    <DockPanel x:Name="GridHostPanel"
              Grid.Row="1"
+             Background="Transparent"
+             Visibility="Collapsed">
+      <TextBlock x:Name="GridTitleText"
+                 DockPanel.Dock="Top"
+                 FontSize="{DynamicResource HeaderFontSize}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Margin="{DynamicResource HeaderMargin}"
+                 Visibility="Collapsed" />
+      <ListBox x:Name="GridHost"
              Background="Transparent"
              BorderThickness="0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Hidden"
              ScrollViewer.CanContentScroll="True"
              VirtualizingPanel.IsVirtualizing="True"
-             VirtualizingPanel.VirtualizationMode="Recycling"
-             Visibility="Collapsed"
-             KeyDown="OnGridKeyDown">
-      <ListBox.ItemsPanel>
-        <ItemsPanelTemplate>
-          <VirtualizingStackPanel />
-        </ItemsPanelTemplate>
-      </ListBox.ItemsPanel>
-      <ListBox.ItemTemplate>
-        <DataTemplate>
-          <ItemsControl ItemsSource="{Binding Cells}">
-            <ItemsControl.ItemTemplate>
-              <DataTemplate>
-                <Border Width="{DynamicResource CellWidth}" Height="{DynamicResource CellHeight}" CornerRadius="{DynamicResource CellCornerRadius}" Margin="{DynamicResource CellMargin}"
-                        Background="{DynamicResource CellBackgroundBrush}"
-                        Tag="{Binding FlatIndex}"
-                        MouseLeftButtonDown="OnGridCellClick">
-                  <Grid>
-                    <Image Source="{Binding Bitmap}" Width="{DynamicResource CellIconSize}" Height="{DynamicResource CellIconSize}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                    <TextBlock Text="{Binding Item.Icon}" FontSize="{DynamicResource CellEmojiFontSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Visibility="{Binding BitmapFallback}" />
-                  </Grid>
-                </Border>
-              </DataTemplate>
-            </ItemsControl.ItemTemplate>
-            <ItemsControl.ItemsPanel>
-              <ItemsPanelTemplate>
-                <StackPanel Orientation="Horizontal" />
-              </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-          </ItemsControl>
-        </DataTemplate>
-      </ListBox.ItemTemplate>
-    </ListBox>
+             VirtualizingPanel.VirtualizationMode="Recycling">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <ItemsControl ItemsSource="{Binding Cells}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Width="{Binding CellSize}" Height="{Binding CellSize}" CornerRadius="{DynamicResource CellCornerRadius}" Margin="{DynamicResource CellMargin}"
+                          Background="{Binding CellBackground}"
+                          BorderBrush="{Binding OutlineBrush}"
+                          BorderThickness="{Binding OutlineThickness}"
+                          Tag="{Binding FlatIndex}"
+                          MouseLeftButtonDown="OnGridCellClick">
+                    <Grid>
+                      <Image Source="{Binding Bitmap}" Width="{Binding IconSize}" Height="{Binding IconSize}" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Item.Icon}" FontSize="{Binding GlyphSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Visibility="{Binding BitmapFallback}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+    </DockPanel>
 
     <StackPanel x:Name="EmptyView"
                 Grid.Row="1"

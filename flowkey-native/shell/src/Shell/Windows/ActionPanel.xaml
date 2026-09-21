@@ -2,8 +2,8 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Actions"
-        Width="420" SizeToContent="Height"
-        MaxHeight="420"
+        Width="310" SizeToContent="Height"
+        MaxHeight="360"
         WindowStyle="None"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -11,34 +11,114 @@
         Background="Transparent"
         AllowsTransparency="True"
         FontFamily="{DynamicResource AppFontFamily}"
+        PreviewKeyDown="OnPanelPreviewKeyDown"
         Deactivated="OnDeactivated">
-  <Border CornerRadius="{DynamicResource RowCornerRadius}" BorderThickness="1" BorderBrush="{DynamicResource KeycapBorderBrush}" Background="{DynamicResource ActionPanelBackgroundBrush}" Margin="6">
-    <ListBox x:Name="ActionsList"
-             Background="Transparent"
-             BorderThickness="0"
-             Foreground="{DynamicResource TextPrimaryBrush}"
-             KeyDown="OnKeyDown"
-             MouseDoubleClick="OnDoubleClick"
-             PreviewMouseLeftButtonDown="OnPreviewMouseDown">
-      <ListBox.ItemContainerStyle>
-        <Style TargetType="ListBoxItem">
-          <Setter Property="Padding" Value="10,7" />
-          <Setter Property="Template">
-            <Setter.Value>
-              <ControlTemplate TargetType="ListBoxItem">
-                <Border x:Name="Bd" Background="Transparent" CornerRadius="{DynamicResource KeycapCornerRadius}" Padding="{TemplateBinding Padding}">
-                  <ContentPresenter />
-                </Border>
-                <ControlTemplate.Triggers>
-                  <Trigger Property="IsSelected" Value="True">
-                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBackgroundBrush}" />
-                  </Trigger>
-                </ControlTemplate.Triggers>
-              </ControlTemplate>
-            </Setter.Value>
-          </Setter>
-        </Style>
-      </ListBox.ItemContainerStyle>
-    </ListBox>
+  <Border CornerRadius="{DynamicResource WindowCornerRadius}"
+          BorderThickness="1"
+          BorderBrush="{DynamicResource KeycapBorderBrush}"
+          Background="{DynamicResource ActionPanelBackgroundBrush}"
+          Margin="6">
+    <StackPanel>
+      <TextBlock x:Name="PanelTitle"
+                 FontSize="{DynamicResource HeaderFontSize}"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource TextSecondaryBrush}"
+                 Margin="12,8,12,4" />
+      <ListBox x:Name="ActionsList"
+               Background="Transparent"
+               BorderThickness="0"
+               Foreground="{DynamicResource TextPrimaryBrush}"
+               MouseDoubleClick="OnDoubleClick"
+               PreviewMouseLeftButtonDown="OnPreviewMouseDown">
+        <ListBox.ItemContainerStyle>
+          <Style TargetType="ListBoxItem">
+            <Setter Property="MinHeight" Value="{DynamicResource PanelRowMinHeight}" />
+            <Setter Property="Template">
+              <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                  <Border x:Name="Bd" Background="Transparent" CornerRadius="{DynamicResource RowCornerRadius}" Padding="{DynamicResource PanelRowPadding}">
+                    <ContentPresenter VerticalAlignment="Center" />
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsSelected" Value="True">
+                      <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBackgroundBrush}" />
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Setter.Value>
+            </Setter>
+          </Style>
+        </ListBox.ItemContainerStyle>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+              </Grid.ColumnDefinitions>
+              <Path Grid.Column="0"
+                    Data="{Binding Icon}"
+                    Stroke="{Binding IconBrush}"
+                    StrokeThickness="2"
+                    StrokeStartLineCap="Round"
+                    StrokeEndLineCap="Round"
+                    StrokeLineJoin="Round"
+                    Width="{DynamicResource CommandIconSize}"
+                    Height="{DynamicResource CommandIconSize}"
+                    Stretch="Uniform"
+                    VerticalAlignment="Center" Margin="0,0,10,0" />
+              <TextBlock Grid.Column="1"
+                         Text="{Binding Action.Title}"
+                         FontSize="{DynamicResource TitleFontSize}"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+              <Border Grid.Column="2"
+                      Background="{DynamicResource EnterKeycapBackgroundBrush}"
+                      BorderBrush="{DynamicResource KeycapBorderBrush}"
+                      BorderThickness="1"
+                      CornerRadius="{DynamicResource KeycapCornerRadius}"
+                      Padding="{DynamicResource KeycapPadding}"
+                      VerticalAlignment="Center"
+                      Visibility="{Binding EnterKeycapVisibility}">
+                <TextBlock FontSize="{DynamicResource KeycapFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" Text="&#x21B5;" />
+              </Border>
+            </Grid>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+      <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Margin="8,4,8,0">
+        <Grid Margin="6,0,6,0">
+          <TextBox x:Name="FilterBox"
+                   VerticalAlignment="Center"
+                   FontSize="{DynamicResource SecondaryFontSize}"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   Background="Transparent"
+                   BorderThickness="0"
+                   CaretBrush="{DynamicResource TextPrimaryBrush}"
+                   Margin="0,8,0,10"
+                   TextChanged="OnFilterTextChanged" />
+          <TextBlock x:Name="FilterPlaceholder"
+                     Text="Search for actions…"
+                     FontSize="{DynamicResource SecondaryFontSize}"
+                     Foreground="{DynamicResource TextTertiaryBrush}"
+                     VerticalAlignment="Center"
+                     Margin="0,0,0,2"
+                     IsHitTestVisible="False">
+            <TextBlock.Style>
+              <Style TargetType="TextBlock">
+                <Setter Property="Visibility" Value="Collapsed" />
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding Text, ElementName=FilterBox}" Value="">
+                    <Setter Property="Visibility" Value="Visible" />
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </TextBlock.Style>
+          </TextBlock>
+        </Grid>
+      </Border>
+    </StackPanel>
   </Border>
 </Window>

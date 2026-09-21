@@ -29,17 +29,26 @@ export default defineExtension({
   handlers: {
     async search(query, ctx) {
       if (ctx.commandId === 'grid' || ctx.commandId === 'open') {
+        const q = query.trim().toLowerCase();
+        const matches = q
+          ? DATA.filter(
+              (r) =>
+                r.description.toLowerCase().includes(q) ||
+                (r.aliases ?? []).some((a) => a.toLowerCase().includes(q)) ||
+                (r.tags ?? []).some((t) => t.toLowerCase().includes(q)),
+            )
+          : DATA;
         return {
           type: 'grid',
           title: 'Results',
           columns: 8,
-          items: DATA.map((r) => ({
+          items: matches.map((r) => ({
             id: r.emoji,
             title: r.description,
             icon: r.emoji,
             actions: [{ id: 'copy', title: 'Copy', primary: true }],
           })),
-          emptyView: { title: 'No emoji' },
+          emptyView: { title: 'No emoji', description: 'Try another keyword' },
         };
       }
       return {

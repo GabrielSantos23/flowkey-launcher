@@ -24,6 +24,8 @@ export interface UiItem {
   subtitle?: string;
   kind?: string;
   icon?: string;
+  iconName?: string;
+  iconColor?: string;
   iconUri?: string;
   pane?: UiPane;
   actions?: UiAction[];

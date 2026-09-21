@@ -35,7 +35,10 @@
     "clipboard.history",
     "clipboard.clearHistory",
     "clipboard.write",
-    "clipboard.deleteEntry"
+    "clipboard.deleteEntry",
+    "clipboard.copyEntry",
+    "clipboard.pasteEntry",
+    "clipboard.editEntry"
   ],
   "httpHosts": [],
   "preferences": [

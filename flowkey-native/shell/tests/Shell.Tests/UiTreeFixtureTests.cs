@@ -105,6 +105,8 @@ public class UiTreeFixtureTests
         var list = Assert.IsType<ListTree>(tree);
         var rocket = list.Sections[0].Items.Single(i => i.Id == "🚀");
         Assert.Equal("Symbol", rocket.Kind);
+        Assert.Equal("rocket", rocket.IconName);
+        Assert.Equal("#8B5CF6", rocket.IconColor);
         Assert.Null(list.Sections[0].Items[0].Kind);
     }
 }

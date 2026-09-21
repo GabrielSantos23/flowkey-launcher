@@ -152,11 +152,11 @@ public sealed class SidecarHost : IDisposable
 
     private IReadOnlyList<string> knownExtensionIds = Array.Empty<string>();
 
-    public string SendSearch(string extensionId, string query, string? commandId = null)
+    public string SendSearch(string extensionId, string query, string? commandId = null, string? filterValue = null)
     {
         requestCounter++;
         var requestId = $"s{requestCounter}";
-        Send(new Protocol.SearchMessage { RequestId = requestId, ExtensionId = extensionId, Query = query, CommandId = commandId });
+        Send(new Protocol.SearchMessage { RequestId = requestId, ExtensionId = extensionId, Query = query, CommandId = commandId, FilterValue = filterValue });
         return requestId;
     }
 

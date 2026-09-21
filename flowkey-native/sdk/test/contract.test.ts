@@ -83,6 +83,8 @@ describe('ui-tree contract fixture', () => {
     const list = asList(uiFixture.list);
     const rocket = list.sections[0].items.find((i) => i.id === '🚀');
     expect(rocket?.kind).toBe('Symbol');
+    expect(rocket?.iconName).toBe('rocket');
+    expect(rocket?.iconColor).toBe('#8B5CF6');
     expect(list.sections[0].items[0].kind).toBeUndefined();
   });
 

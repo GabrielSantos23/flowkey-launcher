@@ -4,9 +4,18 @@
     "layout": "side-pane",
     "filter": {
       "options": [
-        { "label": "All Types", "value": "all" },
-        { "label": "Text", "value": "text" },
-        { "label": "Image", "value": "image" }
+        {
+          "label": "All Types",
+          "value": "all"
+        },
+        {
+          "label": "Text",
+          "value": "text"
+        },
+        {
+          "label": "Image",
+          "value": "image"
+        }
       ]
     },
     "sections": [
@@ -39,8 +48,14 @@
             "pane": {
               "preview": "ship, launch",
               "fields": [
-                { "label": "Type", "value": "Text" },
-                { "label": "Characters", "value": "12" }
+                {
+                  "label": "Type",
+                  "value": "Text"
+                },
+                {
+                  "label": "Characters",
+                  "value": "12"
+                }
               ]
             },
             "actions": [
@@ -49,7 +64,9 @@
                 "title": "Copy",
                 "primary": true
               }
-            ]
+            ],
+            "iconName": "rocket",
+            "iconColor": "#8B5CF6"
           }
         ]
       },

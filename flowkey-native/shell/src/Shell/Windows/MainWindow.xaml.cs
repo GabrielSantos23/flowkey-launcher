@@ -91,6 +91,9 @@ public partial class MainWindow : Window
             return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
         });
         nativeMethods.Register("clipboard.deleteEntry", p => ExecuteClipboardDelete(p));
+        nativeMethods.Register("clipboard.copyEntry", p => ExecuteClipboardCopyEntry(p));
+        nativeMethods.Register("clipboard.pasteEntry", p => ExecuteClipboardPasteEntry(p));
+        nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -319,11 +322,27 @@ public partial class MainWindow : Window
         }
         if (msg == WM_CLIPBOARDUPDATE)
         {
-            var text = ClipboardReader.TryCaptureText();
-            DebugLog.Write($"clipboard update captured=" + (text is not null) + " len=" + (text?.Length ?? 0));
-            if (text is not null)
+            var capture = ClipboardReader.TryCapture();
+            DebugLog.Write($"clipboard update text={capture?.Text is not null} image={capture?.HasImage} source={capture?.SourceApp}");
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            if (capture is not null && capture.Text is not null)
             {
-                clipboardHistory.Record(text, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                clipboardHistory.Record(capture.Text, timestamp, capture.SourceApp);
+            }
+            else if (capture is { HasImage: true })
+            {
+                try
+                {
+                    using var image = System.Windows.Forms.Clipboard.GetImage();
+                    if (image is not null)
+                    {
+                        clipboardHistory.RecordImage(image, timestamp, capture.SourceApp);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write("clipboard image capture failed: " + ex.Message);
+                }
             }
             handled = true;
         }
@@ -424,9 +443,22 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnSearchKeyDown(object sender, KeyEventArgs e) => HandleListKeys(e);
-
-    private void OnListKeyDown(object sender, KeyEventArgs e) => HandleListKeys(e);
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+        if (GridHostPanel.Visibility == Visibility.Visible)
+        {
+            if (HandleGridKeys(e))
+            {
+                e.Handled = true;
+            }
+            return;
+        }
+        HandleListKeys(e);
+    }
 
     private void HandleListKeys(KeyEventArgs e)
     {
@@ -480,7 +512,11 @@ public partial class MainWindow : Window
         list.ScrollIntoView(list.Items[index]);
     }
 
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateChrome();
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateChrome();
+        UpdatePane();
+    }
 
     private void UpdateChrome()
     {
@@ -504,9 +540,7 @@ public partial class MainWindow : Window
                 label += " – " + selectedTitle;
             }
             var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-            var icon = new TextBlock { Text = extension?.Icon ?? "", VerticalAlignment = VerticalAlignment.Center };
-            icon.SetResourceReference(TextBlock.FontSizeProperty, "FooterIconSize");
-            panel.Children.Add(icon);
+            panel.Children.Add(CreateEmojiIcon(extension?.Icon));
             var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
             name.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
             name.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
@@ -531,7 +565,7 @@ public partial class MainWindow : Window
 
     private string? SelectedPrimaryActionTitle()
     {
-        if (GridHost.Visibility == Visibility.Visible)
+        if (GridHostPanel.Visibility == Visibility.Visible)
         {
             if (gridIndex >= 0 && gridIndex < gridItems.Count)
             {
@@ -552,7 +586,7 @@ public partial class MainWindow : Window
 
     private string? SelectedItemTitleForFooter()
     {
-        if (GridHost.Visibility == Visibility.Visible)
+        if (GridHostPanel.Visibility == Visibility.Visible)
         {
             return gridIndex >= 0 && gridIndex < gridItems.Count ? gridItems[gridIndex].Title : null;
         }
@@ -580,11 +614,11 @@ public partial class MainWindow : Window
 
     private void PerformEscape()
     {
-        if (GridHost.Visibility == Visibility.Visible)
+        if (GridHostPanel.Visibility == Visibility.Visible)
         {
             if (searchState.Depth > 1 && searchState.Pop())
             {
-                GridHost.Visibility = Visibility.Collapsed;
+                GridHostPanel.Visibility = Visibility.Collapsed;
                 SetSearchBoxSilently(searchState.CurrentQuery);
                 SendSearch(searchState.CurrentQuery);
                 UpdateChrome();
@@ -626,6 +660,7 @@ public partial class MainWindow : Window
         DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
         var requestId = sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
         searchState.TrackAction(requestId, row.ExtensionId);
+        HideWindow();
     }
 
     private void OpenActionPanelForSelection()
@@ -640,18 +675,47 @@ public partial class MainWindow : Window
             ShowToast("This item has a single action — press Enter to run it.");
             return;
         }
-        OpenActionPanel(row, actions);
+        OpenActionPanel(row.ExtensionId, row.Item, actions);
     }
 
-    private void OpenActionPanel(ItemRow row, List<UiAction> actions)
+    private void OpenGridActionPanel()
+    {
+        if (gridIndex < 0 || gridIndex >= gridItems.Count)
+        {
+            return;
+        }
+        var extensionId = searchState.Top?.ExtensionId;
+        if (extensionId is null)
+        {
+            return;
+        }
+        var item = gridItems[gridIndex];
+        var actions = (item.Actions ?? new List<UiAction>()).ToList();
+        if (actions.Count == 0)
+        {
+            return;
+        }
+        if (actions.Count < 2)
+        {
+            ShowToast("This item has a single action — press Enter to run it.");
+            return;
+        }
+        OpenActionPanel(extensionId, item, actions);
+    }
+
+    private void OpenActionPanel(string extensionId, UiItem item, List<UiAction> actions)
     {
         actionPanel?.Close();
         actionPanel = new ActionPanel();
         actionPanel.Committed += action =>
         {
-            DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
-            var requestId = sidecar.SendAction(row.ExtensionId!, action.Id, row.Item);
-            searchState.TrackAction(requestId, row.ExtensionId!);
+            DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
+            var requestId = sidecar.SendAction(extensionId, action.Id, item);
+            searchState.TrackAction(requestId, extensionId);
+            if (action.Primary == true)
+            {
+                HideWindow();
+            }
         };
         actionPanel.FocusLostToOtherApp += () =>
         {
@@ -660,10 +724,7 @@ public partial class MainWindow : Window
                 HideWindow();
             }
         };
-        var anchor = new Point(
-            Left + (Width - actionPanel.Width) / 2,
-            Top + 120);
-        actionPanel.Open(actions, anchor);
+        actionPanel.Open(actions, item.Title, Left + Width, Top + Height, FooterHeightValue);
     }
 
     private void OpenCommand(ItemRow row)
@@ -832,7 +893,7 @@ public partial class MainWindow : Window
         top.Query = query;
         if (top is { CommandId: not null, ExtensionId: not null })
         {
-            var requestId = sidecar.SendSearch(top.ExtensionId, query, top.CommandId);
+            var requestId = sidecar.SendSearch(top.ExtensionId, query, top.CommandId, top.FilterValue);
             searchState.BeginLevelQuery(new[] { (ExtensionId: top.ExtensionId, RequestId: requestId) });
         }
         else
@@ -979,11 +1040,156 @@ public partial class MainWindow : Window
                 return;
             }
             DetailHost.Visibility = Visibility.Collapsed;
-            GridHost.Visibility = Visibility.Collapsed;
+            GridHostPanel.Visibility = Visibility.Collapsed;
+            ApplyListLayout(list);
             var display = BuildDisplayRows();
             LoadRowIcons(display);
             ApplyRows(display, list.EmptyView);
         });
+    }
+
+    private void ApplyListLayout(ListTree list)
+    {
+        var sidePane = list.Layout == "side-pane";        if (sidePane)
+        {
+            ListColumn.Width = new GridLength(SidePaneListWidth);
+            PaneColumn.Width = new GridLength(1, GridUnitType.Star);
+            PaneDivider.Visibility = Visibility.Visible;
+            PaneHost.Visibility = Visibility.Visible;
+            FilterDropdown.Visibility = list.Filter is null ? Visibility.Collapsed : Visibility.Visible;
+            FilterList.ItemsSource = list.Filter?.Options.ToList();
+            var current = list.Filter?.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
+                ?? list.Filter?.Options.FirstOrDefault();
+            FilterLabel.Text = current?.Label ?? "";
+            if (searchState.Top is { } top)
+            {
+                top.FilterValue = current?.Value;
+                top.Query = SearchBox.Text;
+            }
+        }
+        else
+        {
+            ListColumn.Width = new GridLength(1, GridUnitType.Star);
+            PaneColumn.Width = new GridLength(0);
+            PaneDivider.Visibility = Visibility.Collapsed;
+            PaneHost.Visibility = Visibility.Collapsed;
+            FilterDropdown.Visibility = Visibility.Collapsed;
+            FilterPopup.IsOpen = false;
+        }
+    }
+
+    private const double SidePaneListWidth = 300;
+
+    private void OnFilterButtonClick(object sender, MouseButtonEventArgs e)
+    {
+        FilterPopup.IsOpen = !FilterPopup.IsOpen;
+    }
+
+    private void OnFilterListClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is System.Windows.DependencyObject element)
+        {
+            while (element is not null && element is not ListBoxItem)
+            {
+                element = System.Windows.Media.VisualTreeHelper.GetParent(element);
+            }
+            if (element is ListBoxItem item)
+            {
+                FilterList.SelectedItem = item.Content;
+                e.Handled = true;
+            }
+        }
+    }
+
+    private void OnFilterListSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (FilterList.SelectedItem is Protocol.UiFilterOption option)
+        {
+            FilterLabel.Text = option.Label;
+            FilterPopup.IsOpen = false;
+            if (searchState.Top is { } top && top.FilterValue != option.Value)
+            {
+                top.FilterValue = option.Value;
+                SendSearch(SearchBox.Text);
+            }
+        }
+    }
+
+    private void UpdatePane()
+    {
+        PanePreview.Children.Clear();
+        PaneInfo.Children.Clear();
+        if (PaneHost.Visibility != Visibility.Visible || ResultsList.SelectedItem is not ItemRow row)
+        {
+            return;
+        }
+        var pane = row.Item.Pane;
+        if (pane is null)
+        {
+            return;
+        }
+        if (!string.IsNullOrEmpty(pane.PreviewImageUri) && IconUriPolicy.TryGetLocalPath(pane.PreviewImageUri, out var imagePath) && File.Exists(imagePath))
+        {
+            try
+            {
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 320;
+                bitmap.UriSource = new Uri(imagePath);
+                bitmap.EndInit();
+                bitmap.Freeze();
+                PanePreview.Children.Add(new System.Windows.Controls.Image
+                {
+                    Source = bitmap,
+                    MaxHeight = 200,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+                    Margin = new Thickness(0, 0, 0, 12),
+                });
+            }
+            catch
+            {
+                /* preview image is best-effort */
+            }
+        }
+        else if (!string.IsNullOrEmpty(pane.Preview))
+        {
+            var preview = new System.Windows.Controls.TextBlock
+            {
+                Text = pane.Preview,
+                TextWrapping = TextWrapping.Wrap,
+                FontFamily = new System.Windows.Media.FontFamily("Consolas"),
+                FontSize = 13,
+            };
+            preview.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
+            preview.Margin = new Thickness(0, 0, 0, 12);
+            PanePreview.Children.Add(preview);
+        }
+        if (pane.Fields is { Count: > 0 } fields)
+        {
+            var divider = new System.Windows.Controls.Border();
+            divider.SetResourceReference(System.Windows.Controls.Border.BorderBrushProperty, "DividerBrush");
+            divider.BorderThickness = new Thickness(0, 1, 0, 0);
+            divider.Margin = new Thickness(0, 4, 0, 4);
+            PaneInfo.Children.Add(divider);
+            foreach (var field in fields)
+            {
+                var line = new System.Windows.Controls.Grid { Margin = new Thickness(0, 6, 0, 6) };
+                line.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                line.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                var label = new System.Windows.Controls.TextBlock { Text = field.Label, VerticalAlignment = VerticalAlignment.Center };
+                label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "PaneLabelBrush");
+                label.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "SecondaryFontSize");
+                var value = new System.Windows.Controls.TextBlock { Text = field.Value, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+                value.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
+                value.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "SecondaryFontSize");
+                System.Windows.Controls.Grid.SetColumn(label, 0);
+                System.Windows.Controls.Grid.SetColumn(value, 1);
+                line.Children.Add(label);
+                line.Children.Add(value);
+                PaneInfo.Children.Add(line);
+            }
+        }
     }
 
     private void ShowGrid(GridTree tree)
@@ -991,11 +1197,22 @@ public partial class MainWindow : Window
         gridItems = tree.Items.Select(i => i).ToList();
         gridColumns = Math.Max(1, tree.Columns);
         gridIndex = gridItems.Count > 0 ? 0 : -1;
+        var cellSize = Math.Clamp(
+            Math.Floor((ContentWidth - (gridColumns - 1) * CellGap) / gridColumns),
+            MinCellSize, MaxCellSize);
         var rows = new List<GridRowVm>();
         gridCells = new List<GridCellVm>();
         for (var i = 0; i < gridItems.Count; i++)
         {
-            var cell = new GridCellVm { Item = gridItems[i], FlatIndex = i };
+            var cell = new GridCellVm
+            {
+                Item = gridItems[i],
+                FlatIndex = i,
+                CellSize = cellSize,
+                GlyphSize = Math.Floor(cellSize * 0.42),
+                IconSize = Math.Floor(cellSize * 0.45),
+                CellBackground = (System.Windows.Media.Brush)FindResource("CellBackgroundBrush"),
+            };
             gridCells.Add(cell);
             if (i % gridColumns == 0)
             {
@@ -1008,6 +1225,8 @@ public partial class MainWindow : Window
             gridCells[0].Selected = true;
         }
         GridHost.ItemsSource = rows;
+        GridTitleText.Text = tree.Title ?? "";
+        GridTitleText.Visibility = string.IsNullOrEmpty(tree.Title) ? Visibility.Collapsed : Visibility.Visible;
         LoadGridBitmaps();
         var missing = gridItems.Select(i => i.Icon).Where(icon => !string.IsNullOrEmpty(icon) && !EmojiSpriteRenderer.IsCached(icon)).Distinct().ToList();
         if (missing.Count > 0)
@@ -1030,12 +1249,28 @@ public partial class MainWindow : Window
             thread.SetApartmentState(ApartmentState.STA);
             thread.Start();
         }
-        GridHost.Visibility = Visibility.Visible;
+        GridHostPanel.Visibility = Visibility.Visible;
         ResultsList.Visibility = Visibility.Collapsed;
         DetailHost.Visibility = Visibility.Collapsed;
-        EmptyView.Visibility = Visibility.Collapsed;
+        if (gridItems.Count == 0)
+        {
+            GridHost.Visibility = Visibility.Collapsed;
+            EmptyView.Visibility = Visibility.Visible;
+            EmptyTitle.Text = tree.EmptyView?.Title ?? "No results";
+            EmptyDescription.Text = tree.EmptyView?.Description ?? "";
+        }
+        else
+        {
+            GridHost.Visibility = Visibility.Visible;
+            EmptyView.Visibility = Visibility.Collapsed;
+        }
         UpdateFooter();
     }
+
+    private double ContentWidth => ActualWidth > 0 ? ActualWidth - 16 : 718;
+    private const double CellGap = 2;
+    private const double MinCellSize = 48;
+    private const double MaxCellSize = 96;
 
     private void LoadGridBitmaps()
     {
@@ -1065,23 +1300,36 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnGridKeyDown(object sender, KeyEventArgs e)
+    private bool HandleGridKeys(KeyEventArgs e)
     {
         switch (e.Key)
         {
-            case Key.Left: MoveGrid(-1, 0); e.Handled = true; break;
-            case Key.Right: MoveGrid(1, 0); e.Handled = true; break;
-            case Key.Up: MoveGrid(0, -1); e.Handled = true; break;
-            case Key.Down: MoveGrid(0, 1); e.Handled = true; break;
-            case Key.Enter: RunGridPrimary(); e.Handled = true; break;
+            case Key.Left:
+                MoveGrid(-1, 0);
+                return true;
+            case Key.Right:
+                MoveGrid(1, 0);
+                return true;
+            case Key.Up:
+                MoveGrid(0, -1);
+                return true;
+            case Key.Down:
+                MoveGrid(0, 1);
+                return true;
+            case Key.Enter:
+                RunGridPrimary();
+                return true;
+            case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenGridActionPanel();
+                return true;
             case Key.OemComma when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
                 OpenSettings();
-                e.Handled = true;
-                break;
+                return true;
             case Key.Escape:
                 PerformEscape();
-                e.Handled = true;
-                break;
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -1099,6 +1347,10 @@ public partial class MainWindow : Window
 
     private void MoveGrid(int dx, int dy)
     {
+        if (gridIndex < 0 || gridIndex >= gridCells.Count)
+        {
+            return;
+        }
         var target = GridMath.Move(gridIndex, gridItems.Count, gridColumns, dx, dy);
         if (target < 0)
         {
@@ -1133,7 +1385,62 @@ public partial class MainWindow : Window
             return;
         }
         sidecar.SendAction(extensionId, action.Id, item);
-        ShowToast("Copied " + item.Icon);
+        HideWindow();
+    }
+
+    private FrameworkElement CreateEmojiIcon(string? emoji)
+    {
+        if (!string.IsNullOrEmpty(emoji) && EmojiSpriteRenderer.IsCached(emoji))
+        {
+            try
+            {
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bitmap.DecodePixelWidth = 32;
+                bitmap.UriSource = new Uri(EmojiSpriteRenderer.CachePathFor(emoji));
+                bitmap.EndInit();
+                bitmap.Freeze();
+                var image = new System.Windows.Controls.Image { Source = bitmap, VerticalAlignment = VerticalAlignment.Center };
+                image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+                return image;
+            }
+            catch
+            {
+                /* fall through to the text glyph */
+            }
+        }
+        var text = new TextBlock { Text = emoji ?? "", VerticalAlignment = VerticalAlignment.Center };
+        text.SetResourceReference(TextBlock.FontSizeProperty, "FooterIconSize");
+        return text;
+    }
+
+    private static bool IsEmojiRune(System.Text.Rune rune) =>
+        rune.Value >= 0x1F000
+        || (rune.Value >= 0x2600 && rune.Value <= 0x27BF)
+        || rune.Value == 0xFE0F
+        || rune.Value == 0x2B50
+        || rune.Value == 0x2B55;
+
+    private static IEnumerable<(string Text, bool IsEmoji)> SplitEmojiSegments(string message)
+    {
+        var builder = new System.Text.StringBuilder();
+        var inEmoji = false;
+        foreach (var rune in message.EnumerateRunes())
+        {
+            var emoji = IsEmojiRune(rune);
+            if (emoji != inEmoji && builder.Length > 0)
+            {
+                yield return (builder.ToString(), inEmoji);
+                builder.Clear();
+            }
+            inEmoji = emoji;
+            builder.Append(rune);
+        }
+        if (builder.Length > 0)
+        {
+            yield return (builder.ToString(), inEmoji);
+        }
     }
 
     private void LoadRowIcons(IReadOnlyList<UiRow> rows)
@@ -1259,11 +1566,114 @@ public partial class MainWindow : Window
             .Select(e => new Dictionary<string, object?>
             {
                 ["id"] = ClipboardHistoryStore.ComputeEntryId(e),
-                ["text"] = e.Text,
+                ["text"] = e.Kind == "image" ? "" : e.Text,
                 ["timestamp"] = e.TimestampUnixMs,
+                ["kind"] = e.Kind,
+                ["iconUri"] = clipboardHistory.ThumbnailUriFor(e),
+                ["previewImageUri"] = clipboardHistory.PreviewUriFor(e),
+                ["source"] = e.SourceApp,
+                ["width"] = e.ImageWidth,
+                ["height"] = e.ImageHeight,
             })
             .ToList();
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { items }));
+    }
+
+    private const double FooterHeightValue = 40;
+
+    private NativeCallOutcome ExecuteClipboardPasteEntry(Dictionary<string, JsonElement>? parameters)
+    {
+        var outcome = ExecuteClipboardCopyEntry(parameters);
+        if (outcome.Ok)
+        {
+            Dispatcher.BeginInvoke(() =>
+            {
+                HideWindow();
+                var thread = new Thread(PasteKeystrokeToForeground);
+                thread.IsBackground = true;
+                thread.Start();
+            });
+        }
+        return outcome;
+    }
+
+    private void PasteKeystrokeToForeground()
+    {
+        Thread.Sleep(150);
+        keybd_event(0x11, 0, 0, UIntPtr.Zero);
+        keybd_event(0x56, 0, 0, UIntPtr.Zero);
+        keybd_event(0x56, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+        keybd_event(0x11, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+    }
+
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+
+    private NativeCallOutcome ExecuteClipboardEditEntry(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.editEntry requires a string 'id' parameter");
+        }
+        var entry = clipboardHistory.GetById(id.GetString()!);
+        if (entry is null)
+        {
+            return NativeCallOutcome.Failure("entryNotFound", "no clipboard history entry matches the given id");
+        }
+        try
+        {
+            string path;
+            if (entry.Kind == "image" && entry.ImagePath is not null)
+            {
+                path = entry.ImagePath;
+            }
+            else
+            {
+                var tempDir = Path.Combine(AppLauncherService.DataDirectory, "temp");
+                Directory.CreateDirectory(tempDir);
+                path = Path.Combine(tempDir, "clipboard-" + id.GetString()! + ".txt");
+                File.WriteAllText(path, entry.Text);
+            }
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            Dispatcher.BeginInvoke(HideWindow);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    private NativeCallOutcome ExecuteClipboardCopyEntry(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.copyEntry requires a string 'id' parameter");
+        }
+        var entry = clipboardHistory.GetById(id.GetString()!);
+        if (entry is null)
+        {
+            return NativeCallOutcome.Failure("entryNotFound", "no clipboard history entry matches the given id");
+        }
+        try
+        {
+            if (entry.Kind == "image" && entry.ImagePath is not null)
+            {
+                using var image = System.Drawing.Image.FromFile(entry.ImagePath);
+                System.Windows.Forms.Clipboard.SetImage(image);
+            }
+            else
+            {
+                ClipboardService.WriteText(entry.Text);
+            }
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
+        }
     }
 
     private NativeCallOutcome ExecuteClipboardDelete(Dictionary<string, JsonElement>? parameters)
@@ -1348,11 +1758,40 @@ public partial class MainWindow : Window
         toast.SetResourceReference(Border.PaddingProperty, "ToastPadding");
         var text = new TextBlock
         {
-            Text = message,
             TextWrapping = TextWrapping.Wrap,
         };
         text.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
         text.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
+        foreach (var (segment, isEmoji) in SplitEmojiSegments(message))
+        {
+            if (isEmoji && EmojiSpriteRenderer.IsCached(segment))
+            {
+                try
+                {
+                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.DecodePixelWidth = 18;
+                    bitmap.UriSource = new Uri(EmojiSpriteRenderer.CachePathFor(segment));
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+                    text.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new System.Windows.Controls.Image
+                    {
+                        Source = bitmap,
+                        Width = 16,
+                        Height = 16,
+                        VerticalAlignment = VerticalAlignment.Bottom,
+                        Margin = new Thickness(0, 0, 1, -2),
+                    }));
+                    continue;
+                }
+                catch
+                {
+                    /* fall through to the text glyph */
+                }
+            }
+            text.Inlines.Add(new System.Windows.Documents.Run(segment));
+        }
         toast.Child = text;
         ToastHost.Children.Add(toast);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };

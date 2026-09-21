@@ -5,7 +5,8 @@ namespace FlowKey.Shell.Sidecar;
 public sealed class SearchLevel
 {
     public string? ExtensionId { get; set; }
-    public string? CommandId { get; init; }
+    public string? CommandId { get; set; }
+    public string? FilterValue { get; set; }
     public string Query { get; set; } = "";
     public List<string> RequestIds { get; } = new();
     public Dictionary<string, string> ExtensionByRequest { get; } = new(StringComparer.Ordinal);

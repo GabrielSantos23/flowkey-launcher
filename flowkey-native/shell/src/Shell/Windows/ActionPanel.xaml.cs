@@ -1,15 +1,20 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using Point = System.Windows.Point;
+using Brush = System.Windows.Media.Brush;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
+using Application = System.Windows.Application;
 using FlowKey.Shell.Protocol;
+using FlowKey.Shell.Rendering;
 
 namespace FlowKey.Shell.Windows;
 
 public partial class ActionPanel : Window
 {
     private bool selfDismissed;
+    private List<ActionRow> allRows = new();
 
     public UiAction? SelectedAction => (ActionsList.SelectedItem as ActionRow)?.Action;
 
@@ -22,15 +27,32 @@ public partial class ActionPanel : Window
         InitializeComponent();
     }
 
-    public void Open(IReadOnlyList<UiAction> actions, Point anchorScreenPoint)
+    public void Open(IReadOnlyList<UiAction> actions, string title, double launcherRight, double launcherBottom, double footerHeight)
     {
-        ActionsList.ItemsSource = actions.Select(a => new ActionRow { Action = a }).ToList();
-        ActionsList.SelectedIndex = 0;
-        Left = anchorScreenPoint.X;
-        Top = anchorScreenPoint.Y;
+        allRows = actions.Select(a => new ActionRow(a)).ToList();
+        PanelTitle.Text = title;
+        ActionsList.ItemsSource = allRows;
+        if (allRows.Count > 0)
+        {
+            ActionsList.SelectedIndex = 0;
+        }
+        FilterBox.Text = "";
         selfDismissed = false;
+        launcherBounds = (launcherRight, launcherBottom, footerHeight);
+        Left = launcherRight - Width - 14;
+        Top = launcherBottom - footerHeight - 10 - 260;
         Show();
-        ActionsList.Focus();
+        FilterBox.Focus();
+        ContentRendered += OnFirstRendered;
+    }
+
+    private (double Right, double Bottom, double Footer) launcherBounds;
+
+    private void OnFirstRendered(object? sender, EventArgs e)
+    {
+        ContentRendered -= OnFirstRendered;
+        Left = launcherBounds.Right - ActualWidth - 14;
+        Top = Math.Max(launcherBounds.Bottom - launcherBounds.Footer - 10 - ActualHeight, launcherBounds.Bottom - launcherBounds.Footer - ActualHeight);
     }
 
     private void Close()
@@ -48,22 +70,16 @@ public partial class ActionPanel : Window
         Hide();
     }
 
-    private void OnKeyDown(object sender, KeyEventArgs e)
+    private void OnPanelPreviewKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
             case Key.Up:
-                if (ActionsList.SelectedIndex > 0)
-                {
-                    ActionsList.SelectedIndex--;
-                }
+                MoveSelection(-1);
                 e.Handled = true;
                 break;
             case Key.Down:
-                if (ActionsList.SelectedIndex < ActionsList.Items.Count - 1)
-                {
-                    ActionsList.SelectedIndex++;
-                }
+                MoveSelection(1);
                 e.Handled = true;
                 break;
             case Key.Enter:
@@ -78,11 +94,46 @@ public partial class ActionPanel : Window
         }
     }
 
+    private void MoveSelection(int delta)
+    {
+        if (ActionsList.Items.Count == 0)
+        {
+            return;
+        }
+        var index = ActionsList.SelectedIndex;
+        do
+        {
+            index += delta;
+            if (index < 0 || index >= ActionsList.Items.Count)
+            {
+                return;
+            }
+        }
+        while (ActionsList.Items[index] is not ActionRow);
+        ActionsList.SelectedIndex = index;
+        ActionsList.ScrollIntoView(ActionsList.Items[index]);
+    }
+
+    private void OnFilterTextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (allRows.Count == 0 && FilterBox.Text.Length == 0)
+        {
+            return;
+        }
+        var query = FilterBox.Text.Trim();
+        ActionsList.ItemsSource = query.Length == 0
+            ? allRows
+            : allRows.Where(r => r.Action.Title.Contains(query, StringComparison.OrdinalIgnoreCase)).ToList();
+        if (ActionsList.Items.Count > 0)
+        {
+            ActionsList.SelectedIndex = 0;
+        }
+    }
+
     private void OnPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.OriginalSource is System.Windows.DependencyObject)
+        if (e.OriginalSource is System.Windows.DependencyObject element)
         {
-            var element = e.OriginalSource as System.Windows.DependencyObject;
             while (element is not null && element is not ListBoxItem)
             {
                 element = System.Windows.Media.VisualTreeHelper.GetParent(element);
@@ -109,8 +160,30 @@ public partial class ActionPanel : Window
 
     public sealed class ActionRow
     {
-        public UiAction Action { get; init; } = new();
+        public ActionRow(UiAction action)
+        {
+            Action = action;
+            Icon = LucideIcon.Load(ActionIconName(action.Id));
+            IconBrush = (Brush)Application.Current.FindResource("TextPrimaryBrush");
+            EnterKeycapVisibility = action.Primary == true ? Visibility.Visible : Visibility.Collapsed;
+        }
 
-        public override string ToString() => Action.Title;
+        public UiAction Action { get; }
+        public Geometry? Icon { get; }
+        public Brush IconBrush { get; }
+        public Visibility EnterKeycapVisibility { get; }
+
+        private static string ActionIconName(string actionId) => actionId switch
+        {
+            "paste" => "clipboard-paste",
+            "copy" => "copy",
+            "edit" => "pencil",
+            "insert" => "clipboard",
+            "delete" => "trash-2",
+            "clearHistory" => "trash-2",
+            "launch" => "external-link",
+            "rerun" => "rotate-cw",
+            _ => "rocket",
+        };
     }
 }
