@@ -26,6 +26,7 @@
             "id": "🚀",
             "title": "🚀 Rocket",
             "subtitle": "ship, launch",
+            "kind": "Symbol",
             "icon": "🚀",
             "actions": [
               {
@@ -89,6 +90,7 @@
   },
   "grid": {
     "type": "grid",
+    "title": "Results",
     "columns": 8,
     "items": [
       {

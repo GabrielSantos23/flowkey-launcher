@@ -25,6 +25,7 @@ export default defineExtension({
         id: app.id,
         title: app.name,
         subtitle: app.launchCount && app.launchCount > 0 ? `launched ${app.launchCount}x` : undefined,
+        kind: 'Application',
         iconUri: app.iconUri,
         actions: [{ id: 'launch', title: 'Open', primary: true }],
       }));

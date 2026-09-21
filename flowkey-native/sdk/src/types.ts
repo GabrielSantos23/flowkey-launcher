@@ -10,6 +10,7 @@ export interface UiItem {
   id: string;
   title: string;
   subtitle?: string;
+  kind?: string;
   icon?: string;
   iconUri?: string;
   actions?: UiAction[];
@@ -46,6 +47,7 @@ export interface DetailTree {
 
 export interface GridTree {
   type: 'grid';
+  title?: string;
   columns: number;
   items: UiItem[];
   emptyView?: UiEmptyView;

@@ -51,6 +51,7 @@ export default defineExtension({
         items.push({
           id: 'allowed',
           title: `allowed: ${allowed.status} ${allowed.bodyText.slice(0, 60)}`,
+          kind: 'Check',
         });
       } catch (error) {
         const err = error as { code: string; message: string };
@@ -65,6 +66,7 @@ export default defineExtension({
           id: 'denied',
           title: `denied as expected: ${err.code}`,
           subtitle: err.message,
+          kind: 'Check',
         });
       }
       return { type: 'list', sections: [{ title: 'Results', items }], emptyView: { title: 'No results' } };

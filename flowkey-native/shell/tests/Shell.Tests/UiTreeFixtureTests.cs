@@ -75,9 +75,22 @@ public class UiTreeFixtureTests
         var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("grid").GetRawText(), JsonOptions.Default);
 
         var grid = Assert.IsType<GridTree>(tree);
+        Assert.Equal("Results", grid.Title);
         Assert.Equal(8, grid.Columns);
         Assert.NotEmpty(grid.Items);
         Assert.Equal("Nothing here", grid.EmptyView!.Title);
+    }
+
+    [Fact]
+    public void ListFixtureCarriesOptionalKind()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
+
+        var list = Assert.IsType<ListTree>(tree);
+        var rocket = list.Sections[0].Items.Single(i => i.Id == "🚀");
+        Assert.Equal("Symbol", rocket.Kind);
+        Assert.Null(list.Sections[0].Items[0].Kind);
     }
 }
 

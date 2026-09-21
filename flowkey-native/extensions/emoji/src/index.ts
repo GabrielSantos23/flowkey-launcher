@@ -73,6 +73,7 @@ export default defineExtension({
       if (ctx.commandId === 'grid') {
         return {
           type: 'grid',
+          title: 'Results',
           columns: 8,
           items: DATA.map((r) => ({
             id: r.emoji,

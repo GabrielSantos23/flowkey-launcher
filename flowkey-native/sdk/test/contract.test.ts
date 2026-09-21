@@ -62,9 +62,17 @@ describe('ui-tree contract fixture', () => {
   test('grid tree has columns, items and empty view', () => {
     const grid = asGrid(uiFixture.grid);
     expect(grid.type).toBe('grid');
+    expect(grid.title).toBe('Results');
     expect(grid.columns).toBeGreaterThan(0);
     expect(grid.items.length).toBeGreaterThan(0);
     expect(grid.emptyView?.title).toBeTruthy();
+  });
+
+  test('list items may carry an optional kind label', () => {
+    const list = asList(uiFixture.list);
+    const rocket = list.sections[0].items.find((i) => i.id === '🚀');
+    expect(rocket?.kind).toBe('Symbol');
+    expect(list.sections[0].items[0].kind).toBeUndefined();
   });
 
   test('every primary action id across fixtures is unique per item', () => {
