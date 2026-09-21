@@ -217,6 +217,20 @@ public class SearchStateStaleTests
         state.ApplyResult("a1", TreeWithEmoji("late"), out var stale);
         Assert.True(stale);
     }
+
+    [Fact]
+    public void PopRestoresRootLevelQueryText()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.Top!.Query = "clip";
+        state.PushRequest("s2", "clipboard-history", "open");
+        Assert.Equal("", state.CurrentQuery);
+
+        state.Top.Query = "typed in view";
+        Assert.True(state.Pop());
+        Assert.Equal("clip", state.CurrentQuery);
+    }
 }
 
 public class ProtocolVersionRefusalTests

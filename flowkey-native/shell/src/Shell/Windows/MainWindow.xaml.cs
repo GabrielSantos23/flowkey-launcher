@@ -49,6 +49,7 @@ public partial class MainWindow : Window
     private List<GridCellVm> gridCells = new();
     private IntPtr previousForegroundWindow;
     private bool allowClose;
+    private bool suppressSearchDebounce;
     private HotkeyManager? hotkeyManager;
     private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
     private SettingsWindow? settingsWindow;
@@ -376,8 +377,25 @@ public partial class MainWindow : Window
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {
+        if (suppressSearchDebounce)
+        {
+            return;
+        }
         searchDebounce.Stop();
         searchDebounce.Start();
+    }
+
+    private void SetSearchBoxSilently(string text)
+    {
+        suppressSearchDebounce = true;
+        try
+        {
+            SearchBox.Text = text;
+        }
+        finally
+        {
+            suppressSearchDebounce = false;
+        }
     }
 
     private void DispatchGlobalHotkey(int id)
@@ -427,7 +445,7 @@ public partial class MainWindow : Window
                     var restored = searchState.CurrentRows;
                     LoadRowIcons(restored);
                     ApplyRows(restored, null);
-                    SearchBox.Text = searchState.CurrentQuery;
+                    SetSearchBoxSilently(searchState.CurrentQuery);
                     SendSearch(searchState.CurrentQuery);
                 }
                 else
@@ -544,6 +562,8 @@ public partial class MainWindow : Window
         var requestId = sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
             new UiItem { Id = row.CommandId, Title = row.Item.Title });
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
+        SetSearchBoxSilently("");
+        SearchBox.Focus();
     }
 
     private void RegisterCommandHotkeys()
@@ -624,7 +644,7 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(() =>
         {
             searchState.ResetToRoot();
-            SearchBox.Text = "";
+            SetSearchBoxSilently("");
             Summon();
             var requestId = sidecar.SendAction(extensionId, CommandCatalog.OpenActionId,
                 new UiItem { Id = commandId, Title = command.Title });
@@ -905,6 +925,7 @@ public partial class MainWindow : Window
                 if (searchState.Depth > 1 && searchState.Pop())
                 {
                     GridHost.Visibility = Visibility.Collapsed;
+                    SetSearchBoxSilently(searchState.CurrentQuery);
                     SendSearch(searchState.CurrentQuery);
                 }
                 else
