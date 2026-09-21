@@ -59,7 +59,6 @@ public partial class MainWindow : Window
     private bool commandHotkeysRegistered;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
-    private readonly HashSet<string> pendingPushRequests = new(StringComparer.Ordinal);
 
     public MainWindow()
     {
@@ -813,10 +812,6 @@ public partial class MainWindow : Window
                 return;
             }
             DebugLog.Write($"UiReceived req={message.RequestId}");
-            if (pendingPushRequests.Remove(message.RequestId))
-            {
-                DebugLog.Write("pushed view arrived req=" + message.RequestId);
-            }
             var rows = searchState.ApplyResult(message.RequestId, list, out var stale);
             if (stale)
             {
