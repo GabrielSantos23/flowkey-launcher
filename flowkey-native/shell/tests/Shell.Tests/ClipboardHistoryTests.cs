@@ -107,4 +107,47 @@ public class ClipboardHistoryTests : IDisposable
         store.Record(new string('x', ClipboardHistoryStore.MaxTextChars + 1), 1000);
         Assert.Equal(0, store.Count);
     }
+
+    [Fact]
+    public void EntryIdIsStableAcrossQueriesAndReload()
+    {
+        var store = new ClipboardHistoryStore(tempDir);
+        store.Record("stable text", 1000);
+        var filtered = store.Query("stable", 50);
+        var unfiltered = store.Query("", 50);
+        Assert.Equal(
+            ClipboardHistoryStore.ComputeEntryId(filtered[0]),
+            ClipboardHistoryStore.ComputeEntryId(unfiltered[0]));
+        var reloaded = new ClipboardHistoryStore(tempDir);
+        Assert.Equal(
+            ClipboardHistoryStore.ComputeEntryId(filtered[0]),
+            ClipboardHistoryStore.ComputeEntryId(Assert.Single(reloaded.Query("", 50))));
+    }
+
+    [Fact]
+    public void DeleteRemovesEntryByIdAndPersists()
+    {
+        var store = new ClipboardHistoryStore(tempDir);
+        store.Record("alpha", 1000);
+        store.Record("beta", 2000);
+        var beta = store.Query("", 50).First(e => e.Text == "beta");
+        var id = ClipboardHistoryStore.ComputeEntryId(beta);
+
+        Assert.True(store.Delete(id));
+
+        Assert.Equal("alpha", Assert.Single(store.Query("", 50)).Text);
+        var reloaded = new ClipboardHistoryStore(tempDir);
+        Assert.Equal("alpha", Assert.Single(reloaded.Query("", 50)).Text);
+    }
+
+    [Fact]
+    public void DeleteUnknownIdReturnsFalseAndKeepsOtherEntries()
+    {
+        var store = new ClipboardHistoryStore(tempDir);
+        store.Record("alpha", 1000);
+        store.Record("beta", 2000);
+        Assert.False(store.Delete("00000000000000000000000000000000"));
+        Assert.Equal(2, store.Count);
+        Assert.Equal(["beta", "alpha"], store.Query("", 50).Select(e => e.Text).ToList());
+    }
 }

@@ -81,6 +81,28 @@ public sealed class ClipboardHistoryStore
         }
     }
 
+    public static string ComputeEntryId(ClipboardEntry entry)
+    {
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(entry);
+        return Convert.ToHexString(SHA256.HashData(bytes))[..32];
+    }
+
+    public bool Delete(string id)
+    {
+        lock (gate)
+        {
+            EnsureLoaded();
+            var index = entries.FindIndex(e => ComputeEntryId(e) == id);
+            if (index < 0)
+            {
+                return false;
+            }
+            entries.RemoveAt(index);
+            Persist();
+            return true;
+        }
+    }
+
     public void Clear()
     {
         lock (gate)

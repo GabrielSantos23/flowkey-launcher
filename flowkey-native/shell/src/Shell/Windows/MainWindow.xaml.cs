@@ -81,6 +81,7 @@ public partial class MainWindow : Window
             clipboardHistory.Clear();
             return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
         });
+        nativeMethods.Register("clipboard.deleteEntry", p => ExecuteClipboardDelete(p));
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -1035,14 +1036,25 @@ public partial class MainWindow : Window
             ? l.GetInt32()
             : 50;
         var items = clipboardHistory.Query(query, limit)
-            .Select((e, i) => new Dictionary<string, object?>
+            .Select(e => new Dictionary<string, object?>
             {
-                ["id"] = i.ToString(),
+                ["id"] = ClipboardHistoryStore.ComputeEntryId(e),
                 ["text"] = e.Text,
                 ["timestamp"] = e.TimestampUnixMs,
             })
             .ToList();
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { items }));
+    }
+
+    private NativeCallOutcome ExecuteClipboardDelete(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.deleteEntry requires a string 'id' parameter");
+        }
+        return clipboardHistory.Delete(id.GetString()!)
+            ? NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }))
+            : NativeCallOutcome.Failure("entryNotFound", "no clipboard history entry matches the given id");
     }
 
     private NativeCallOutcome ExecuteAppsLaunch(Dictionary<string, JsonElement>? parameters)

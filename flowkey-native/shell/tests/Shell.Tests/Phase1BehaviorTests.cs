@@ -59,6 +59,28 @@ public class NativeMethodTableTests
         Assert.False(outcome.Ok);
         Assert.Equal("invalidParams", outcome.Error!.Code);
     }
+
+    [Fact]
+    public void DeleteEntryGateRejectsUndeclaredExtension()
+    {
+        var table = new NativeMethodTable();
+        table.Register("clipboard.deleteEntry", _ => NativeCallOutcome.Success());
+        var outcome = table.Execute("clipboard.deleteEntry", Array.Empty<string>(), Params("id", "abc"));
+        Assert.False(outcome.Ok);
+        Assert.Equal("methodNotDeclared", outcome.Error!.Code);
+        Assert.Null(outcome.Result);
+    }
+
+    [Fact]
+    public void DeleteEntryDeclaredExtensionReachesHandler()
+    {
+        var table = new NativeMethodTable();
+        table.Register("clipboard.deleteEntry", _ =>
+            NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true })));
+        var outcome = table.Execute("clipboard.deleteEntry", new[] { "clipboard.deleteEntry" }, Params("id", "abc"));
+        Assert.True(outcome.Ok);
+        Assert.True(outcome.Result!.Value.GetProperty("ok").GetBoolean());
+    }
 }
 
 public class SearchStateStaleTests
