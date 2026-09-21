@@ -61,7 +61,7 @@ public sealed class HotkeyManager : IDisposable
         CoInitializeEx(IntPtr.Zero, COINIT_APARTMENTTHREADED);
         while (!requests.IsCompleted)
         {
-            while (requests.TryTake(out var request, 200))
+            while (requests.TryTake(out var request, 15))
             {
                 switch (request.Kind)
                 {
