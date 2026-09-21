@@ -119,11 +119,14 @@ export class Dispatcher {
     }
     this.lastQuery = query;
     this.lastExtensionId = extensionId;
+    const commandId = this.commandIdByRequest.get(requestId);
     try {
-      const tree = await ext.handlers.search(query, this.context(ext));
+      const tree = await ext.handlers.search(query, this.context(ext, commandId));
       emit({ type: 'ui', requestId, tree });
     } catch (error) {
       emit({ type: 'error', requestId, error: toProtocolError(error) });
+    } finally {
+      this.commandIdByRequest.delete(requestId);
     }
   }
 

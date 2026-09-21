@@ -138,6 +138,48 @@
                VerticalScrollBarVisibility="Auto"
                Visibility="Collapsed" />
 
+      <ListBox x:Name="GridHost"
+               Grid.Row="1"
+               Background="Transparent"
+               BorderThickness="0"
+               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+               ScrollViewer.CanContentScroll="True"
+               VirtualizingPanel.IsVirtualizing="True"
+               VirtualizingPanel.VirtualizationMode="Recycling"
+               Visibility="Collapsed"
+               KeyDown="OnGridKeyDown">
+        <ListBox.ItemsPanel>
+          <ItemsPanelTemplate>
+            <VirtualizingStackPanel />
+          </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+          <DataTemplate>
+            <ItemsControl ItemsSource="{Binding Cells}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Width="62" Height="56" CornerRadius="6" Margin="1"
+                          Background="{Binding CellBackground}"
+                          Tag="{Binding FlatIndex}"
+                          MouseLeftButtonDown="OnGridCellClick">
+                    <Grid>
+                      <Image Source="{Binding Bitmap}" Width="34" Height="34" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                      <TextBlock Text="{Binding Item.Icon}" FontSize="26" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                 Visibility="{Binding BitmapFallback}" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+            </ItemsControl>
+          </DataTemplate>
+        </ListBox.ItemTemplate>
+      </ListBox>
+
       <StackPanel x:Name="EmptyView"
                   Grid.Row="1"
                   VerticalAlignment="Center"

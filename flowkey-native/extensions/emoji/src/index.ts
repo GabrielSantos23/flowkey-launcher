@@ -64,12 +64,25 @@ export default defineExtension({
     version: '2.0.0',
     description: 'Emoji picker with categories and keyword search.',
     icon: '😀',
-    commands: [{ id: 'open', title: 'Emoji & Symbols' }],
+    commands: [{ id: 'open', title: 'Emoji & Symbols', keywords: ['emoji', 'symbol'] }, { id: 'grid', title: 'Emoji Grid', keywords: ['emoji', 'grid', 'pick'], mode: 'view' }],
     nativeMethods: ['clipboard.write'],
     httpHosts: [],
   },
   handlers: {
-    async search(query) {
+    async search(query, ctx) {
+      if (ctx.commandId === 'grid') {
+        return {
+          type: 'grid',
+          columns: 8,
+          items: DATA.map((r) => ({
+            id: r.emoji,
+            title: r.description,
+            icon: r.emoji,
+            actions: [{ id: 'copy', title: 'Copy', primary: true }],
+          })),
+          emptyView: { title: 'No emoji' },
+        };
+      }
       const q = query.trim().toLowerCase();
       const emptyView = { title: 'No matches', description: 'Try another keyword' };
 

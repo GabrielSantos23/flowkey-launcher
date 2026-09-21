@@ -39,6 +39,10 @@ public partial class MainWindow : Window
     private readonly AppLauncherService appLauncher;
     private readonly HttpFetchService httpFetch = new();
     private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
+    private List<UiItem> gridItems = new();
+    private int gridColumns;
+    private int gridIndex;
+    private List<GridCellVm> gridCells = new();
     private IntPtr previousForegroundWindow;
     private bool allowClose;
 
@@ -438,6 +442,11 @@ public partial class MainWindow : Window
             {
                 return;
             }
+            if (message.Tree is GridTree grid)
+            {
+                ShowGrid(grid);
+                return;
+            }
             if (message.Tree is DetailTree detail)
             {
                 var extensionId = searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId;
@@ -466,10 +475,162 @@ public partial class MainWindow : Window
                 return;
             }
             DetailHost.Visibility = Visibility.Collapsed;
+            GridHost.Visibility = Visibility.Collapsed;
             var display = BuildDisplayRows();
             LoadRowIcons(display);
             ApplyRows(display, list.EmptyView);
         });
+    }
+
+    private void ShowGrid(GridTree tree)
+    {
+        gridItems = tree.Items.Select(i => i).ToList();
+        gridColumns = Math.Max(1, tree.Columns);
+        gridIndex = gridItems.Count > 0 ? 0 : -1;
+        var rows = new List<GridRowVm>();
+        gridCells = new List<GridCellVm>();
+        for (var i = 0; i < gridItems.Count; i++)
+        {
+            var cell = new GridCellVm { Item = gridItems[i], FlatIndex = i };
+            gridCells.Add(cell);
+            if (i % gridColumns == 0)
+            {
+                rows.Add(new GridRowVm());
+            }
+            rows[^1].Cells.Add(cell);
+        }
+        if (gridCells.Count > 0)
+        {
+            gridCells[0].Selected = true;
+        }
+        GridHost.ItemsSource = rows;
+        LoadGridBitmaps();
+        var missing = gridItems.Select(i => i.Icon).Where(icon => !string.IsNullOrEmpty(icon) && !EmojiSpriteRenderer.IsCached(icon)).Distinct().ToList();
+        if (missing.Count > 0)
+        {
+            var thread = new Thread(() =>
+            {
+                var ok = EmojiSpriteRenderer.EnsureSprites(missing);
+                Dispatcher.BeginInvoke(() =>
+                {
+                    if (ok)
+                    {
+                        LoadGridBitmaps();
+                    }
+                    else
+                    {
+                        ShowToast("color emoji rendering unavailable (Edge not found) — using monochrome");
+                    }
+                });
+            });
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+        GridHost.Visibility = Visibility.Visible;
+        ResultsList.Visibility = Visibility.Collapsed;
+        DetailHost.Visibility = Visibility.Collapsed;
+        EmptyView.Visibility = Visibility.Collapsed;
+    }
+
+    private void LoadGridBitmaps()
+    {
+        foreach (var cell in gridCells)
+        {
+            var path = EmojiSpriteRenderer.CachePathFor(cell.Item.Icon);
+            if (!File.Exists(path))
+            {
+                cell.Bitmap = null;
+                continue;
+            }
+            try
+            {
+                var image = new System.Windows.Media.Imaging.BitmapImage();
+                image.BeginInit();
+                image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                image.DecodePixelWidth = 32;
+                image.UriSource = new Uri(path);
+                image.EndInit();
+                image.Freeze();
+                cell.Bitmap = image;
+            }
+            catch
+            {
+                cell.Bitmap = null;
+            }
+        }
+    }
+
+    private void OnGridKeyDown(object sender, KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Left: MoveGrid(-1, 0); e.Handled = true; break;
+            case Key.Right: MoveGrid(1, 0); e.Handled = true; break;
+            case Key.Up: MoveGrid(0, -1); e.Handled = true; break;
+            case Key.Down: MoveGrid(0, 1); e.Handled = true; break;
+            case Key.Enter: RunGridPrimary(); e.Handled = true; break;
+            case Key.Escape:
+                if (searchState.Depth > 1 && searchState.Pop())
+                {
+                    GridHost.Visibility = Visibility.Collapsed;
+                    SendSearch(searchState.CurrentQuery);
+                }
+                else
+                {
+                    HideWindow();
+                }
+                e.Handled = true;
+                break;
+        }
+    }
+
+    private void OnGridCellClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border { Tag: int flat } && flat < gridCells.Count)
+        {
+            gridCells[gridIndex >= 0 && gridIndex < gridCells.Count ? gridIndex : 0].Selected = false;
+            gridIndex = flat;
+            gridCells[gridIndex].Selected = true;
+            RunGridPrimary();
+        }
+    }
+
+    private void MoveGrid(int dx, int dy)
+    {
+        var target = GridMath.Move(gridIndex, gridItems.Count, gridColumns, dx, dy);
+        if (target < 0)
+        {
+            return;
+        }
+        gridCells[gridIndex].Selected = false;
+        gridIndex = target;
+        gridCells[gridIndex].Selected = true;
+        var row = GridMath.RowOf(gridIndex, gridColumns);
+        if (row >= 0 && row < GridHost.Items.Count)
+        {
+            GridHost.ScrollIntoView(GridHost.Items[row]);
+        }
+    }
+
+    private void RunGridPrimary()
+    {
+        if (gridIndex < 0 || gridIndex >= gridItems.Count)
+        {
+            return;
+        }
+        var item = gridItems[gridIndex];
+        var extensionId = searchState.Top?.ExtensionId;
+        if (extensionId is null)
+        {
+            return;
+        }
+        var action = item.Actions?.FirstOrDefault(a => a.Primary == true) ?? item.Actions?.FirstOrDefault();
+        if (action is null)
+        {
+            return;
+        }
+        sidecar.SendAction(extensionId, action.Id, item);
+        ShowToast("Copied " + item.Icon);
     }
 
     private void LoadRowIcons(IReadOnlyList<UiRow> rows)
