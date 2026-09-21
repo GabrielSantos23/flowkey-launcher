@@ -59,6 +59,11 @@ conscious decision for now: the shell treats the sidecar as a whole and
 attributes native calls to extensions for policy and auditing, not for
 in-process isolation.
 
+**Preferences note:** preference values are sliced per extension by the
+shell, but every slice travels through the same shared sidecar process, so
+preferences are NOT a security boundary between extensions either — the same
+caveat as the isolation note below applies.
+
 **Consent note:** declaring a native method or an httpHost in a manifest is
 NOT user consent — the shell trusts the manifest because, today, extensions
 load only from this repository's own folder (`flowkey-native/extensions/`).

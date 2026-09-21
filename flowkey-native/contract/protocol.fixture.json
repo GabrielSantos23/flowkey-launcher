@@ -70,7 +70,25 @@
           ],
           "nativeMethods": ["clipboard.write"],
           "httpHosts": [],
-          "icon": "😀"
+          "icon": "😀",
+          "preferences": [
+            {
+              "name": "skinTone",
+              "type": "dropdown",
+              "title": "Default skin tone",
+              "default": "none",
+              "options": [
+                {
+                  "value": "none",
+                  "title": "None"
+                },
+                {
+                  "value": "1F3FD",
+                  "title": "Medium"
+                }
+              ]
+            }
+          ]
         }
       ]
     },

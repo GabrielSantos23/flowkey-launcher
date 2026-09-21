@@ -32,5 +32,13 @@
     "clipboard.clearHistory",
     "clipboard.write"
   ],
-  "httpHosts": []
+  "httpHosts": [],
+  "preferences": [
+    {
+      "name": "showTimestamps",
+      "type": "checkbox",
+      "title": "Show timestamps in results",
+      "default": true
+    }
+  ]
 }

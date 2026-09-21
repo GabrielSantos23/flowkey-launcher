@@ -1,5 +1,6 @@
 import type {
   ExtensionModule,
+  PreferenceSchema,
   ReadyExtension,
   HostMessage,
   SidecarMessage,
@@ -35,6 +36,8 @@ export function toReadyExtensions(modules: ExtensionModule[]): ReadyExtension[] 
     name: m.manifest.name,
     version: m.manifest.version,
     icon: m.manifest.icon,
+    preferences: ((m.manifest as { preferences?: PreferenceSchema[] }).preferences ??
+      []) as PreferenceSchema[],
     commands: m.manifest.commands,
     nativeMethods: m.manifest.nativeMethods,
     httpHosts: m.manifest.httpHosts,

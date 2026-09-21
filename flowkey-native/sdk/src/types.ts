@@ -91,11 +91,21 @@ export interface ExtensionModule {
   handlers: SearchHandlers;
 }
 
+export interface PreferenceSchema {
+  name: string;
+  type: 'text' | 'password' | 'checkbox' | 'dropdown';
+  title: string;
+  default?: string | boolean;
+  required?: boolean;
+  options?: { value: string; title: string }[];
+}
+
 export interface ReadyExtension {
   id: string;
   name: string;
   version: string;
   icon?: string;
+  preferences?: PreferenceSchema[];
   commands: { id: string; title: string; keywords?: string[]; mode?: 'view' | 'background' }[];
   nativeMethods: string[];
   httpHosts: string[];

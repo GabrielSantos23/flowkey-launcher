@@ -9,12 +9,12 @@ interface HistoryItem {
 
 let lastQuery = '';
 
-function toUiItem(entry: HistoryItem): UiItem {
+function toUiItem(entry: HistoryItem, showTimestamps: boolean): UiItem {
   const preview = entry.text.replace(/\s+/g, ' ').slice(0, 80);
   return {
     id: entry.id,
     title: preview.length > 0 ? preview : '(empty)',
-    subtitle: new Date(entry.timestamp).toLocaleTimeString(),
+    subtitle: showTimestamps ? new Date(entry.timestamp).toLocaleTimeString() : undefined,
     actions: [{ id: 'copy', title: 'Copy', primary: true }],
   };
 }
@@ -34,7 +34,8 @@ export default defineExtension({
         query: q,
         limit: 50,
       })) ?? { items: [] };
-      const items = result.items.map(toUiItem);
+      const showTimestamps = (ctx.preferences['showTimestamps'] as boolean | undefined) ?? true;
+      const items = result.items.map((entry) => toUiItem(entry, showTimestamps));
       return {
         type: 'list',
         sections: items.length > 0 ? [{ title: 'Recent', items }] : [],

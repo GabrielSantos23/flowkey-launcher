@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private readonly AppLauncherService appLauncher;
     private readonly HttpFetchService httpFetch = new();
     private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
+    private readonly PreferencesStore preferencesStore = new(AppLauncherService.DataDirectory);
     private List<UiItem> gridItems = new();
     private int gridColumns;
     private int gridIndex;
@@ -94,6 +95,29 @@ public partial class MainWindow : Window
 
         if (root is not null)
         {
+            sidecar.PreferencesProvider = extensionId =>
+            {
+                if (extensionId == "*")
+                {
+                    var all = new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>(StringComparer.Ordinal);
+                    foreach (var (id, slice) in preferencesStore.AllSlices())
+                    {
+                        all[id] = slice;
+                    }
+                    return all;
+                }
+                var schema = readyExtensions.FirstOrDefault(e => e.Id == extensionId)?.Preferences
+                    ?? (IReadOnlyList<Protocol.PreferenceSchema>)Array.Empty<Protocol.PreferenceSchema>();
+                var single = new Dictionary<string, System.Text.Json.JsonElement>(StringComparer.Ordinal);
+                foreach (var pair in preferencesStore.Slice(extensionId, schema))
+                {
+                    single[pair.Key] = pair.Value;
+                }
+                return new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>(StringComparer.Ordinal)
+                {
+                    [extensionId] = single,
+                };
+            };
             sidecar.Start();
         }
         else
@@ -338,6 +362,14 @@ public partial class MainWindow : Window
 
     private void OpenCommand(ItemRow row)
     {
+        var extension = readyExtensions.FirstOrDefault(e => e.Id == row.ExtensionId);
+        var schema = extension?.Preferences ?? (IReadOnlyList<Protocol.PreferenceSchema>)Array.Empty<Protocol.PreferenceSchema>();
+        var missing = preferencesStore.MissingRequired(row.ExtensionId!, schema);
+        if (missing.Count > 0)
+        {
+            ShowToast($"'{extension?.Name}' needs settings before it can run: missing " + string.Join(", ", missing) + ". Open Settings to configure.");
+            return;
+        }
         var requestId = sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
             new UiItem { Id = row.CommandId, Title = row.Item.Title });
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
@@ -432,6 +464,13 @@ public partial class MainWindow : Window
             SetStatusBar(first is null ? "no extensions" : $"{first.Name} v{first.Version} ready");
             SendSearch(SearchBox.Text);
         });
+    }
+
+    public void SavePreferences(string extensionId, IReadOnlyList<Protocol.PreferenceSchema> schema, Dictionary<string, System.Text.Json.JsonElement> values)
+    {
+        preferencesStore.SetSlice(extensionId, schema, values);
+        sidecar.SendPreferences(extensionId, preferencesStore.Slice(extensionId, schema)
+            .ToDictionary(p => p.Key, p => p.Value));
     }
 
     private void OnSidecarUi(UiMessage message)

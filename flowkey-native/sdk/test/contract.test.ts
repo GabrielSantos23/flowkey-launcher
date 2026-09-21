@@ -125,6 +125,14 @@ describe('protocol contract fixture', () => {
     expect(['view', 'background']).toContain(command.mode);
   });
 
+  test('ready may declare a preference schema', () => {
+    const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
+    const schema = ready.extensions[0].preferences![0];
+    expect(schema.name).toBe('skinTone');
+    expect(schema.type).toBe('dropdown');
+    expect(schema.options?.length).toBeGreaterThan(0);
+  });
+
   test('ack is emitted on the success path only', () => {
     const ack: AckMessage = protocolFixture.sidecarToHost.ack;
     expect(ack.type).toBe('ack');

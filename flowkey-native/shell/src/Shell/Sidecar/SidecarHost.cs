@@ -35,6 +35,7 @@ public sealed class SidecarHost : IDisposable
     public event Action<Protocol.LogMessage>? Log;
     public event Action<string, string, string, Dictionary<string, JsonElement>?>? NativeCallRequested;
     public event Action<string>? SidecarCrashed;
+    public Func<string, Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>>? PreferencesProvider { get; set; }
     public event Action<Protocol.AckMessage>? Ack;
     public event Action<string>? Fatal;
 
@@ -134,13 +135,22 @@ public sealed class SidecarHost : IDisposable
 
     public void SendInit()
     {
+        var preferences = PreferencesProvider?.Invoke("*") ?? new Dictionary<string, Dictionary<string, System.Text.Json.JsonElement>>();
         var init = new Protocol.InitMessage
         {
             ProtocolVersion = Protocol.ProtocolVersion.Current,
             ExtensionsDir = extensionsDir,
+            Preferences = preferences,
         };
         Send(init);
     }
+
+    public void SendPreferences(string extensionId, Dictionary<string, System.Text.Json.JsonElement> values)
+    {
+        Send(new Protocol.PreferencesMessage { ExtensionId = extensionId, Values = values });
+    }
+
+    private IReadOnlyList<string> knownExtensionIds = Array.Empty<string>();
 
     public string SendSearch(string extensionId, string query, string? commandId = null)
     {
@@ -275,6 +285,7 @@ public sealed class SidecarHost : IDisposable
             return;
         }
         restartAttempts = 0;
+        knownExtensionIds = ready.Extensions.Select(e => e.Id).ToList();
         Ready?.Invoke(ready);
     }
 

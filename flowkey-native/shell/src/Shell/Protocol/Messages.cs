@@ -42,12 +42,29 @@ public sealed class ReadyMessage
     public List<ReadyExtension> Extensions { get; set; } = [];
 }
 
+public sealed class PreferenceSchema
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "text";
+    public string Title { get; set; } = "";
+    public JsonElement? Default { get; set; }
+    public bool Required { get; set; }
+    public List<PreferenceOption>? Options { get; set; }
+}
+
+public sealed class PreferenceOption
+{
+    public string Value { get; set; } = "";
+    public string Title { get; set; } = "";
+}
+
 public sealed class ReadyExtension
 {
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Version { get; set; } = "";
     public string? Icon { get; set; }
+    public List<PreferenceSchema>? Preferences { get; set; }
     public List<CommandInfo> Commands { get; set; } = [];
     public List<string> NativeMethods { get; set; } = [];
     public List<string> HttpHosts { get; set; } = [];

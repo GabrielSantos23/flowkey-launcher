@@ -144,6 +144,16 @@ public class ProtocolFixtureTests
     }
 
     [Fact]
+    public void ReadyMayDeclarePreferenceSchema()
+    {
+        var ready = Root().GetProperty("sidecarToHost").GetProperty("ready").Deserialize<ReadyMessage>(JsonOptions.Default)!;
+        var schema = ready.Extensions[0].Preferences![0];
+        Assert.Equal("skinTone", schema.Name);
+        Assert.Equal("dropdown", schema.Type);
+        Assert.NotEmpty(schema.Options!);
+    }
+
+    [Fact]
     public void AckCarriesRequestIdOnly()
     {
         var ack = Root().GetProperty("sidecarToHost").GetProperty("ack").Deserialize<AckMessage>(JsonOptions.Default)!;
