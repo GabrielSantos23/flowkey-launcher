@@ -6,11 +6,12 @@ the sidecar). Idle = window hidden, no interaction, 5 minutes, each shell
 measured with the other closed. All numbers from Release builds on the same
 machine.
 
-| shell                                                        | idle RAM (window hidden, 5 min): shell-only / sidecar / total | cold open (trigger → visible) | warm open     |
-| ------------------------------------------------------------ | ------------------------------------------------------------- | ----------------------------- | ------------- |
-| tauri                                                        | 79.2 / 0 (no sidecar at idle) / **210.2 MB**                  | not measured¹                 | not measured¹ |
-| native                                                       | 77.2 / 12.4 / **89.6 MB**                                     | **82 ms**²                    | **15 ms**²    |
-| native (phase 2: 4 extensions, app cache, clipboard history) | 89.7 / 15.8 / **105.5 MB**                                    | **93 ms**                     | **2 ms**      |
+| shell                                                                                                 | idle RAM (window hidden, 5 min): shell-only / sidecar / total | cold open (trigger → visible) | warm open     |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ----------------------------- | ------------- |
+| tauri                                                                                                 | 79.2 / 0 (no sidecar at idle) / **210.2 MB**                  | not measured¹                 | not measured¹ |
+| native                                                                                                | 77.2 / 12.4 / **89.6 MB**                                     | **82 ms**²                    | **15 ms**²    |
+| native (phase 2: 4 extensions, app cache, clipboard history)                                          | 89.7 / 15.8 / **105.5 MB**                                    | **93 ms**                     | **2 ms**      |
+| native (phase 3: detail/grid, preferences, settings, navigation, per-command shortcuts, action panel) | 54.0–55.2 / 13.7–14.1 / **68.1–68.9 MB**³                     | **92 ms** (92/124/91)         | **0–17 ms**³  |
 
 **Headline, stated honestly:** the native shell saves ~120 MB at idle — but
 almost none of it comes from the app process itself (77.2 vs 79.2 MB). The
@@ -30,6 +31,47 @@ allocated), the same build idles at 49.8 + 14.1 = 63.9 MB total. Cold open
 went from 82 ms to 93 ms with the app cache present (background build, first
 open never blocked); warm open measured 2 ms this round (poll granularity
 dominates; Phase-1's 15 ms remains the more representative warm figure).
+
+## Phase-3 delta, honestly stated
+
+All Phase-3 numbers below were taken in one session on the same day, game
+closed, nothing heavy running, free RAM 16.7–17.7 GB, published
+framework-dependent Release build, same `measure-idle.ps1` method
+(private working set), window summoned once via the hotkey delivery hop,
+then hidden for 5 minutes before each reading.
+
+**Idle RAM.** The Phase-3 build idles at 68.1–68.9 MB total (three readings
+across two fresh processes, spread 0.8 MB). To keep the comparison honest,
+the Phase-2 commit (c23f0bc) was rebuilt and re-measured the same day with
+the same method and the same sidecar: **94.2 MB total** (80.6 shell / 13.6
+sidecar). The Phase-3 build — with detail and grid rendering, extension
+preferences, the settings window, the navigation stack, per-command global
+shortcuts and the action panel — therefore measures **~25 MB BELOW the
+Phase-2 build under identical conditions**. We cannot attribute that saving
+to any Phase-3 feature; the plausible explanation is that the recorded
+Phase-2 row (105.5 MB) was taken under different machine memory pressure,
+and the same-build re-measure (94.2 vs 105.5) supports that. The defensible
+conclusions are: Phase 3 added **no measurable idle-RAM cost**, and the
+cross-session Phase-2 number should not be compared directly with the
+Phase-3 number.
+
+**Settings window.** Before open 54.0–55.2, while open 74.6–74.8
+(**+20 MB**), right after close 58.4–60.8, 60 s after close 57.2–57.7 MB.
+The window is created on demand and destroyed on close; a **+2–3 MB
+residual** remains 60 s later (managed heap the GC returns slowly). The
+residual was reproducible across two runs.
+
+**Open time.** Cold 92/124/91 ms (three fresh processes; median 92 ms —
+in line with Phase 2's 93 ms). Warm 0–17 ms across five runs, mostly below
+the ~2 ms poll granularity. Open time was not measurably changed by Phase 3.
+
+**Hotkey delivery regression found and fixed during this measurement.**
+The first measurement round showed warm opens of 95–199 ms. A same-day
+re-measure of the Phase-2 build (1–15 ms warm) ruled out the environment:
+the Phase 3-F hotkey-thread pump blocked in
+`BlockingCollection.TryTake(200 ms)` without draining messages, so every
+`WM_HOTKEY` — automated and physical — waited up to 200 ms before delivery.
+Fixed in c2ab11a (`TryTake(15 ms)`); warm open returned to 0–17 ms.
 
 ## Build details
 
