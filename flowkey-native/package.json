@@ -8,6 +8,6 @@
     "sidecar:typecheck": "cd sidecar && bunx tsc --noEmit",
     "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
     "shell:test": "cd shell && dotnet test FlowKey.sln",
-    "test": "pnpm sdk:test && pnpm shell:test"
+    "test": "pnpm sdk:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm shell:test"
   }
 }
