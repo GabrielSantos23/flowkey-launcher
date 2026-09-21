@@ -17,6 +17,7 @@ public sealed class SearchState
 {
     private readonly Stack<SearchLevel> levels = new();
     private readonly HashSet<string> liveRequestIds = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, string> actionRefreshByRequest = new(StringComparer.Ordinal);
     private long generation;
 
     public const string OpenActionId = "__open__";
@@ -29,6 +30,7 @@ public sealed class SearchState
     {
         generation++;
         liveRequestIds.Clear();
+        actionRefreshByRequest.Clear();
         var level = new SearchLevel { Query = query };
         RegisterRequests(level, requests.Select(r => (r.ExtensionId, r.RequestId)));
         levels.Clear();
@@ -39,12 +41,18 @@ public sealed class SearchState
     {
         generation++;
         liveRequestIds.Clear();
+        actionRefreshByRequest.Clear();
         var level = new SearchLevel { ExtensionId = extensionId, CommandId = commandId, Query = "" };
         level.ExtensionByRequest[requestId] = extensionId;
         level.RequestIds.Add(requestId);
         level.RowsByRequest[requestId] = Array.Empty<UiRow>();
         liveRequestIds.Add(requestId);
         levels.Push(level);
+    }
+
+    public void TrackAction(string requestId, string extensionId)
+    {
+        actionRefreshByRequest[requestId] = extensionId;
     }
 
     public bool Pop()
@@ -55,6 +63,7 @@ public sealed class SearchState
         }
         var top = levels.Pop();
         liveRequestIds.Clear();
+        actionRefreshByRequest.Clear();
         generation++;
         foreach (var id in levels.Peek().RequestIds)
         {
@@ -70,6 +79,7 @@ public sealed class SearchState
             levels.Pop();
         }
         liveRequestIds.Clear();
+        actionRefreshByRequest.Clear();
         generation++;
         if (levels.Count > 0)
         {
@@ -86,6 +96,7 @@ public sealed class SearchState
     {
         generation++;
         liveRequestIds.Clear();
+        actionRefreshByRequest.Clear();
         if (levels.Count == 0)
         {
             levels.Push(new SearchLevel());
@@ -118,7 +129,31 @@ public sealed class SearchState
     public IReadOnlyList<UiRow> ApplyResult(string requestId, ListTree tree, out bool stale)
     {
         var top = Top;
-        if (top is null || !liveRequestIds.Contains(requestId))
+        if (top is null)
+        {
+            stale = true;
+            return CurrentRows;
+        }
+        if (actionRefreshByRequest.Remove(requestId, out var refreshExtension))
+        {
+            var previous = top.ExtensionByRequest
+                .Where(kv => kv.Value == refreshExtension)
+                .Select(kv => kv.Key)
+                .ToList();
+            foreach (var id in previous)
+            {
+                top.RequestIds.Remove(id);
+                top.RowsByRequest.Remove(id);
+                top.ExtensionByRequest.Remove(id);
+                liveRequestIds.Remove(id);
+            }
+            top.RequestIds.Add(requestId);
+            top.ExtensionByRequest[requestId] = refreshExtension;
+            top.RowsByRequest[requestId] = RowBuilder.Flatten(tree, refreshExtension);
+            stale = false;
+            return MergeTopRows(top);
+        }
+        if (!liveRequestIds.Contains(requestId))
         {
             stale = true;
             return CurrentRows;
@@ -127,6 +162,11 @@ public sealed class SearchState
         stale = false;
         top.ExtensionByRequest.TryGetValue(requestId, out var extensionId);
         top.RowsByRequest[requestId] = RowBuilder.Flatten(tree, extensionId);
+        return MergeTopRows(top);
+    }
+
+    private IReadOnlyList<UiRow> MergeTopRows(SearchLevel top)
+    {
         var merged = new List<UiRow>();
         foreach (var id in top.RequestIds)
         {
@@ -134,7 +174,7 @@ public sealed class SearchState
         }
         top.Rows = merged;
         CurrentRows = merged;
-        return CurrentRows;
+        return merged;
     }
 
     public IReadOnlyList<UiRow> CurrentRows { get; private set; } = Array.Empty<UiRow>();

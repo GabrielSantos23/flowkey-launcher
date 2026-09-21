@@ -55,6 +55,7 @@ export class Dispatcher {
   private bridge: NativeBridge;
   private lastQuery = '';
   private lastExtensionId = '';
+  private lastCommandId?: string;
   private commandIdByRequest = new Map<string, string>();
 
   constructor(
@@ -123,6 +124,7 @@ export class Dispatcher {
     this.lastQuery = query;
     this.lastExtensionId = extensionId;
     const commandId = this.commandIdByRequest.get(requestId);
+    this.lastCommandId = commandId;
     try {
       const tree = await ext.handlers.search(query, this.context(ext, commandId));
       emit({ type: 'ui', requestId, tree });
@@ -178,6 +180,9 @@ export class Dispatcher {
           return;
         }
         const tree = await ext.handlers.search('', this.context(ext, commandId));
+        this.lastQuery = '';
+        this.lastExtensionId = extensionId;
+        this.lastCommandId = commandId;
         emit({ type: 'ui', requestId, tree });
         return;
       }
@@ -190,7 +195,7 @@ export class Dispatcher {
         return;
       }
       if (this.lastExtensionId === extensionId) {
-        const refreshed = await ext.handlers.search(this.lastQuery, this.context(ext));
+        const refreshed = await ext.handlers.search(this.lastQuery, this.context(ext, this.lastCommandId));
         emit({ type: 'ui', requestId, tree: refreshed });
       }
     } catch (error) {

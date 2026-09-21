@@ -164,6 +164,37 @@ public class SearchStateStaleTests
         Assert.Equal("app", items[1].Item.Id);
         Assert.Equal("apps", items[1].ExtensionId);
     }
+
+    [Fact]
+    public void TrackedActionRefreshReplacesExtensionRowsWithoutDuplicates()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
+        state.ApplyResult("s1", TreeWithEmoji("old-emoji"), out _);
+        state.ApplyResult("s2", TreeWithEmoji("old-apps"), out _);
+
+        state.TrackAction("a1", "emoji");
+        var rows = state.ApplyResult("a1", TreeWithEmoji("new"), out var stale);
+
+        Assert.False(stale);
+        var itemIds = rows.OfType<ItemRow>().Select(r => r.Item.Id).ToList();
+        Assert.Equal(1, itemIds.Count(id => id == "new"));
+        Assert.DoesNotContain("old-emoji", itemIds);
+        Assert.Contains("old-apps", itemIds);
+        Assert.Equal(rows, state.CurrentRows);
+    }
+
+    [Fact]
+    public void TrackedActionRefreshIsDroppedAfterNewQuery()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.TrackAction("a1", "emoji");
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
+
+        state.ApplyResult("a1", TreeWithEmoji("late"), out var stale);
+        Assert.True(stale);
+    }
 }
 
 public class ProtocolVersionRefusalTests

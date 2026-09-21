@@ -477,7 +477,8 @@ public partial class MainWindow : Window
             return;
         }
         DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
-        sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
+        var requestId = sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
+        searchState.TrackAction(requestId, row.ExtensionId);
     }
 
     private void OpenCommand(ItemRow row)
