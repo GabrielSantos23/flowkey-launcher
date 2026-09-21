@@ -22,6 +22,7 @@ public partial class MainWindow : Window
     public const string HotkeyDisplayName = "Ctrl+Alt+Space";
 
     private const int HOTKEY_ID = 0x464B;
+    private const int SummonHotkeyId = 0x464B;
     private const int WM_HOTKEY = 0x0312;
     private const int WM_CLIPBOARDUPDATE = 0x031D;
     public const int WM_APP_OPEN_SETTINGS = 0x8001;
@@ -50,6 +51,9 @@ public partial class MainWindow : Window
     private HotkeyManager? hotkeyManager;
     private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
     private SettingsWindow? settingsWindow;
+    private const int CommandHotkeyBase = 0x4B00;
+    private readonly Dictionary<int, (string ExtensionId, string CommandId)> commandHotkeyIds = new();
+    private bool commandHotkeysRegistered;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
     private readonly HashSet<string> pendingPushRequests = new(StringComparer.Ordinal);
@@ -154,11 +158,12 @@ public partial class MainWindow : Window
         {
             DebugLog.Write("AddClipboardFormatListener failed: " + Marshal.GetLastWin32Error());
         }
-        hotkeyManager = new HotkeyManager(Handle, HOTKEY_ID, m => DebugLog.Write(m));
+        hotkeyManager = new HotkeyManager(DispatchGlobalHotkey, m => DebugLog.Write(m));
+        hotkeyManager.Start();
         var hotkeySettingsLoaded = hotkeySettings.Load();
-        if (!hotkeyManager.TryRegister(hotkeySettingsLoaded.Modifier, hotkeySettingsLoaded.VirtualKey))
+        if (!hotkeyManager.Register(SummonHotkeyId, hotkeySettingsLoaded.Modifier, hotkeySettingsLoaded.VirtualKey))
         {
-            ShowToast($"Failed to register global hotkey — another app may own it. Open Settings to pick a new one.");
+            ShowToast("Failed to register global hotkey — another app may own it. Open Settings to pick a new one.");
             DebugLog.Write("RegisterHotKey failed");
         }
         else
@@ -180,7 +185,9 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        hotkeyManager?.UnregisterCurrent();
+        hotkeyManager?.Unregister(SummonHotkeyId);
+        UnregisterCommandHotkeys();
+        hotkeyManager?.Dispose();
         sidecar.Dispose();
         base.OnClosed(e);
     }
@@ -191,14 +198,15 @@ public partial class MainWindow : Window
         {
             return false;
         }
-        const int trialId = HOTKEY_ID + 1;
-        if (!RegisterHotKey(Handle, trialId, modifier, virtualKey))
+        const int trialId = SummonHotkeyId + 1000;
+        if (!hotkeyManager.Register(trialId, modifier, virtualKey))
         {
+            hotkeyManager.Unregister(trialId);
             return false;
         }
-        UnregisterHotKey(Handle, trialId);
-        UnregisterHotKey(Handle, HOTKEY_ID);
-        var ok = hotkeyManager.TryRegister(modifier, virtualKey);
+        hotkeyManager.Unregister(trialId);
+        hotkeyManager.Unregister(SummonHotkeyId);
+        var ok = hotkeyManager.Register(SummonHotkeyId, modifier, virtualKey);
         DebugLog.Write("hotkey swap ok=" + ok);
         return ok;
     }
@@ -232,6 +240,28 @@ public partial class MainWindow : Window
             ShowToast,
             ApplySummonHotkey);
         settingsWindow.PreferencesChanged += (extensionId, values) => sidecar.SendPreferences(extensionId, values);
+        settingsWindow.CommandShortcutChanged += (commandKey, combo) =>
+        {
+            var settings = hotkeySettings.Load();
+            if (combo is null)
+            {
+                settings.CommandShortcuts.Remove(commandKey);
+            }
+            else
+            {
+                settings.CommandShortcuts[commandKey] = combo;
+            }
+            hotkeySettings.Save(settings);
+            RegisterCommandHotkeys();
+        };
+        settingsWindow.DescribeCommandShortcut = _ => "";
+        settingsWindow.ShortcutConflict = combo =>
+        {
+            var settings = hotkeySettings.Load();
+            return TryParseCombo(combo, out var modifier, out var virtualKey)
+                && settings.Modifier == modifier && settings.VirtualKey == virtualKey;
+        };
+        settingsWindow.RefreshCommandShortcuts = () => { };
         settingsWindow.Closed += (_, _) =>
         {
             DebugLog.Write("settings window closed");
@@ -262,22 +292,11 @@ public partial class MainWindow : Window
     {
         if (msg == WM_APP_OPEN_SETTINGS)
         {
-            DebugLog.Write("WM_APP_OPEN_SETTINGS received");
-        }
-        if (msg == WM_APP_OPEN_SETTINGS)
-        {
             OpenSettings();
             handled = true;
             return IntPtr.Zero;
         }
-        if (hotkeyManager is not null && msg == WM_HOTKEY)
-        {
-            var settings = hotkeySettings.Load();
-            _ = hotkeyManager.Matches(wParam, settings.Modifier, settings.VirtualKey);
-            ToggleVisibility();
-            handled = true;
-        }
-        else if (msg == WM_CLIPBOARDUPDATE)
+        if (msg == WM_CLIPBOARDUPDATE)
         {
             var text = ClipboardReader.TryCaptureText();
             DebugLog.Write($"clipboard update captured=" + (text is not null) + " len=" + (text?.Length ?? 0));
@@ -302,35 +321,11 @@ public partial class MainWindow : Window
         }
     }
 
-    private void EnsureHotkeyAlive()
-    {
-        if (hotkeyManager is null)
-        {
-            return;
-        }
-        var settings = hotkeySettings.Load();
-        const int probeId = HOTKEY_ID + 2;
-        if (RegisterHotKey(Handle, probeId, settings.Modifier, settings.VirtualKey))
-        {
-            UnregisterHotKey(Handle, probeId);
-            if (hotkeyManager.TryRegister(settings.Modifier, settings.VirtualKey))
-            {
-                DebugLog.Write("hotkey re-registered after handle change");
-            }
-            else
-            {
-                ShowToast("Failed to re-register the global hotkey — another app may own it now.");
-            }
-        }
-    }
-
     public void Summon()
     {
-        EnsureHotkeyAlive();
         previousForegroundWindow = GetForegroundWindow();
         Visibility = Visibility.Visible;
         Show();
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, EnsureHotkeyAlive);
         ForceForeground();
         Activate();
         SearchBox.Focus();
@@ -360,7 +355,6 @@ public partial class MainWindow : Window
     {
         var previous = previousForegroundWindow;
         Hide();
-        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, EnsureHotkeyAlive);
         Visibility = Visibility.Hidden;
         if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
         {
@@ -376,6 +370,19 @@ public partial class MainWindow : Window
     {
         searchDebounce.Stop();
         searchDebounce.Start();
+    }
+
+    private void DispatchGlobalHotkey(int id)
+    {
+        if (id == SummonHotkeyId)
+        {
+            Dispatcher.BeginInvoke(() => ToggleVisibility());
+            return;
+        }
+        if (id >= CommandHotkeyBase && commandHotkeyIds.TryGetValue(id, out var commandRef))
+        {
+            Dispatcher.BeginInvoke(() => RunCommandFromShortcut(commandRef.ExtensionId, commandRef.CommandId));
+        }
     }
 
     private void OnSearchKeyDown(object sender, KeyEventArgs e) => HandleListKeys(e);
@@ -488,6 +495,123 @@ public partial class MainWindow : Window
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
     }
 
+    private void RegisterCommandHotkeys()
+    {
+        if (hotkeyManager is null || readyExtensions.Count == 0)
+        {
+            return;
+        }
+        UnregisterCommandHotkeys();
+        var settings = hotkeySettings.Load();
+        var index = 0;
+        foreach (var extension in readyExtensions)
+        {
+            foreach (var command in extension.Commands)
+            {
+                var commandKey = extension.Id + ":" + command.Id;
+                if (!settings.CommandShortcuts.TryGetValue(commandKey, out var combo))
+                {
+                    continue;
+                }
+                if (!TryParseCombo(combo, out var modifier, out var virtualKey))
+                {
+                    continue;
+                }
+                var id = CommandHotkeyBase + index;
+                index++;
+                if (hotkeyManager.Register(id, modifier, virtualKey))
+                {
+                    commandHotkeyIds[id] = (extension.Id, command.Id);
+                }
+                else if (false)
+                {
+                    commandHotkeyIds[id] = (extension.Id, command.Id);
+                }
+                else
+                {
+                    index--;
+                    ShowToast($"Shortcut for '{command.Title}' could not be registered (conflict or invalid).");
+                }
+            }
+        }
+        commandHotkeysRegistered = true;
+    }
+
+    private void UnregisterCommandHotkeys()
+    {
+        if (hotkeyManager is null)
+        {
+            return;
+        }
+        foreach (var id in commandHotkeyIds.Keys)
+        {
+            hotkeyManager.Unregister(id);
+        }
+        commandHotkeyIds.Clear();
+    }
+
+    private void RunCommandFromShortcut(string extensionId, string commandId)
+    {
+        var extension = readyExtensions.FirstOrDefault(e => e.Id == extensionId);
+        var command = extension?.Commands.FirstOrDefault(c => c.Id == commandId);
+        if (extension is null || command is null)
+        {
+            return;
+        }
+        var schema = extension.Preferences ?? (IReadOnlyList<Protocol.PreferenceSchema>)Array.Empty<Protocol.PreferenceSchema>();
+        var missing = preferencesStore.MissingRequired(extensionId, schema);
+        if (missing.Count > 0)
+        {
+            ShowToast($"'{extension.Name}' needs settings before it can run: missing " + string.Join(", ", missing) + ". Open Settings to configure.");
+            return;
+        }
+        if (command.Mode == "background")
+        {
+            sidecar.SendAction(extensionId, CommandCatalog.OpenActionId, new UiItem { Id = commandId, Title = command.Title });
+            return;
+        }
+        Dispatcher.BeginInvoke(() =>
+        {
+            searchState.ResetToRoot();
+            SearchBox.Text = "";
+            Summon();
+            var requestId = sidecar.SendAction(extensionId, CommandCatalog.OpenActionId,
+                new UiItem { Id = commandId, Title = command.Title });
+            searchState.PushRequest(requestId, extensionId, commandId);
+        });
+    }
+
+    public static bool TryParseCombo(string combo, out uint modifier, out uint virtualKey)
+    {
+        modifier = 0;
+        virtualKey = 0;
+        var parts = combo.Split('+');
+        if (parts.Length < 2)
+        {
+            return false;
+        }
+        foreach (var rawPart in parts[..^1])
+        {
+            modifier |= rawPart.Trim().ToLowerInvariant() switch
+            {
+                "ctrl" => HotkeyManager.MOD_CONTROL,
+                "alt" => HotkeyManager.MOD_ALT,
+                "win" => HotkeyManager.MOD_WIN,
+                "shift" => HotkeyManager.MOD_SHIFT,
+                _ => 0,
+            };
+        }
+        var keyPart = parts[^1].Trim();
+        virtualKey = keyPart switch
+        {
+            "Space" => 0x20,
+            _ when keyPart.Length == 1 && char.IsLetterOrDigit(keyPart[0]) => (uint)char.ToUpperInvariant(keyPart[0]),
+            _ when keyPart.StartsWith("F") && int.TryParse(keyPart[1..], out var f) && f is >= 1 and <= 24 => (uint)(0x70 + f - 1),
+            _ => 0,
+        };
+        return modifier != 0 && virtualKey != 0;
+    }
+
     private void OnSidecarAck(AckMessage ack)
     {
         Dispatcher.BeginInvoke(() =>
@@ -571,6 +695,7 @@ public partial class MainWindow : Window
             searchState.ResetToRoot();
             ShowToast("Extensions restarted — returned to root");
         }
+        RegisterCommandHotkeys();
         var first = ready.Extensions.FirstOrDefault();
         Dispatcher.BeginInvoke(() =>
         {

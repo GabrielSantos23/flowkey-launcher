@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace FlowKey.Shell.Native;
 
@@ -8,7 +9,7 @@ public sealed class HotkeySettings
 {
     public uint Modifier { get; set; } = 0x0003;
     public uint VirtualKey { get; set; } = 0x20;
-    public HashSet<string> CommandShortcuts { get; set; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> CommandShortcuts { get; set; } = new(StringComparer.Ordinal);
 }
 
 public sealed class HotkeySettingsStore
@@ -22,6 +23,12 @@ public sealed class HotkeySettingsStore
         filePath = Path.Combine(directory, "hotkeys.json");
     }
 
+    private static JsonSerializerOptions JsonOptions { get; } = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+    };
+
     public HotkeySettings Load()
     {
         lock (gate)
@@ -30,7 +37,7 @@ public sealed class HotkeySettingsStore
             {
                 if (File.Exists(filePath))
                 {
-                    return JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(filePath)) ?? new HotkeySettings();
+                    return JsonSerializer.Deserialize<HotkeySettings>(File.ReadAllText(filePath), JsonOptions) ?? new HotkeySettings();
                 }
             }
             catch
@@ -45,7 +52,7 @@ public sealed class HotkeySettingsStore
     {
         lock (gate)
         {
-            File.WriteAllText(filePath, JsonSerializer.Serialize(settings));
+            File.WriteAllText(filePath, JsonSerializer.Serialize(settings, JsonOptions));
         }
     }
 }

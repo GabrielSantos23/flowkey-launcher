@@ -50,6 +50,116 @@ public partial class SettingsWindow : Window
 
         LaunchAtLogin.IsChecked = LoginLauncher.IsEnabled();
         BuildExtensionForms();
+        BuildCommandShortcutRows();
+    }
+
+    private void BuildCommandShortcutRows()
+    {
+        if (RefreshCommandShortcuts is null)
+        {
+            return;
+        }
+        RefreshCommandShortcuts();
+        ExtensionsPanel.Children.Add(new TextBlock
+        {
+            Text = "Per-command shortcuts",
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 14, 0, 6),
+        });
+        var settings = hotkeySettings.Load();
+        var bound = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var extension in extensions)
+        {
+            foreach (var command in extension.Commands)
+            {
+                var key = extension.Id + ":" + command.Id;
+                settings.CommandShortcuts.TryGetValue(key, out var stored);
+                AddShortcutRow(command.Title, stored, key);
+                bound.Add(key);
+            }
+        }
+        foreach (var key in settings.CommandShortcuts.Keys)
+        {
+            if (!bound.Contains(key))
+            {
+                AddShortcutRow(key + " (orphan — command no longer exists)", settings.CommandShortcuts[key], key);
+            }
+        }
+    }
+
+    private void AddShortcutRow(string title, string? stored, string key)
+    {
+        AddShortcutRowCore(title, stored, key);
+    }
+
+    private void AddShortcutRowCore(string title, string? stored, string key)
+    {
+        var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
+        row.Children.Add(new TextBlock
+        {
+            Text = title,
+            Width = 300,
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        var box = new TextBox { Width = 180, IsReadOnly = true, Text = stored ?? "(none)" };
+        row.Children.Add(box);
+
+        var hintText = new TextBlock { FontSize = 11, Foreground = FindResource("DimTextBrush") as Brush, VerticalAlignment = VerticalAlignment.Center, MaxWidth = 140, TextWrapping = TextWrapping.Wrap };
+        row.Children.Add(hintText);
+
+        box.PreviewKeyDown += (sender, e) =>
+        {
+            var pressed = e.Key == Key.System ? e.SystemKey : e.Key;
+            if (pressed is Key.LeftCtrl or Key.RightCtrl or Key.LeftAlt or Key.RightAlt
+                or Key.LeftShift or Key.RightShift or Key.LWin or Key.RWin or Key.Escape)
+            {
+                if (pressed == Key.Escape)
+                {
+                    box.MoveFocus(new TraversalRequest(FocusNavigationDirection.Next));
+                }
+                e.Handled = true;
+                return;
+            }
+            var modifier = ReadModifiers();
+            var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(pressed);
+            if (HotkeyManager.IsReservedCombo(modifier, virtualKey))
+            {
+                hintText.Text = "reserved/unsafe";
+                e.Handled = true;
+                return;
+            }
+            if (HotkeyManager.IsAltGrRisky(modifier, virtualKey))
+            {
+                hintText.Text = "AltGr risk — add Win";
+                e.Handled = true;
+                return;
+            }
+            var combo = Describe(modifier, virtualKey);
+            if (ShortcutConflict is not null && ShortcutConflict(combo))
+            {
+                hintText.Text = "conflicts with the summon hotkey";
+                e.Handled = true;
+                return;
+            }
+            CommandShortcutChanged?.Invoke(key, combo);
+            box.Text = combo;
+            hintText.Text = "saved";
+            e.Handled = true;
+        };
+
+        var clearButton = new Button { Content = "✕", Padding = new Thickness(6, 2, 6, 2), Margin = new Thickness(4, 0, 0, 0) };
+        clearButton.Click += (_, _) =>
+        {
+            CommandShortcutChanged?.Invoke(key, null);
+            box.Text = "(none)";
+            hintText.Text = "removed";
+        };
+        row.Children.Add(clearButton);
+
+        ExtensionsPanel.Children.Add(row);
     }
 
     private void BuildExtensionForms()
@@ -62,7 +172,7 @@ public partial class SettingsWindow : Window
             }
             ExtensionsPanel.Children.Add(new TextBlock
             {
-                Text = (extension.Icon ?? "•") + "  " + extension.Name,
+                Text = (extension.Icon ?? "•") + "  " + extension.Name + "  —  " + extension.Id,
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 8, 0, 4),
             });
@@ -154,6 +264,10 @@ public partial class SettingsWindow : Window
     }
 
     public event Action<string, Dictionary<string, System.Text.Json.JsonElement>>? PreferencesChanged;
+    public event Action<string, string?>? CommandShortcutChanged;
+    public Func<string, string>? DescribeCommandShortcut { get; set; }
+    public Action? RefreshCommandShortcuts { get; set; }
+    public Func<string, bool>? ShortcutConflict { get; set; }
 
     private void OnHotkeyGotFocus(object sender, KeyboardFocusChangedEventArgs e)
     {

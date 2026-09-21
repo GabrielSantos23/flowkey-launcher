@@ -1,53 +1,101 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 
 namespace FlowKey.Shell.Native;
 
-public sealed class HotkeyManager
+public sealed class HotkeyManager : IDisposable
 {
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;
     public const uint MOD_SHIFT = 0x0004;
     public const uint MOD_WIN = 0x0008;
 
-    private readonly IntPtr hwnd;
-    private readonly int hotkeyId;
-    private readonly Action<string> log;
+    private const uint WM_HOTKEY = 0x0312;
 
-    public HotkeyManager(IntPtr hwnd, int hotkeyId, Action<string> log)
+    private readonly BlockingCollection<HotkeyRequest> requests = new();
+    private readonly Action<int> onHotkey;
+    private readonly Action<string> log;
+    private Thread? thread;
+
+    public HotkeyManager(Action<int> onHotkey, Action<string> log)
     {
-        this.hwnd = hwnd;
-        this.hotkeyId = hotkeyId;
+        this.onHotkey = onHotkey;
         this.log = log;
     }
 
-    public uint Modifier { get; private set; }
-    public uint VirtualKey { get; private set; }
-
-    public bool TryRegister(uint modifier, uint virtualKey)
+    public void Start()
     {
-        UnregisterCurrent();
-        if (RegisterHotKey(hwnd, hotkeyId, modifier, virtualKey))
+        thread = new Thread(Pump)
         {
-            Modifier = modifier;
-            VirtualKey = virtualKey;
-            return true;
-        }
-        log("RegisterHotKey failed: " + Marshal.GetLastWin32Error());
-        return false;
+            Name = "flowkey-hotkeys",
+            IsBackground = true,
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
     }
 
-    public void UnregisterCurrent()
+    public bool Register(int id, uint modifier, uint virtualKey)
     {
-        if (Modifier != 0 || VirtualKey != 0)
+        var request = new HotkeyRequest { Kind = RequestKind.Register, Id = id, Modifier = modifier, VirtualKey = virtualKey };
+        return Execute(request);
+    }
+
+    public bool Unregister(int id)
+    {
+        var request = new HotkeyRequest { Kind = RequestKind.Unregister, Id = id };
+        return Execute(request);
+    }
+
+    private bool Execute(HotkeyRequest request)
+    {
+        if (thread is null || !thread.IsAlive)
         {
-            UnregisterHotKey(hwnd, hotkeyId);
-            Modifier = 0;
-            VirtualKey = 0;
+            return false;
+        }
+        requests.Add(request);
+        return request.Completion.Task.Wait(2000) && request.Completion.Task.Result;
+    }
+
+    private void Pump()
+    {
+        CoInitializeEx(IntPtr.Zero, COINIT_APARTMENTTHREADED);
+        while (!requests.IsCompleted)
+        {
+            while (requests.TryTake(out var request, 200))
+            {
+                switch (request.Kind)
+                {
+                    case RequestKind.Register:
+                        var registered = RegisterHotKey(IntPtr.Zero, request.Id, request.Modifier, request.VirtualKey);
+                        if (!registered)
+                        {
+                            log("RegisterHotKey(" + request.Id + ") failed: " + Marshal.GetLastWin32Error());
+                        }
+                        request.Completion.TrySetResult(registered);
+                        break;
+                    case RequestKind.Unregister:
+                        UnregisterHotKey(IntPtr.Zero, request.Id);
+                        request.Completion.TrySetResult(true);
+                        break;
+                }
+            }
+            var msg = default(MSG);
+            while (PeekMessageW(out msg, IntPtr.Zero, 0, 0, 1))
+            {
+                if (msg.message == WM_HOTKEY)
+                {
+                    onHotkey((int)msg.wParam);
+                }
+                TranslateMessage(ref msg);
+                DispatchMessageW(ref msg);
+            }
         }
     }
 
-    public bool Matches(IntPtr wParamHotkeyId, uint modifier, uint virtualKey) =>
-        wParamHotkeyId.ToInt32() == hotkeyId && Modifier == modifier && VirtualKey == virtualKey;
+    public void Dispose()
+    {
+        requests.CompleteAdding();
+    }
 
     public static bool IsReservedCombo(uint modifier, uint virtualKey)
     {
@@ -69,9 +117,51 @@ public sealed class HotkeyManager
     public static bool IsAltGrRisky(uint modifier, uint virtualKey) =>
         modifier == (MOD_CONTROL | MOD_ALT) && virtualKey is >= 0x41 and <= 0x5A or >= 0x30 and <= 0x39;
 
+    private const uint COINIT_APARTMENTTHREADED = 0x2;
+
+    private enum RequestKind
+    {
+        Register,
+        Unregister,
+    }
+
+    private sealed class HotkeyRequest
+    {
+        public RequestKind Kind { get; init; }
+        public int Id { get; init; }
+        public uint Modifier { get; init; }
+        public uint VirtualKey { get; init; }
+        public TaskCompletionSource<bool> Completion { get; } =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public int ptX;
+        public int ptY;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+
+    [DllImport("user32.dll")]
+    private static extern bool PeekMessageW(out MSG message, IntPtr hWnd, uint minimum, uint maximum, uint remove);
+
+    [DllImport("user32.dll")]
+    private static extern bool TranslateMessage(ref MSG message);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr DispatchMessageW(ref MSG message);
+
+    [DllImport("ole32.dll")]
+    private static extern int CoInitializeEx(IntPtr pvReserved, uint dwCoInit);
 }
