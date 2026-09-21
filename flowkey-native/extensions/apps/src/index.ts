@@ -14,7 +14,7 @@ export default defineExtension({
     version: '1.0.0',
     description: 'Launch installed applications.',
     icon: '🚀',
-    commands: [{ id: 'open', title: 'Apps' }],
+    commands: [{ id: 'open', title: 'Apps', icon: 'rocket', iconColor: '#8B5CF6' }],
     nativeMethods: ['apps.list', 'apps.launch'],
     httpHosts: [],
   },

@@ -65,7 +65,9 @@
               "id": "open",
               "title": "Emoji & Symbols",
               "keywords": ["emoji", "symbol", "kaomoji"],
-              "mode": "view"
+              "mode": "view",
+              "icon": "smile",
+              "iconColor": "#4F8CFF"
             }
           ],
           "nativeMethods": ["clipboard.write"],

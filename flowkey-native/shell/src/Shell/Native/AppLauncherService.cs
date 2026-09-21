@@ -98,10 +98,13 @@ public sealed class AppLauncherService : IDisposable
             cache.AddRange(rebuilt);
         }
         FlowKey.Shell.DebugLog.Write("app cache rebuilt: " + rebuilt.Count + " apps");
+        uiDispatcher?.BeginInvoke(() => CacheUpdated?.Invoke());
         var iconThread = new Thread(() => ExtractAllIcons(rebuilt));
         iconThread.SetApartmentState(ApartmentState.STA);
         iconThread.Start();
     }
+
+    public event Action? CacheUpdated;
 
     public List<(AppEntry Entry, string? IconPath)> List(string query, int dpiPixelSize)
     {

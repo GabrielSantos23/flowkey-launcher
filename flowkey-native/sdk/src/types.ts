@@ -61,7 +61,14 @@ export interface ExtensionManifest {
   version: string;
   description?: string;
   icon?: string;
-  commands: { id: string; title: string; keywords?: string[]; mode?: 'view' | 'background' }[];
+  commands: {
+    id: string;
+    title: string;
+    keywords?: string[];
+    mode?: 'view' | 'background';
+    icon?: string;
+    iconColor?: string;
+  }[];
   nativeMethods: string[];
   httpHosts: string[];
 }
@@ -108,7 +115,14 @@ export interface ReadyExtension {
   version: string;
   icon?: string;
   preferences?: PreferenceSchema[];
-  commands: { id: string; title: string; keywords?: string[]; mode?: 'view' | 'background' }[];
+  commands: {
+    id: string;
+    title: string;
+    keywords?: string[];
+    mode?: 'view' | 'background';
+    icon?: string;
+    iconColor?: string;
+  }[];
   nativeMethods: string[];
   httpHosts: string[];
 }

@@ -154,6 +154,8 @@ public class ProtocolFixtureTests
         var command = ready.Extensions[0].Commands[0];
         Assert.Contains("emoji", command.Keywords!);
         Assert.Equal("view", command.Mode);
+        Assert.Equal("smile", command.Icon);
+        Assert.Equal("#4F8CFF", command.IconColor);
     }
 
     [Fact]

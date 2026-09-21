@@ -207,6 +207,8 @@ public sealed class ItemRow : UiRow
 {
     public UiItem Item { get; init; } = new();
     public System.Windows.Media.ImageSource? Bitmap { get; set; }
+    public System.Windows.Media.Geometry? VectorIcon { get; set; }
+    public System.Windows.Media.Brush? VectorIconBrush { get; set; }
     public bool IsCommand { get; set; }
     public string? CommandId { get; set; }
 }

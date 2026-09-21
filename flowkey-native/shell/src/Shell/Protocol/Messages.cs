@@ -76,6 +76,8 @@ public sealed class CommandInfo
     public string Title { get; set; } = "";
     public List<string>? Keywords { get; set; }
     public string? Mode { get; set; }
+    public string? Icon { get; set; }
+    public string? IconColor { get; set; }
 }
 
 public sealed class AckMessage

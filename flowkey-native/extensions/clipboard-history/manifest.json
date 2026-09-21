@@ -13,7 +13,9 @@
         "clipboard",
         "history",
         "paste"
-      ]
+      ],
+      "icon": "clipboard",
+      "iconColor": "#F59E0B"
     },
     {
       "id": "clear",
@@ -23,7 +25,9 @@
         "clipboard",
         "clear",
         "wipe"
-      ]
+      ],
+      "icon": "trash-2",
+      "iconColor": "#EF4444"
     }
   ],
   "nativeMethods": [

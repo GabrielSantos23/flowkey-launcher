@@ -12,7 +12,7 @@ export default defineExtension({
     version: '1.0.0',
     description: 'Developer verification for the mediated http.fetch method.',
     icon: '🌐',
-    commands: [{ id: 'open', title: 'HTTP Test' }],
+    commands: [{ id: 'open', title: 'HTTP Test', icon: 'globe', iconColor: '#22C55E' }],
     nativeMethods: ['http.fetch'],
     httpHosts: ['api.github.com'],
   },

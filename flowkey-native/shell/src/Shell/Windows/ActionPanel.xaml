@@ -8,13 +8,15 @@
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         ShowActivated="False"
-        Background="#F0222230"
+        Background="Transparent"
+        AllowsTransparency="True"
+        FontFamily="{DynamicResource AppFontFamily}"
         Deactivated="OnDeactivated">
-  <Border CornerRadius="8" BorderThickness="1" BorderBrush="#33FFFFFF" Margin="6">
+  <Border CornerRadius="{DynamicResource RowCornerRadius}" BorderThickness="1" BorderBrush="{DynamicResource KeycapBorderBrush}" Background="{DynamicResource ActionPanelBackgroundBrush}" Margin="6">
     <ListBox x:Name="ActionsList"
              Background="Transparent"
              BorderThickness="0"
-             Foreground="#E6E6EF"
+             Foreground="{DynamicResource TextPrimaryBrush}"
              KeyDown="OnKeyDown"
              MouseDoubleClick="OnDoubleClick"
              PreviewMouseLeftButtonDown="OnPreviewMouseDown">
@@ -24,12 +26,12 @@
           <Setter Property="Template">
             <Setter.Value>
               <ControlTemplate TargetType="ListBoxItem">
-                <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                <Border x:Name="Bd" Background="Transparent" CornerRadius="{DynamicResource KeycapCornerRadius}" Padding="{TemplateBinding Padding}">
                   <ContentPresenter />
                 </Border>
                 <ControlTemplate.Triggers>
                   <Trigger Property="IsSelected" Value="True">
-                    <Setter TargetName="Bd" Property="Background" Value="#2E3A50" />
+                    <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBackgroundBrush}" />
                   </Trigger>
                 </ControlTemplate.Triggers>
               </ControlTemplate>

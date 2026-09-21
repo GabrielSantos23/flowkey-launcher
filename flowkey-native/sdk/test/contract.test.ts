@@ -126,11 +126,13 @@ describe('protocol contract fixture', () => {
     expect(search.extensionId).toBe('clipboard-history');
   });
 
-  test('ready commands may declare keywords and mode', () => {
+  test('ready commands may declare keywords, mode and an optional icon', () => {
     const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
     const command = ready.extensions[0].commands[0];
     expect(Array.isArray(command.keywords)).toBe(true);
     expect(['view', 'background']).toContain(command.mode!);
+    expect(command.icon).toBe('smile');
+    expect(command.iconColor).toBe('#4F8CFF');
   });
 
   test('ready may declare a preference schema', () => {

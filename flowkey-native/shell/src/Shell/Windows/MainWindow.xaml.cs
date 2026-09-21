@@ -73,6 +73,13 @@ public partial class MainWindow : Window
 
         appLauncher = new AppLauncherService();
         appLauncher.SetRebuildDispatcher(Dispatcher);
+        appLauncher.CacheUpdated += () => Dispatcher.BeginInvoke(() =>
+        {
+            if (searchState.Depth == 1 && SearchBox.Text.Length == 0)
+            {
+                SendSearch("");
+            }
+        });
         nativeMethods.Register("apps.list", p => ExecuteAppsList(p));
         nativeMethods.Register("apps.launch", p => ExecuteAppsLaunch(p));
         nativeMethods.Register("http.fetch", _ => NativeCallOutcome.Failure("notImplemented", "handled asynchronously"));
@@ -151,12 +158,19 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void OnLoaded(object sender, RoutedEventArgs e) => UpdateEmptyView("FlowKey", "Type to search, or press Escape to hide");
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        if (searchState.CurrentRows.Count == 0)
+        {
+            UpdateEmptyView("FlowKey", "Type to search, or press Escape to hide");
+        }
+    }
 
     private void OnSourceInitialized(object sender, EventArgs e)
     {
         var source = HwndSource.FromHwnd(Handle);
         source?.AddHook(WndProc);
+        Native.DwmChrome.Apply(source!);
         if (!AddClipboardFormatListener(Handle))
         {
             DebugLog.Write("AddClipboardFormatListener failed: " + Marshal.GetLastWin32Error());
@@ -439,18 +453,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Escape:
-                if (searchState.Depth > 1 && searchState.Pop())
-                {
-                    var restored = searchState.CurrentRows;
-                    LoadRowIcons(restored);
-                    ApplyRows(restored, null);
-                    SetSearchBoxSilently(searchState.CurrentQuery);
-                    SendSearch(searchState.CurrentQuery);
-                }
-                else
-                {
-                    HideWindow();
-                }
+                PerformEscape();
                 e.Handled = true;
                 break;
         }
@@ -477,13 +480,128 @@ public partial class MainWindow : Window
         list.ScrollIntoView(list.Items[index]);
     }
 
-    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void OnSelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateChrome();
+
+    private void UpdateChrome()
     {
+        BackButton.Visibility = searchState.Depth > 1 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateFooter();
+    }
+
+    private void UpdateFooter()
+    {
+        var top = searchState.Top;
+        if (searchState.Depth > 1 && top?.ExtensionId is not null)
+        {
+            var extension = readyExtensions.FirstOrDefault(e => e.Id == top.ExtensionId);
+            var commandTitle = top.CommandId is null
+                ? null
+                : extension?.Commands.FirstOrDefault(c => c.Id == top.CommandId)?.Title;
+            var label = commandTitle ?? extension?.Name ?? "";
+            var selectedTitle = SelectedItemTitleForFooter();
+            if (!string.IsNullOrEmpty(selectedTitle))
+            {
+                label += " – " + selectedTitle;
+            }
+            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+            var icon = new TextBlock { Text = extension?.Icon ?? "", VerticalAlignment = VerticalAlignment.Center };
+            icon.SetResourceReference(TextBlock.FontSizeProperty, "FooterIconSize");
+            panel.Children.Add(icon);
+            var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
+            name.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
+            name.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            name.SetResourceReference(FrameworkElement.MarginProperty, "IconMargin");
+            panel.Children.Add(name);
+            FooterLeft.Content = panel;
+        }
+        else
+        {
+            var glyph = new TextBlock { Text = "\uE700", VerticalAlignment = VerticalAlignment.Center };
+            glyph.SetResourceReference(TextBlock.FontFamilyProperty, "GlyphFontFamily");
+            glyph.SetResourceReference(TextBlock.FontSizeProperty, "GlyphFontSize");
+            glyph.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            FooterLeft.Content = glyph;
+        }
+
+        var primary = SelectedPrimaryActionTitle();
+        FooterPrimaryAction.Text = primary ?? "";
+        FooterPrimaryAction.Visibility = primary is null ? Visibility.Collapsed : Visibility.Visible;
+        FooterEnterKeycap.Visibility = primary is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private string? SelectedPrimaryActionTitle()
+    {
+        if (GridHost.Visibility == Visibility.Visible)
+        {
+            if (gridIndex >= 0 && gridIndex < gridItems.Count)
+            {
+                return gridItems[gridIndex].Actions?.FirstOrDefault(a => a.Primary == true)?.Title;
+            }
+            return null;
+        }
         if (ResultsList.SelectedItem is ItemRow row)
         {
-            SetStatusBar(row.Item.Title);
+            if (row.IsCommand)
+            {
+                return "Run";
+            }
+            return row.Item.Actions?.FirstOrDefault(a => a.Primary == true)?.Title;
+        }
+        return null;
+    }
+
+    private string? SelectedItemTitleForFooter()
+    {
+        if (GridHost.Visibility == Visibility.Visible)
+        {
+            return gridIndex >= 0 && gridIndex < gridItems.Count ? gridItems[gridIndex].Title : null;
+        }
+        if (ResultsList.SelectedItem is ItemRow row && !row.IsCommand)
+        {
+            return row.Item.Title;
+        }
+        return null;
+    }
+
+    private bool PopView()
+    {
+        if (searchState.Depth > 1 && searchState.Pop())
+        {
+            var restored = searchState.CurrentRows;
+            LoadRowIcons(restored);
+            ApplyRows(restored, null);
+            SetSearchBoxSilently(searchState.CurrentQuery);
+            SendSearch(searchState.CurrentQuery);
+            UpdateChrome();
+            return true;
+        }
+        return false;
+    }
+
+    private void PerformEscape()
+    {
+        if (GridHost.Visibility == Visibility.Visible)
+        {
+            if (searchState.Depth > 1 && searchState.Pop())
+            {
+                GridHost.Visibility = Visibility.Collapsed;
+                SetSearchBoxSilently(searchState.CurrentQuery);
+                SendSearch(searchState.CurrentQuery);
+                UpdateChrome();
+            }
+            else
+            {
+                HideWindow();
+            }
+            return;
+        }
+        if (!PopView())
+        {
+            HideWindow();
         }
     }
+
+    private void OnBackButtonClick(object sender, MouseButtonEventArgs e) => PerformEscape();
 
     private void OnListDoubleClick(object sender, MouseButtonEventArgs e) => RunPrimaryAction();
 
@@ -563,6 +681,7 @@ public partial class MainWindow : Window
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
         SetSearchBoxSilently("");
         SearchBox.Focus();
+        UpdateChrome();
     }
 
     private void RegisterCommandHotkeys()
@@ -648,6 +767,7 @@ public partial class MainWindow : Window
             var requestId = sidecar.SendAction(extensionId, CommandCatalog.OpenActionId,
                 new UiItem { Id = commandId, Title = command.Title });
             searchState.PushRequest(requestId, extensionId, commandId);
+            UpdateChrome();
         });
     }
 
@@ -742,33 +862,74 @@ public partial class MainWindow : Window
                     Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
                     Title = cmd.Command.Title,
                     Subtitle = cmd.ExtensionName + (cmd.Command.Mode == "background" ? " (background)" : ""),
-                    Icon = cmd.Extension.Icon,
+                    Kind = "Command",
+                    Icon = cmd.Command.Icon is null ? cmd.Extension.Icon : "",
                     Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
                 });
                 row.ExtensionId = cmd.ExtensionId;
                 row.IsCommand = true;
                 row.CommandId = cmd.Command.Id;
+                if (row is ItemRow itemRow && cmd.Command.Icon is not null)
+                {
+                    itemRow.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
+                    itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                        cmd.Command.IconColor,
+                        (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+                }
                 return row;
             })
             .ToList();
         DebugLog.Write("display rows: commands=" + commandRows.Count + " ext=" + extensionRows.Count + " depth=" + searchState.Depth);
         var merged = new List<UiRow>(commandRows);
         merged.AddRange(extensionRows);
+        if (searchState.Depth == 1)
+        {
+            return WithGroupHeaders(merged);
+        }
         return merged;
+    }
+
+    private IReadOnlyList<UiRow> WithGroupHeaders(List<UiRow> rows)
+    {
+        var result = new List<UiRow>();
+        string? lastGroup = null;
+        foreach (var row in rows)
+        {
+            var isCommand = row is ItemRow { IsCommand: true };
+            var group = isCommand ? "Commands" : row.ExtensionId;
+            if (group != lastGroup)
+            {
+                var title = isCommand
+                    ? "Commands"
+                    : readyExtensions.FirstOrDefault(e => e.Id == row.ExtensionId)?.Name ?? "";
+                if (title.Length > 0)
+                {
+                    result.Add(UiRow.Header(title));
+                }
+                lastGroup = group;
+            }
+            result.Add(row);
+        }
+        return result;
     }
 
     private void OnSidecarReady(ReadyMessage ready)
     {
         readyExtensions = ready.Extensions;
-        if (searchState.Depth > 1)
+        var restarted = searchState.Depth > 1;
+        if (restarted)
         {
             searchState.ResetToRoot();
-            ShowToast("Extensions restarted — returned to root");
         }
-        RegisterCommandHotkeys();
-        var first = ready.Extensions.FirstOrDefault();
         Dispatcher.BeginInvoke(() =>
         {
+            if (restarted)
+            {
+                ShowToast("Extensions restarted — returned to root");
+            }
+            RegisterCommandHotkeys();
+            UpdateChrome();
+            var first = ready.Extensions.FirstOrDefault();
             SetStatusBar(first is null ? "no extensions" : $"{first.Name} v{first.Version} ready");
             SendSearch(SearchBox.Text);
         });
@@ -873,6 +1034,7 @@ public partial class MainWindow : Window
         ResultsList.Visibility = Visibility.Collapsed;
         DetailHost.Visibility = Visibility.Collapsed;
         EmptyView.Visibility = Visibility.Collapsed;
+        UpdateFooter();
     }
 
     private void LoadGridBitmaps()
@@ -917,16 +1079,7 @@ public partial class MainWindow : Window
                 e.Handled = true;
                 break;
             case Key.Escape:
-                if (searchState.Depth > 1 && searchState.Pop())
-                {
-                    GridHost.Visibility = Visibility.Collapsed;
-                    SetSearchBoxSilently(searchState.CurrentQuery);
-                    SendSearch(searchState.CurrentQuery);
-                }
-                else
-                {
-                    HideWindow();
-                }
+                PerformEscape();
                 e.Handled = true;
                 break;
         }
@@ -939,6 +1092,7 @@ public partial class MainWindow : Window
             gridCells[gridIndex >= 0 && gridIndex < gridCells.Count ? gridIndex : 0].Selected = false;
             gridIndex = flat;
             gridCells[gridIndex].Selected = true;
+            UpdateFooter();
             RunGridPrimary();
         }
     }
@@ -958,6 +1112,7 @@ public partial class MainWindow : Window
         {
             GridHost.ScrollIntoView(GridHost.Items[row]);
         }
+        UpdateFooter();
     }
 
     private void RunGridPrimary()
@@ -1186,19 +1341,19 @@ public partial class MainWindow : Window
 
     public void ShowToast(string message)
     {
-        var toast = new Border
+        var toast = new Border();
+        toast.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+        toast.SetResourceReference(Border.CornerRadiusProperty, "RowCornerRadius");
+        toast.SetResourceReference(FrameworkElement.MarginProperty, "ToastItemMargin");
+        toast.SetResourceReference(Border.PaddingProperty, "ToastPadding");
+        var text = new TextBlock
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x33, 0x33, 0x44)),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 8, 12, 8),
-            Margin = new Thickness(0, 4, 0, 0),
-            Child = new TextBlock
-            {
-                Text = message,
-                Foreground = (System.Windows.Media.Brush)FindResource("TextBrush"),
-                TextWrapping = TextWrapping.Wrap,
-            },
+            Text = message,
+            TextWrapping = TextWrapping.Wrap,
         };
+        text.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        text.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
+        toast.Child = text;
         ToastHost.Children.Add(toast);
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
         timer.Tick += (_, _) =>
@@ -1209,7 +1364,7 @@ public partial class MainWindow : Window
         timer.Start();
     }
 
-    private void SetStatusBar(string message) => StatusBar.Text = message;
+    private void SetStatusBar(string message) => DebugLog.Write("status: " + message);
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
