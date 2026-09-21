@@ -122,7 +122,7 @@ describe('protocol contract fixture', () => {
     const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
     const command = ready.extensions[0].commands[0];
     expect(Array.isArray(command.keywords)).toBe(true);
-    expect(['view', 'background']).toContain(command.mode);
+    expect(['view', 'background']).toContain(command.mode!);
   });
 
   test('ready may declare a preference schema', () => {
