@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private const int HOTKEY_ID = 0x464B;
     private const int WM_HOTKEY = 0x0312;
     private const int WM_CLIPBOARDUPDATE = 0x031D;
+    public const int WM_APP_OPEN_SETTINGS = 0x8001;
     private const uint CF_UNICODETEXT = 13;
     private const uint MOD_ALT = 0x0001;
     private const uint MOD_CONTROL = 0x0002;
@@ -46,6 +47,9 @@ public partial class MainWindow : Window
     private List<GridCellVm> gridCells = new();
     private IntPtr previousForegroundWindow;
     private bool allowClose;
+    private HotkeyManager? hotkeyManager;
+    private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
+    private SettingsWindow? settingsWindow;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
     private readonly HashSet<string> pendingPushRequests = new(StringComparer.Ordinal);
@@ -150,11 +154,12 @@ public partial class MainWindow : Window
         {
             DebugLog.Write("AddClipboardFormatListener failed: " + Marshal.GetLastWin32Error());
         }
-        if (!RegisterHotKey(Handle, HOTKEY_ID, HotkeyModifier, HotkeyVirtualKey))
+        hotkeyManager = new HotkeyManager(Handle, HOTKEY_ID, m => DebugLog.Write(m));
+        var hotkeySettingsLoaded = hotkeySettings.Load();
+        if (!hotkeyManager.TryRegister(hotkeySettingsLoaded.Modifier, hotkeySettingsLoaded.VirtualKey))
         {
-            var errorCode = Marshal.GetLastWin32Error();
-            DebugLog.Write($"RegisterHotKey failed: {errorCode}");
-            ShowToast($"Failed to register global hotkey {HotkeyDisplayName} (error {errorCode}). Another app may own it.");
+            ShowToast($"Failed to register global hotkey — another app may own it. Open Settings to pick a new one.");
+            DebugLog.Write("RegisterHotKey failed");
         }
         else
         {
@@ -175,9 +180,76 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        UnregisterHotKey(Handle, HOTKEY_ID);
+        hotkeyManager?.UnregisterCurrent();
         sidecar.Dispose();
         base.OnClosed(e);
+    }
+
+    private bool ApplySummonHotkey(uint modifier, uint virtualKey)
+    {
+        if (hotkeyManager is null)
+        {
+            return false;
+        }
+        const int trialId = HOTKEY_ID + 1;
+        if (!RegisterHotKey(Handle, trialId, modifier, virtualKey))
+        {
+            return false;
+        }
+        UnregisterHotKey(Handle, trialId);
+        UnregisterHotKey(Handle, HOTKEY_ID);
+        var ok = hotkeyManager.TryRegister(modifier, virtualKey);
+        DebugLog.Write("hotkey swap ok=" + ok);
+        return ok;
+    }
+
+    public void OpenSettings()
+    {
+        try
+        {
+            OpenSettingsCore();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("OpenSettings failed: " + ex);
+            ShowToast("Settings failed to open: " + ex.Message);
+        }
+    }
+
+    private void OpenSettingsCore()
+    {
+        DebugLog.Write("OpenSettingsCore entered, hotkeyManager=" + (hotkeyManager is not null));
+        if (hotkeyManager is null)
+        {
+            return;
+        }
+        settingsWindow = new SettingsWindow(
+            hotkeyManager,
+            hotkeySettings,
+            preferencesStore,
+            readyExtensions,
+            () => clipboardHistory.Clear(),
+            ShowToast,
+            ApplySummonHotkey);
+        settingsWindow.PreferencesChanged += (extensionId, values) => sidecar.SendPreferences(extensionId, values);
+        settingsWindow.Closed += (_, _) =>
+        {
+            DebugLog.Write("settings window closed");
+            settingsWindow = null;
+        };
+        settingsWindow.Show();
+        DebugLog.Write("settings shown, visibility=" + settingsWindow.Visibility + " loaded=" + settingsWindow.IsLoaded);
+        settingsWindow.Activate();
+        DebugLog.Write("settings activated");
+    }
+
+    protected override void OnDeactivated(EventArgs e)
+    {
+        if (settingsWindow is { IsLoaded: true })
+        {
+            return;
+        }
+        HideWindow();
     }
 
     public void Quit()
@@ -188,8 +260,20 @@ public partial class MainWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID)
+        if (msg == WM_APP_OPEN_SETTINGS)
         {
+            DebugLog.Write("WM_APP_OPEN_SETTINGS received");
+        }
+        if (msg == WM_APP_OPEN_SETTINGS)
+        {
+            OpenSettings();
+            handled = true;
+            return IntPtr.Zero;
+        }
+        if (hotkeyManager is not null && msg == WM_HOTKEY)
+        {
+            var settings = hotkeySettings.Load();
+            _ = hotkeyManager.Matches(wParam, settings.Modifier, settings.VirtualKey);
             ToggleVisibility();
             handled = true;
         }
@@ -218,11 +302,35 @@ public partial class MainWindow : Window
         }
     }
 
+    private void EnsureHotkeyAlive()
+    {
+        if (hotkeyManager is null)
+        {
+            return;
+        }
+        var settings = hotkeySettings.Load();
+        const int probeId = HOTKEY_ID + 2;
+        if (RegisterHotKey(Handle, probeId, settings.Modifier, settings.VirtualKey))
+        {
+            UnregisterHotKey(Handle, probeId);
+            if (hotkeyManager.TryRegister(settings.Modifier, settings.VirtualKey))
+            {
+                DebugLog.Write("hotkey re-registered after handle change");
+            }
+            else
+            {
+                ShowToast("Failed to re-register the global hotkey — another app may own it now.");
+            }
+        }
+    }
+
     public void Summon()
     {
+        EnsureHotkeyAlive();
         previousForegroundWindow = GetForegroundWindow();
         Visibility = Visibility.Visible;
         Show();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, EnsureHotkeyAlive);
         ForceForeground();
         Activate();
         SearchBox.Focus();
@@ -252,6 +360,7 @@ public partial class MainWindow : Window
     {
         var previous = previousForegroundWindow;
         Hide();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, EnsureHotkeyAlive);
         Visibility = Visibility.Hidden;
         if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
         {
@@ -287,6 +396,10 @@ public partial class MainWindow : Window
                 break;
             case Key.Enter:
                 RunPrimaryAction();
+                e.Handled = true;
+                break;
+            case Key.OemComma when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenSettings();
                 e.Handled = true;
                 break;
             case Key.Escape:
@@ -608,6 +721,10 @@ public partial class MainWindow : Window
             case Key.Up: MoveGrid(0, -1); e.Handled = true; break;
             case Key.Down: MoveGrid(0, 1); e.Handled = true; break;
             case Key.Enter: RunGridPrimary(); e.Handled = true; break;
+            case Key.OemComma when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenSettings();
+                e.Handled = true;
+                break;
             case Key.Escape:
                 if (searchState.Depth > 1 && searchState.Pop())
                 {

@@ -1,0 +1,46 @@
+<Window x:Class="FlowKey.Shell.Windows.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlowKey Settings"
+        Width="640" Height="560"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="True"
+        Background="#1E1E28">
+  <Window.Resources>
+    <SolidColorBrush x:Key="TextBrush" Color="#E6E6EF" />
+    <SolidColorBrush x:Key="DimTextBrush" Color="#8A8A9A" />
+    <Style TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+    </Style>
+    <Style TargetType="TextBox">
+      <Setter Property="Background" Value="#16161E" />
+      <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="#33FFFFFF" />
+      <Setter Property="Padding" Value="4" />
+      <Setter Property="Margin" Value="0,2,0,8" />
+    </Style>
+    <Style TargetType="ComboBox">
+      <Setter Property="Background" Value="#16161E" />
+      <Setter Property="Margin" Value="0,2,0,8" />
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="Padding" Value="10,4" />
+      <Setter Property="Margin" Value="0,4,8,8" />
+    </Style>
+  </Window.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="18,14,18,14">
+      <TextBlock Text="Summon hotkey" FontSize="14" FontWeight="SemiBold" Margin="0,0,0,6" />
+      <TextBox x:Name="HotkeyBox" IsReadOnly="True" PreviewKeyDown="OnHotkeyPreviewKeyDown" GotKeyboardFocus="OnHotkeyGotFocus" LostKeyboardFocus="OnHotkeyLostFocus" Text="…" />
+      <TextBlock x:Name="HotkeyHint" FontSize="11" Foreground="{StaticResource DimTextBrush}" Text="Click the box and press a combination (Ctrl, Alt or Win required)." Margin="0,0,0,12" />
+
+      <CheckBox x:Name="LaunchAtLogin" Content="Start FlowKey when I log in" Foreground="{StaticResource TextBrush}" Margin="0,4,0,12" Checked="OnLaunchAtLoginChanged" Unchecked="OnLaunchAtLoginChanged" />
+
+      <TextBlock Text="Extensions" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,6" />
+      <StackPanel x:Name="ExtensionsPanel" />
+
+      <TextBlock Text="Maintenance" FontSize="14" FontWeight="SemiBold" Margin="0,14,0,6" />
+      <Button Content="Clear clipboard history" Click="OnClearClipboardHistory" HorizontalAlignment="Left" />
+    </StackPanel>
+  </ScrollViewer>
+</Window>

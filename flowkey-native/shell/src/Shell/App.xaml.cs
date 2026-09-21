@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using FlowKey.Shell.Windows;
 using Application = System.Windows.Application;
 
@@ -26,6 +27,10 @@ public partial class App : Application
 
         mainWindow = new MainWindow();
         MainWindow = mainWindow;
+        if (e.Args.Contains("--settings", StringComparer.OrdinalIgnoreCase))
+        {
+            mainWindow.Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ApplicationIdle, () => mainWindow.OpenSettings());
+        }
 
         trayIcon = new System.Windows.Forms.NotifyIcon
         {
