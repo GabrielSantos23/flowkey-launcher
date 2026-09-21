@@ -15,7 +15,7 @@ function toUiItem(entry: HistoryItem, showTimestamps: boolean): UiItem {
     id: entry.id,
     title: preview.length > 0 ? preview : '(empty)',
     subtitle: showTimestamps ? new Date(entry.timestamp).toLocaleTimeString() : undefined,
-    actions: [{ id: 'copy', title: 'Copy', primary: true }],
+    actions: [{ id: 'copy', title: 'Copy', primary: true }, { id: 'delete', title: 'Remove from history' }],
   };
 }
 
@@ -48,6 +48,10 @@ export default defineExtension({
       }
       if (actionId === 'clearHistory') {
         await ctx.native.call('clipboard.clearHistory', {});
+        return null;
+      }
+      if (actionId === 'delete') {
+        await ctx.native.call('clipboard.deleteEntry', { id: item.id });
         return null;
       }
       if (actionId !== 'copy') {

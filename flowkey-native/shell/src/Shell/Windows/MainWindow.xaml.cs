@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using Point = System.Windows.Point;
 using System.Windows.Threading;
 using FlowKey.Shell.Native;
 using FlowKey.Shell.Rendering;
@@ -51,6 +52,7 @@ public partial class MainWindow : Window
     private HotkeyManager? hotkeyManager;
     private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
     private SettingsWindow? settingsWindow;
+    private ActionPanel? actionPanel;
     private const int CommandHotkeyBase = 0x4B00;
     private readonly Dictionary<int, (string ExtensionId, string CommandId)> commandHotkeyIds = new();
     private bool commandHotkeysRegistered;
@@ -280,6 +282,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (actionPanel is { IsVisible: true })
+        {
+            return;
+        }
         HideWindow();
     }
 
@@ -354,6 +360,7 @@ public partial class MainWindow : Window
 
     public void HideWindow()
     {
+        actionPanel?.Close();
         var previous = previousForegroundWindow;
         Hide();
         Visibility = Visibility.Hidden;
@@ -404,6 +411,10 @@ public partial class MainWindow : Window
                 break;
             case Key.Enter:
                 RunPrimaryAction();
+                e.Handled = true;
+                break;
+            case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenActionPanelForSelection();
                 e.Handled = true;
                 break;
             case Key.OemComma when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
@@ -466,20 +477,58 @@ public partial class MainWindow : Window
         {
             return;
         }
-        var action = row.Item.Actions?.FirstOrDefault(a => a.Primary == true) ?? row.Item.Actions?.FirstOrDefault();
-        if (action is null)
-        {
-            return;
-        }
         if (row.IsCommand)
         {
             DebugLog.Write("OpenCommand ext=" + row.ExtensionId + " cmd=" + row.CommandId);
             OpenCommand(row);
             return;
         }
+        var action = row.Item.Actions?.FirstOrDefault(a => a.Primary == true) ?? row.Item.Actions?.FirstOrDefault();
+        if (action is null)
+        {
+            return;
+        }
         DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
         var requestId = sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
         searchState.TrackAction(requestId, row.ExtensionId);
+    }
+
+    private void OpenActionPanelForSelection()
+    {
+        if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null || row.IsCommand)
+        {
+            return;
+        }
+        var actions = (row.Item.Actions ?? new List<UiAction>()).ToList();
+        if (actions.Count < 2)
+        {
+            ShowToast("This item has a single action — press Enter to run it.");
+            return;
+        }
+        OpenActionPanel(row, actions);
+    }
+
+    private void OpenActionPanel(ItemRow row, List<UiAction> actions)
+    {
+        actionPanel?.Close();
+        actionPanel = new ActionPanel();
+        actionPanel.Committed += action =>
+        {
+            DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
+            var requestId = sidecar.SendAction(row.ExtensionId!, action.Id, row.Item);
+            searchState.TrackAction(requestId, row.ExtensionId!);
+        };
+        actionPanel.FocusLostToOtherApp += () =>
+        {
+            if (GetForegroundWindow() != Handle)
+            {
+                HideWindow();
+            }
+        };
+        var anchor = new Point(
+            Left + (Width - actionPanel.Width) / 2,
+            Top + 120);
+        actionPanel.Open(actions, anchor);
     }
 
     private void OpenCommand(ItemRow row)
