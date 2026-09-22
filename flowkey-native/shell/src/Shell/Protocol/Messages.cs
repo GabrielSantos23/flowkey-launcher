@@ -69,6 +69,7 @@ public sealed class ReadyExtension
     public List<CommandInfo> Commands { get; set; } = [];
     public List<string> NativeMethods { get; set; } = [];
     public List<string> HttpHosts { get; set; } = [];
+    public List<string>? OAuth { get; set; } = [];
 }
 
 public sealed class CommandInfo

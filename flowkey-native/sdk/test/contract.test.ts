@@ -125,6 +125,14 @@ describe('protocol contract fixture', () => {
     }
   });
 
+  test('ready extensions may declare oauth providers', () => {
+    const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
+    for (const ext of ready.extensions) {
+      expect(Array.isArray(ext.oauth)).toBe(true);
+    }
+    expect(ready.extensions[0].oauth).toEqual([]);
+  });
+
   test('search and action messages carry requestId and extensionId', () => {
     const search = protocolFixture.hostToSidecar.search;
     const action: ActionMessage = protocolFixture.hostToSidecar.action;

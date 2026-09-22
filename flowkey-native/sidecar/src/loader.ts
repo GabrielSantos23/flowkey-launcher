@@ -57,6 +57,7 @@ export function toReadyExtensions(modules: LoadedModule[]): ReadyExtension[] {
     commands: m.manifest.commands,
     nativeMethods: m.manifest.nativeMethods,
     httpHosts: m.manifest.httpHosts,
+    oauth: (m.manifest as { oauth?: string[] }).oauth ?? [],
   }));
 }
 
@@ -386,8 +387,11 @@ export class Dispatcher {
       commandId,
       filterValue,
       native: {
-        call: <T = unknown>(method: string, params?: Record<string, unknown>) =>
-          this.bridge.call<T>(ext.manifest.id, method, params),
+        call: <T = unknown>(
+          method: string,
+          params?: Record<string, unknown>,
+          options?: { signal?: AbortSignal; timeoutMs?: number },
+        ) => this.bridge.call<T>(ext.manifest.id, method, params, options),
       },
     };
   }

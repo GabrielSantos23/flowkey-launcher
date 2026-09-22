@@ -94,6 +94,7 @@ export interface ExtensionManifest {
   }[];
   nativeMethods: string[];
   httpHosts: string[];
+  oauth?: string[];
 }
 
 export type Preferences = Record<string, unknown>;
@@ -103,7 +104,11 @@ export interface ExtensionContext {
   commandId?: string;
   filterValue?: string;
   native: {
-    call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<T>;
+    call<T = unknown>(
+      method: string,
+      params?: Record<string, unknown>,
+      options?: { signal?: AbortSignal; timeoutMs?: number },
+    ): Promise<T>;
   };
 }
 
@@ -149,6 +154,7 @@ export interface ReadyExtension {
   }[];
   nativeMethods: string[];
   httpHosts: string[];
+  oauth?: string[];
 }
 
 export interface InitMessage {

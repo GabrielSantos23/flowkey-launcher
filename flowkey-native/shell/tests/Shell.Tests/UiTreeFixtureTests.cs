@@ -144,6 +144,16 @@ public class ProtocolFixtureTests
     }
 
     [Fact]
+    public void ReadyExtensionsMayDeclareOauthProviders()
+    {
+        var ready = Root().GetProperty("sidecarToHost").GetProperty("ready").Deserialize<ReadyMessage>(JsonOptions.Default)!;
+
+        var emoji = Assert.Single(ready.Extensions, e => e.Id == "emoji");
+        Assert.NotNull(emoji.OAuth);
+        Assert.Empty(emoji.OAuth!);
+    }
+
+    [Fact]
     public void SearchAndActionCarryRequestAndExtensionIds()
     {
         var root = Root();

@@ -11,6 +11,7 @@ interface PendingNativeCall {
 
 export interface NativeCallOptions {
   signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export class NativeBridge {
@@ -47,7 +48,7 @@ export class NativeBridge {
         settle(() =>
           reject({ code: 'nativeTimeout', message: `native method ${method} timed out` }),
         );
-      }, NATIVE_CALL_TIMEOUT_MS);
+      }, options?.timeoutMs ?? NATIVE_CALL_TIMEOUT_MS);
       this.pending.set(requestId, {
         resolve: (result) => settle(() => resolve(result as T)),
         reject: (error) => settle(() => reject(error)),
