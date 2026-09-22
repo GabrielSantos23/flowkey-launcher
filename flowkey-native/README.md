@@ -88,4 +88,54 @@ bun it shows a clear error toast; it never crashes.
 ## Manifest
 
 Extensions declare their capabilities up front in `manifest.json`
-(`nativeMethods`, `httpHosts`), pinned in `contract/protocol.fixture.json`.
+(`nativeMethods`, `httpHosts`, `oauth`), pinned in
+`contract/protocol.fixture.json`.
+
+## Native services for authenticated extensions
+
+- **`oauth.authorize` / `oauth.status` / `oauth.disconnect`** — Authorization
+  Code + PKCE flows executed entirely in the C# shell. The shell generates the
+  `code_verifier`/`code_challenge`, opens the system browser, listens on
+  `http://127.0.0.1:<port>/callback`, and validates the `state` parameter
+  (CSRF protection). Tokens are stored DPAPI-encrypted in
+  `%LOCALAPPDATA%\FlowKey.Shell\token-vault.json` keyed by
+  `(extensionId, provider)` and are **never sent to the sidecar or the
+  extension**; extensions only see `{ok, expiresAt, scope}`.
+- **`http.fetch` with `auth: "<provider>"`** — the shell injects
+  `Authorization: Bearer …` for requests to the provider's pinned host
+  (`api.spotify.com` for Spotify), refreshes expired tokens, retries once on
+  401, honors short `Retry-After` on 429, and fails with the structured error
+  `authRequired` when re-authorization is needed.
+- **`secrets.get` / `secrets.set` / `secrets.delete`** — per-extension
+  key/value store with DPAPI-encrypted values in
+  `%LOCALAPPDATA%\FlowKey.Shell\secrets.json`. Values are capped at 8 KB and
+  64 keys per extension. This is not an isolation boundary: all extensions
+  share one sidecar process.
+- **`image.fetch`** — downloads an image from an `httpHosts`-allowlisted URL,
+  downscales it to at most 512 px, re-encodes PNG, and caches it under
+  `%LOCALAPPDATA%\FlowKey.Shell\icon-cache\images\<extensionId>\`. The result
+  is a `file:` URI usable directly as an item `iconUri` or pane
+  `previewImageUri`.
+
+## Bring your own Spotify app
+
+The Spotify OAuth client id is deliberately **not** in the repository. Create
+your own app at [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+and provide the client id via either:
+
+1. the `FLOWKEY_SPOTIFY_CLIENT_ID` environment variable (takes precedence), or
+2. `%LOCALAPPDATA%\FlowKey.Shell\spotify-auth.json`:
+
+```json
+{ "clientId": "your-client-id", "redirectPort": 0 }
+```
+
+Register `http://127.0.0.1/callback` (loopback IP literal **without a port**)
+as the app's redirect URI — per the Spotify docs, the dynamically assigned
+port may then be added at authorization time. If you prefer to pin a fixed
+port instead, register `http://127.0.0.1:<port>/callback` and set
+`redirectPort` in the config above.
+
+Note Spotify's current developer-mode limits: the app owner must have Spotify
+Premium, at most 5 allowlisted users can authenticate, and playback control
+requires a Premium account.
