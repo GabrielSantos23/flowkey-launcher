@@ -18,4 +18,8 @@
     <Resource Include="Assets\Fonts\Inter-SemiBold.ttf" />
     <Resource Include="Assets\Icons\*.svg" />
   </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Shell.Tests" />
+  </ItemGroup>
 </Project>
