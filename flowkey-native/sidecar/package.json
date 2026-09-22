@@ -12,6 +12,7 @@
     "@flowkey/extension-apps": "workspace:*",
     "@flowkey/extension-http-test": "workspace:*",
     "@flowkey/extension-clipboard-history": "workspace:*",
+    "@flowkey/extension-react-demo": "workspace:*",
     "@flowkey/native-sdk": "workspace:*",
     "@flowkey/react-ui": "workspace:*"
   },

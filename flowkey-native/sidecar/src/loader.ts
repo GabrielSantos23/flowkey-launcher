@@ -16,6 +16,7 @@ import emoji from '@flowkey/extension-emoji';
 import apps from '@flowkey/extension-apps';
 import httpTest from '@flowkey/extension-http-test';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
+import reactDemo from '@flowkey/extension-react-demo';
 
 type LoadedFunctional = ExtensionModule & { preferences: Preferences };
 type LoadedReact = ReactExtensionModule & { preferences: Preferences };
@@ -30,6 +31,7 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   apps,
   httpTest,
   clipboardHistory,
+  reactDemo,
 ];
 
 export function loadExtensions(): LoadedModule[] {

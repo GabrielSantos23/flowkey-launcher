@@ -32,6 +32,47 @@ importers:
         specifier: workspace:*
         version: link:../../sdk
 
+  extensions/react-demo:
+    dependencies:
+      '@flowkey/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@flowkey/react-ui':
+        specifier: workspace:*
+        version: link:../../react-ui
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+    devDependencies:
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+
+  react-ui:
+    dependencies:
+      '@flowkey/native-sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-reconciler:
+        specifier: 0.33.0
+        version: 0.33.0(react@19.3.0)
+      scheduler:
+        specifier: ^0.27.0
+        version: 0.27.0
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.2.0
+        version: 1.4.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   sdk:
     devDependencies:
       '@types/bun':
@@ -55,13 +96,25 @@ importers:
       '@flowkey/extension-http-test':
         specifier: workspace:*
         version: link:../extensions/http-test
+      '@flowkey/extension-react-demo':
+        specifier: workspace:*
+        version: link:../extensions/react-demo
       '@flowkey/native-sdk':
         specifier: workspace:*
         version: link:../sdk
+      '@flowkey/react-ui':
+        specifier: workspace:*
+        version: link:../react-ui
     devDependencies:
       '@types/bun':
         specifier: ^1.4.2
         version: 1.4.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
@@ -73,6 +126,9 @@ packages:
 
   '@types/node@26.6.2':
     resolution: {integrity: sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==}
+
+  '@types/react@19.3.0':
+    resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     resolution: {integrity: sha512-MTKKkWB7p/0E9xi1d1tHtZ5PiLkGEMIq88pK2CubZjOsLtYTLqhgIgi6zepFa+9GHZ6h05NMCkQxGKiPXMxXtQ==}
@@ -197,6 +253,22 @@ packages:
   bun-types@1.4.2:
     resolution: {integrity: sha512-bxV1FgK7yBIzjRe5zBozIM4Bem11ZJcCXSrjWRG3YWLt8yFDePu4cLjpebO8OvPeIE9trbyPF4fuj3Cia4Fj3w==}
 
+  csstype@3.2.3:
+    resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  react-reconciler@0.33.0:
+    resolution: {integrity: sha512-KetWRytFv1epdpJc3J4G75I4WrplZE5jOL7Yq0p34+OVOKF4Se7WrdIdVC45XsSSmUTlht2FM/fM1FZb1mfQeA==}
+    engines: {node: '>=0.10.0'}
+    peerDependencies:
+      react: ^19.2.0
+
+  react@19.3.0:
+    resolution: {integrity: sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==}
+    engines: {node: '>=0.10.0'}
+
+  scheduler@0.27.0:
+    resolution: {integrity: sha512-eNv+WrVbKu1f3vbYJT/xtiF5syA5HPIMtf9IgY/nKg0sWqzAUEvqY/xm7OcZc/qafLx/iO9FgOmeSAp4v5ti/Q==}
+
   typescript@5.9.3:
     resolution: {integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==}
     engines: {node: '>=14.17'}
@@ -219,6 +291,10 @@ snapshots:
   '@types/node@26.6.2':
     dependencies:
       undici-types: 8.9.0
+
+  '@types/react@19.3.0':
+    dependencies:
+      csstype: 3.2.3
 
   '@typescript/typescript-aix-ppc64@7.0.2':
     optional: true
@@ -283,6 +359,17 @@ snapshots:
   bun-types@1.4.2:
     dependencies:
       '@types/node': 26.6.2
+
+  csstype@3.2.3: {}
+
+  react-reconciler@0.33.0(react@19.3.0):
+    dependencies:
+      react: 19.3.0
+      scheduler: 0.27.0
+
+  react@19.3.0: {}
+
+  scheduler@0.27.0: {}
 
   typescript@5.9.3: {}
 

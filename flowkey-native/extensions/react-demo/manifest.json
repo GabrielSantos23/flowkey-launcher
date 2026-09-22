@@ -1,0 +1,20 @@
+{
+  "id": "react-demo",
+  "name": "React Demo",
+  "version": "1.0.0",
+  "description": "Proof of concept for React-authored extensions: debounced async search, loading state, live push updates.",
+  "icon": "⚛️",
+  "commands": [
+    {
+      "id": "open",
+      "title": "React Demo"
+    }
+  ],
+  "nativeMethods": [
+    "http.fetch",
+    "clipboard.write"
+  ],
+  "httpHosts": [
+    "api.github.com"
+  ]
+}
