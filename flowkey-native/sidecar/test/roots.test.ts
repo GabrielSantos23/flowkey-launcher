@@ -344,3 +344,46 @@ describe('Dispatcher react integration', () => {
     expect(messages.filter((m) => m.type === 'ui')).toHaveLength(2);
   });
 });
+
+describe('native.call options passthrough', () => {
+  test('functional extensions reach the bridge with a custom timeoutMs', async () => {
+    const messages: SidecarMessage[] = [];
+    const emit = (message: SidecarMessage) => messages.push(message);
+    const dispatcher = new Dispatcher(
+      [
+        {
+          manifest,
+          preferences: {},
+          handlers: {
+            search: async (
+              _query: string,
+              ctx: {
+                native: {
+                  call: (
+                    method: string,
+                    params?: Record<string, unknown>,
+                    options?: { timeoutMs?: number },
+                  ) => Promise<unknown>;
+                };
+              },
+            ) => {
+              await ctx.native.call('oauth.authorize', { provider: 'spotify' }, { timeoutMs: 60 });
+              return itemTree('never');
+            },
+          },
+        },
+      ] as never,
+      emit,
+    );
+    const started = Date.now();
+    await dispatcher.handle(
+      { type: 'search', requestId: 's-9', extensionId: 'test-ext', query: '' } as never,
+      emit,
+    );
+    const elapsed = Date.now() - started;
+    const error = messages.find((m) => m.type === 'error') as
+      { error: { code: string } } | undefined;
+    expect(error?.error.code).toBe('nativeTimeout');
+    expect(elapsed).toBeLessThan(2000);
+  });
+});
