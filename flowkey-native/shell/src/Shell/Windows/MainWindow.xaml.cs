@@ -103,6 +103,7 @@ public partial class MainWindow : Window
 
         sidecar.Ready += OnSidecarReady;
         sidecar.Ui += OnSidecarUi;
+        sidecar.UiPush += OnSidecarUiPush;
         sidecar.Ack += OnSidecarAck;
         sidecar.Error += OnSidecarError;
         sidecar.Log += m => Dispatcher.BeginInvoke(() => SetStatusBar(m.Message));
@@ -1045,6 +1046,49 @@ public partial class MainWindow : Window
             var display = BuildDisplayRows();
             LoadRowIcons(display);
             ApplyRows(display, list.EmptyView);
+        });
+    }
+
+    private void OnSidecarUiPush(UiPushMessage message)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (message.Tree is null)
+            {
+                return;
+            }
+            if (!searchState.ShouldApplyPush(message, SearchBox.Text))
+            {
+                DebugLog.Write(
+                    $"UiPushDiscarded ext={message.ExtensionId} cmd={message.CommandId} q='{message.Query}'");
+                return;
+            }
+            if (message.Tree is GridTree grid)
+            {
+                ShowGrid(grid);
+                return;
+            }
+            if (message.Tree is DetailTree detail)
+            {
+                DetailHost.Content = DetailRenderer.Render(detail, action =>
+                    sidecar.SendAction(message.ExtensionId, action.Id,
+                        new UiItem { Id = detail.Title }));
+                DetailHost.Visibility = Visibility.Visible;
+                ResultsList.Visibility = Visibility.Collapsed;
+                EmptyView.Visibility = Visibility.Collapsed;
+                return;
+            }
+            if (message.Tree is ListTree list)
+            {
+                DebugLog.Write($"UiPushApplied ext={message.ExtensionId} cmd={message.CommandId}");
+                DetailHost.Visibility = Visibility.Collapsed;
+                GridHostPanel.Visibility = Visibility.Collapsed;
+                ApplyListLayout(list);
+                searchState.PushResult(message.ExtensionId, list);
+                var display = BuildDisplayRows();
+                LoadRowIcons(display);
+                ApplyRows(display, list.EmptyView);
+            }
         });
     }
 

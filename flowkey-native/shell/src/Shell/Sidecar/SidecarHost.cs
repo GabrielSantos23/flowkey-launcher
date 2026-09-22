@@ -31,6 +31,7 @@ public sealed class SidecarHost : IDisposable
     private long requestCounter;
     public event Action<Protocol.ReadyMessage>? Ready;
     public event Action<Protocol.UiMessage>? Ui;
+    public event Action<Protocol.UiPushMessage>? UiPush;
     public event Action<Protocol.ErrorMessage>? Error;
     public event Action<Protocol.LogMessage>? Log;
     public event Action<string, string, string, Dictionary<string, JsonElement>?>? NativeCallRequested;
@@ -231,6 +232,13 @@ public sealed class SidecarHost : IDisposable
                     if (ui is not null)
                     {
                         Ui?.Invoke(ui);
+                    }
+                    break;
+                case "uiPush":
+                    var push = root.Deserialize<Protocol.UiPushMessage>(Protocol.JsonOptions.Default);
+                    if (push is not null)
+                    {
+                        UiPush?.Invoke(push);
                     }
                     break;
                 case "ack":

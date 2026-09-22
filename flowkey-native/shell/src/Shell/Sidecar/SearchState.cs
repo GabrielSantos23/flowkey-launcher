@@ -127,6 +127,37 @@ public sealed class SearchState
         return (top.ExtensionId, top.CommandId);
     }
 
+    public IReadOnlyList<UiRow> PushResult(string extensionId, ListTree tree)
+    {
+        var top = Top;
+        if (top is null)
+        {
+            return CurrentRows;
+        }
+        var requestId = top.RequestIds
+            .LastOrDefault(id => top.ExtensionByRequest.TryGetValue(id, out var ext) && ext == extensionId);
+        if (requestId is null)
+        {
+            return CurrentRows;
+        }
+        top.RowsByRequest[requestId] = RowBuilder.Flatten(tree, extensionId);
+        return MergeTopRows(top);
+    }
+
+    public bool ShouldApplyPush(Protocol.UiPushMessage push, string currentSearchText)
+    {
+        if (Depth <= 1)
+        {
+            return false;
+        }
+        var top = Top!;
+        return top.ExtensionId == push.ExtensionId
+            && top.CommandId == push.CommandId
+            && top.Query == push.Query
+            && push.Query == currentSearchText
+            && string.Equals(top.FilterValue, push.FilterValue, StringComparison.Ordinal);
+    }
+
     public IReadOnlyList<UiRow> ApplyResult(string requestId, ListTree tree, out bool stale)
     {
         var top = Top;
