@@ -40,10 +40,20 @@ See `contract/protocol.fixture.json` for exact shapes.
 - Host → sidecar: `init` (carries `protocolVersion`, `extensionsDir`,
   `preferences`), `search`, `action`, `preferences`.
 - Sidecar → host: `ready` (carries `protocolVersion` + per-extension
-  `nativeMethods` / `httpHosts` declarations), `ui`, `error`, `nativeCall`,
-  `nativeResult`, `log`.
+  `nativeMethods` / `httpHosts` declarations), `ui`, `uiPush`, `error`,
+  `nativeCall`, `nativeResult`, `log`.
 - The shell refuses to run against a sidecar whose `protocolVersion` differs
   from its own; the mismatch is reported as an error, never a silent failure.
+
+### UI push
+
+`uiPush` is the one shell-uninitiated message: an extension view that re-renders
+on its own (timer, async fetch resolving) sends the new tree without a
+`requestId` to correlate against. The shell applies a `uiPush` only when the
+pushed `extensionId`/`commandId`/`query`/`filterValue` match the command view it
+is currently displaying; anything else is discarded, the same discipline as
+stale `requestId`s. Request-correlated `ui` responses are never throttled or
+skipped — every `search`/`action` request still gets exactly one `ui`/`error`.
 
 ### Native calls
 

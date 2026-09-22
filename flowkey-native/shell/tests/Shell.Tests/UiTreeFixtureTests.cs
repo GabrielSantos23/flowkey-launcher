@@ -217,4 +217,19 @@ public class ProtocolFixtureTests
         Assert.False(string.IsNullOrWhiteSpace(error.Error.Code));
         Assert.False(string.IsNullOrWhiteSpace(error.Error.Message));
     }
+
+    [Fact]
+    public void UiPushCarriesViewStateAndTreeWithoutRequestId()
+    {
+        var push = Root().GetProperty("sidecarToHost").GetProperty("uiPush").Deserialize<UiPushMessage>(JsonOptions.Default)!;
+
+        Assert.Equal("uiPush", push.Type);
+        Assert.Equal("clipboard-history", push.ExtensionId);
+        Assert.Equal("open", push.CommandId);
+        Assert.Equal("par", push.Query);
+        Assert.Equal("all", push.FilterValue);
+        var list = Assert.IsType<ListTree>(push.Tree);
+        Assert.NotEmpty(list.Sections);
+        Assert.NotEmpty(list.Sections[0].Items);
+    }
 }

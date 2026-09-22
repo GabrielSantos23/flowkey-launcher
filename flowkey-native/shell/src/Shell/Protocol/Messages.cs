@@ -94,6 +94,16 @@ public sealed class UiMessage
     public UiTree Tree { get; set; } = new ListTree();
 }
 
+public sealed class UiPushMessage
+{
+    public string Type { get; set; } = "uiPush";
+    public string ExtensionId { get; set; } = "";
+    public string CommandId { get; set; } = "";
+    public string Query { get; set; } = "";
+    public string? FilterValue { get; set; }
+    public UiTree Tree { get; set; } = new ListTree();
+}
+
 public sealed class ErrorMessage
 {
     public string Type { get; set; } = "error";

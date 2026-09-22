@@ -12,6 +12,7 @@ import {
   type NativeCallMessage,
   type ReadyMessage,
   type SearchMessage,
+  type UiPushMessage,
   type UiTree,
 } from '../src/types';
 
@@ -176,5 +177,16 @@ describe('protocol contract fixture', () => {
     expect(err.code).toBeTruthy();
     expect(err.message).toBeTruthy();
     expect(protocolFixture.sidecarToHost.nativeCallDenied.method).toBeTruthy();
+  });
+
+  test('uiPush carries extension, command, view state and a tree without a requestId', () => {
+    const push = protocolFixture.sidecarToHost.uiPush as UiPushMessage;
+    expect(push.type).toBe('uiPush');
+    expect(push.extensionId).toBe('clipboard-history');
+    expect(push.commandId).toBe('open');
+    expect(push.query).toBe('par');
+    expect(push.filterValue).toBe('all');
+    expect(push.tree.type).toBe('list');
+    expect('requestId' in push).toBe(false);
   });
 });

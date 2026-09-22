@@ -131,6 +131,35 @@
         "message": "clipboard.write failed: access denied"
       }
     },
+    "uiPush": {
+      "type": "uiPush",
+      "extensionId": "clipboard-history",
+      "commandId": "open",
+      "query": "par",
+      "filterValue": "all",
+      "tree": {
+        "type": "list",
+        "sections": [
+          {
+            "items": [
+              {
+                "id": "🎉",
+                "title": "🎉 Party Popper",
+                "subtitle": "celebration, party",
+                "icon": "🎉",
+                "actions": [
+                  {
+                    "id": "copy",
+                    "title": "Copy",
+                    "primary": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
     "nativeCall": {
       "type": "nativeCall",
       "requestId": "n-1",

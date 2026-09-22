@@ -196,6 +196,15 @@ export interface UiMessage {
   tree: UiTree;
 }
 
+export interface UiPushMessage {
+  type: 'uiPush';
+  extensionId: string;
+  commandId: string;
+  query: string;
+  filterValue?: string;
+  tree: UiTree;
+}
+
 export interface ErrorMessage {
   type: 'error';
   requestId: string;
@@ -236,7 +245,13 @@ export interface LogMessage {
 }
 
 export type SidecarMessage =
-  ReadyMessage | UiMessage | ErrorMessage | AckMessage | NativeCallMessage | LogMessage;
+  | ReadyMessage
+  | UiMessage
+  | UiPushMessage
+  | ErrorMessage
+  | AckMessage
+  | NativeCallMessage
+  | LogMessage;
 
 export function defineExtension(module: ExtensionModule): ExtensionModule {
   return module;
