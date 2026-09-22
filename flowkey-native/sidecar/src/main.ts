@@ -36,6 +36,7 @@ process.stdin.on('data', (chunk: string) => {
           });
           process.exit(2);
         }
+        dispatcher.dispose();
         dispatcher = new Dispatcher(applyInit(modules, message), emit);
         emit({
           type: 'ready',

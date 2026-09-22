@@ -6,6 +6,11 @@ interface PendingNativeCall {
   resolve: (result: unknown) => void;
   reject: (error: { code: string; message: string }) => void;
   timer: ReturnType<typeof setTimeout>;
+  cleanup: () => void;
+}
+
+export interface NativeCallOptions {
+  signal?: AbortSignal;
 }
 
 export class NativeBridge {
@@ -18,14 +23,38 @@ export class NativeBridge {
     extensionId: string,
     method: string,
     params?: Record<string, unknown>,
+    options?: NativeCallOptions,
   ): Promise<T> {
+    const signal = options?.signal;
     const requestId = `n${this.nextRequestId++}`;
+    if (signal?.aborted) {
+      return Promise.reject({ code: 'aborted', message: `native method ${method} aborted` });
+    }
     return new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      let settled = false;
+      const settle = (fn: () => void) => {
+        if (settled) return;
+        settled = true;
+        if (signal) signal.removeEventListener('abort', onAbort);
+        clearTimeout(timer);
         this.pending.delete(requestId);
-        reject({ code: 'nativeTimeout', message: `native method ${method} timed out` });
+        fn();
+      };
+      const onAbort = () => {
+        settle(() => reject({ code: 'aborted', message: `native method ${method} aborted` }));
+      };
+      const timer = setTimeout(() => {
+        settle(() =>
+          reject({ code: 'nativeTimeout', message: `native method ${method} timed out` }),
+        );
       }, NATIVE_CALL_TIMEOUT_MS);
-      this.pending.set(requestId, { resolve: resolve as (result: unknown) => void, reject, timer });
+      this.pending.set(requestId, {
+        resolve: (result) => settle(() => resolve(result as T)),
+        reject: (error) => settle(() => reject(error)),
+        timer,
+        cleanup: () => settle(() => {}),
+      });
+      if (signal) signal.addEventListener('abort', onAbort, { once: true });
       const message: NativeCallMessage = {
         type: 'nativeCall',
         requestId,
@@ -40,8 +69,6 @@ export class NativeBridge {
   handleResult(message: NativeResultMessage): void {
     const pending = this.pending.get(message.requestId);
     if (!pending) return;
-    clearTimeout(pending.timer);
-    this.pending.delete(message.requestId);
     if (message.ok) {
       pending.resolve(message.result);
     } else {
@@ -50,10 +77,9 @@ export class NativeBridge {
   }
 
   failAll(error: { code: string; message: string }): void {
-    for (const [requestId, pending] of this.pending) {
-      clearTimeout(pending.timer);
+    for (const [, pending] of this.pending) {
       pending.reject(error);
-      this.pending.delete(requestId);
+      pending.cleanup();
     }
   }
 }

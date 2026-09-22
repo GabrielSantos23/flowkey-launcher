@@ -8,17 +8,31 @@ import type {
   Preferences,
   UiTree,
 } from '@flowkey/native-sdk';
+import type { ReactExtensionModule } from '@flowkey/react-ui';
+import { ReactRoot } from '@flowkey/react-ui';
 import { NativeBridge } from './bridge';
+import { RootManager, type ManagedRoot } from './roots';
 import emoji from '@flowkey/extension-emoji';
 import apps from '@flowkey/extension-apps';
 import httpTest from '@flowkey/extension-http-test';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
 
-type LoadedExtension = ExtensionModule & { preferences: Preferences };
+type LoadedFunctional = ExtensionModule & { preferences: Preferences };
+type LoadedReact = ReactExtensionModule & { preferences: Preferences };
+type LoadedModule = LoadedFunctional | LoadedReact;
 
-const REGISTRY: ExtensionModule[] = [emoji, apps, httpTest, clipboardHistory];
+function isReactModule(module: LoadedModule): module is LoadedReact {
+  return 'component' in module;
+}
 
-export function loadExtensions(): ExtensionModule[] {
+const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
+  emoji,
+  apps,
+  httpTest,
+  clipboardHistory,
+];
+
+export function loadExtensions(): LoadedModule[] {
   return REGISTRY.filter((m) => {
     const reserved = m.manifest.commands.some((c) => c.id === '__open__');
     if (reserved) {
@@ -27,10 +41,10 @@ export function loadExtensions(): ExtensionModule[] {
       return false;
     }
     return true;
-  });
+  }) as LoadedModule[];
 }
 
-export function toReadyExtensions(modules: ExtensionModule[]): ReadyExtension[] {
+export function toReadyExtensions(modules: LoadedModule[]): ReadyExtension[] {
   return modules.map((m) => ({
     id: m.manifest.id,
     name: m.manifest.name,
@@ -44,7 +58,7 @@ export function toReadyExtensions(modules: ExtensionModule[]): ReadyExtension[] 
   }));
 }
 
-export function applyInit(modules: ExtensionModule[], init: InitMessage): LoadedExtension[] {
+export function applyInit(modules: LoadedModule[], init: InitMessage): LoadedModule[] {
   return modules.map((m) => ({
     ...m,
     preferences: init.preferences[m.manifest.id] ?? {},
@@ -53,6 +67,7 @@ export function applyInit(modules: ExtensionModule[], init: InitMessage): Loaded
 
 export class Dispatcher {
   private bridge: NativeBridge;
+  private roots: RootManager;
   private lastQuery = '';
   private lastExtensionId = '';
   private lastCommandId?: string;
@@ -60,10 +75,13 @@ export class Dispatcher {
   private commandIdByRequest = new Map<string, string>();
 
   constructor(
-    private loaded: LoadedExtension[],
+    private loaded: LoadedModule[],
     emit: (message: SidecarMessage) => void,
   ) {
     this.bridge = new NativeBridge(emit);
+    this.roots = new RootManager(emit, (extensionId, method, params, options) =>
+      this.bridge.call(extensionId, method, params, options),
+    );
   }
 
   handleNativeResult(message: Parameters<NativeBridge['handleResult']>[0]): void {
@@ -71,6 +89,7 @@ export class Dispatcher {
   }
 
   failPendingNativeCalls(error: { code: string; message: string }): void {
+    this.roots.destroyAll();
     this.bridge.failAll(error);
   }
 
@@ -82,7 +101,13 @@ export class Dispatcher {
         if (message.commandId) {
           this.commandIdByRequest.set(message.requestId, message.commandId);
         }
-        await this.runSearch(message.extensionId, message.query, message.requestId, emit, message.filterValue);
+        await this.runSearch(
+          message.extensionId,
+          message.query,
+          message.requestId,
+          emit,
+          message.filterValue,
+        );
         break;
       case 'action':
         await this.runAction(
@@ -123,12 +148,22 @@ export class Dispatcher {
       });
       return;
     }
+    const commandId = this.commandIdByRequest.get(requestId);
     this.lastQuery = query;
     this.lastExtensionId = extensionId;
-    const commandId = this.commandIdByRequest.get(requestId);
     this.lastCommandId = commandId;
     this.lastFilterValue = filterValue;
     try {
+      if (isReactModule(ext)) {
+        if (commandId) {
+          const root = this.roots.ensure(extensionId, commandId, ext);
+          this.respondFromRoot(root, requestId, emit, { query, filterValue, commandId });
+        } else {
+          this.roots.deactivateExtension(extensionId);
+          this.renderTransient(ext, requestId, emit, { query, filterValue });
+        }
+        return;
+      }
       const tree = await ext.handlers.search(query, this.context(ext, commandId, filterValue));
       emit({ type: 'ui', requestId, tree });
     } catch (error) {
@@ -169,6 +204,26 @@ export class Dispatcher {
           });
           return;
         }
+        if (isReactModule(ext)) {
+          if (command.mode === 'background') {
+            emit({
+              type: 'error',
+              requestId,
+              error: {
+                code: 'unknownCommand',
+                message: `command '${commandId}' is a background command and has no React handler`,
+              },
+            });
+            return;
+          }
+          const root = this.roots.reset(extensionId, commandId, ext);
+          this.respondFromRoot(root, requestId, emit, {
+            query: '',
+            filterValue: undefined,
+            commandId,
+          });
+          return;
+        }
         if (command.mode === 'background') {
           if (!ext.handlers.command) {
             emit({
@@ -191,6 +246,46 @@ export class Dispatcher {
         return;
       }
 
+      if (isReactModule(ext)) {
+        const root = this.roots.activeFor(extensionId);
+        if (!root) {
+          emit({
+            type: 'error',
+            requestId,
+            error: { code: 'unknownAction', message: `no active view for ${extensionId}` },
+          });
+          return;
+        }
+        const handler = root.resolveAction(actionId);
+        if (!handler) {
+          emit({
+            type: 'error',
+            requestId,
+            error: { code: 'unknownAction', message: `unknown action '${actionId}'` },
+          });
+          return;
+        }
+        try {
+          await handler();
+          const generation = root.reactRoot.current;
+          if (!generation) {
+            emit({
+              type: 'error',
+              requestId,
+              error: { code: 'extensionError', message: 'action produced no tree' },
+            });
+            return;
+          }
+          root.flushPendingPush(generation.json);
+          root.markSent(generation.json, generation.registry);
+          emit({ type: 'ui', requestId, tree: generation.tree });
+        } catch (error) {
+          root.flushPendingPush(null);
+          emit({ type: 'error', requestId, error: toProtocolError(error) });
+        }
+        return;
+      }
+
       const tree: UiTree | null | undefined = ext.handlers.onAction
         ? await ext.handlers.onAction(actionId, item, this.context(ext))
         : null;
@@ -199,7 +294,10 @@ export class Dispatcher {
         return;
       }
       if (this.lastExtensionId === extensionId) {
-        const refreshed = await ext.handlers.search(this.lastQuery, this.context(ext, this.lastCommandId, this.lastFilterValue));
+        const refreshed = await ext.handlers.search(
+          this.lastQuery,
+          this.context(ext, this.lastCommandId, this.lastFilterValue),
+        );
         emit({ type: 'ui', requestId, tree: refreshed });
       }
     } catch (error) {
@@ -207,7 +305,80 @@ export class Dispatcher {
     }
   }
 
-  private context(ext: LoadedExtension, commandId?: string, filterValue?: string) {
+  private respondFromRoot(
+    root: ManagedRoot,
+    requestId: string,
+    emit: (message: SidecarMessage) => void,
+    props: { query: string; filterValue?: string; commandId: string },
+  ): void {
+    const ext = this.loaded.find((e) => e.manifest.id === root.extensionId);
+    if (!ext || !isReactModule(ext)) {
+      emit({
+        type: 'error',
+        requestId,
+        error: { code: 'unknownExtension', message: `extension ${root.extensionId} not loaded` },
+      });
+      return;
+    }
+    root.responsePending = true;
+    try {
+      root.updateProps({ ...props, preferences: ext.preferences });
+      const generation = root.reactRoot.current;
+      if (!generation) {
+        emit({
+          type: 'error',
+          requestId,
+          error: { code: 'extensionError', message: 'render produced no tree' },
+        });
+        return;
+      }
+      emit({ type: 'ui', requestId, tree: generation.tree });
+    } catch (error) {
+      emit({ type: 'error', requestId, error: toProtocolError(error) });
+    } finally {
+      root.responsePending = false;
+    }
+  }
+  private renderTransient(
+    ext: LoadedReact,
+    requestId: string,
+    emit: (message: SidecarMessage) => void,
+    props: { query: string; filterValue?: string },
+  ): void {
+    const root = new ReactRoot(ext.component, {
+      onCommit: () => {},
+      onError: () => {},
+    });
+    try {
+      const generation = root.update({
+        query: props.query,
+        filterValue: props.filterValue,
+        preferences: ext.preferences,
+        native: {
+          call: (method, params, options) =>
+            this.bridge.call(ext.manifest.id, method, params, options),
+        },
+        signal: new AbortController().signal,
+      });
+      if (!generation) {
+        emit({
+          type: 'error',
+          requestId,
+          error: { code: 'extensionError', message: 'render produced no tree' },
+        });
+        return;
+      }
+      emit({ type: 'ui', requestId, tree: generation.tree });
+    } finally {
+      root.unmount();
+    }
+  }
+
+  dispose(): void {
+    this.roots.destroyAll();
+  }
+
+  private context(ext: LoadedFunctional, commandId?: string, filterValue?: string) {
     return {
       preferences: ext.preferences,
       commandId,
