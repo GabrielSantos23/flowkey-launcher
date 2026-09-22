@@ -43,6 +43,10 @@ public partial class MainWindow : Window
     private readonly HttpFetchService httpFetch = new();
     private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
     private readonly PreferencesStore preferencesStore = new(AppLauncherService.DataDirectory);
+    private readonly TokenVault tokenVault = new(AppLauncherService.DataDirectory);
+    private readonly SecretsStore secretsStore = new(AppLauncherService.DataDirectory);
+    private readonly OAuthService oauthService;
+    private readonly ImageFetchService imageFetch = new();
     private List<UiItem> gridItems = new();
     private int gridColumns;
     private int gridIndex;
@@ -94,6 +98,7 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.copyEntry", p => ExecuteClipboardCopyEntry(p));
         nativeMethods.Register("clipboard.pasteEntry", p => ExecuteClipboardPasteEntry(p));
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
+        oauthService = new OAuthService(tokenVault, OAuthProviderRegistry.Load);
 
         var root = FindRepoRoot();
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
@@ -1768,11 +1773,54 @@ public partial class MainWindow : Window
         if (method == "http.fetch")
         {
             var hosts = extension?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            string? authProvider = parameters is not null
+                && parameters.TryGetValue("auth", out var authElement)
+                && authElement.ValueKind == JsonValueKind.String
+                    ? authElement.GetString()
+                    : null;
+            if (authProvider is not null)
+            {
+                var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+                if (!declaredOauth.Contains(authProvider, StringComparer.Ordinal))
+                {
+                    CompleteNativeCall(requestId, method, NativeCallOutcome.Failure(
+                        "providerNotDeclared",
+                        $"extension did not declare oauth provider '{authProvider}' in its manifest"));
+                    return;
+                }
+            }
             _ = Task.Run(async () =>
             {
-                var outcome = await httpFetch.FetchAsync(parameters, hosts, CancellationToken.None);
+                var outcome = await httpFetch.FetchAsync(parameters, hosts, CancellationToken.None, ResolveAuth);
                 CompleteNativeCall(requestId, method, outcome);
             });
+            return;
+        }
+
+        if (method is "oauth.authorize" or "oauth.status" or "image.fetch")
+        {
+            var hosts = extension?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+            _ = Task.Run(async () =>
+            {
+                var outcome = method switch
+                {
+                    "oauth.authorize" => await oauthService.AuthorizeAsync(extensionId, parameters, declaredOauth, CancellationToken.None),
+                    "oauth.status" => await oauthService.StatusAsync(extensionId, parameters, declaredOauth, CancellationToken.None),
+                    _ => await imageFetch.FetchAsync(extensionId, parameters, hosts, CancellationToken.None),
+                };
+                CompleteNativeCall(requestId, method, outcome);
+            });
+            return;
+        }
+
+        if (method.StartsWith("secrets.", StringComparison.Ordinal) || method == "oauth.disconnect")
+        {
+            var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var outcome = method == "oauth.disconnect"
+                ? oauthService.Disconnect(extensionId, parameters, declaredOauth)
+                : secretsStore.Handle(extensionId, method, parameters);
+            CompleteNativeCall(requestId, method, outcome);
             return;
         }
 
@@ -1781,6 +1829,19 @@ public partial class MainWindow : Window
             var outcome = nativeMethods.Execute(method, declared, parameters);
             CompleteNativeCall(requestId, method, outcome);
         });
+
+        AuthedFetchContext? ResolveAuth(string provider)
+        {
+            var definition = OAuthProviderRegistry.Load().GetValueOrDefault(provider);
+            if (definition is null)
+            {
+                return null;
+            }
+            return new AuthedFetchContext(
+                definition.PinnedHost,
+                ct => oauthService.GetAccessTokenAsync(extensionId, provider, ct),
+                ct => oauthService.ForceRefreshAsync(extensionId, provider, ct));
+        }
     }
 
     private void CompleteNativeCall(string requestId, string method, NativeCallOutcome outcome)
