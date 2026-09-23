@@ -61,3 +61,13 @@ Default stays the solid dark look of reference screenshot 1. If translucency
 is ever wanted, it is shell-only (DWM backdrop types), no contract impact,
 and ships behind a preference, off by default, only if the measured memory
 cost stays small (see docs/shell-comparison.md gate measurements).
+
+## Open-in-browser action (first needed by Google Translate)
+
+The Google Translate extension (Raycast parity) wants an "Open on Google
+Translate website" action, and future extensions will want the same primitive.
+FlowKey has no open-browser native method today; the reserved `__open__` action
+opens launcher items, not external URLs. Needs its own design gate: a new
+native method (e.g. `shell.openUrl`) with an allowlist policy (https-only,
+no local/file schemes) declared per extension in the manifest like every other
+native capability.
