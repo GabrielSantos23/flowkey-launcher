@@ -84,7 +84,7 @@ export function TranslationResultItems(props: {
   from: string;
   to: string;
   onCopy: (text: string, label: string) => void;
-  onSwap: () => void;
+  onSwap?: () => void;
   children?: ReactNode;
 }): ReactNode {
   const { result, from, to, onCopy, onSwap, children } = props;
@@ -92,7 +92,7 @@ export function TranslationResultItems(props: {
   const actions = (value: string, copyLabel: string): ReactNode => (
     <ActionPanel>
       <Action title={copyLabel} primary onAction={() => onCopy(value, copyLabel)} />
-      <Action title={`Swap (${languagePairLabel(to, detected)})`} onAction={onSwap} />
+      {onSwap ? <Action title={`Swap (${languagePairLabel(to, detected)})`} onAction={onSwap} /> : null}
       {children}
     </ActionPanel>
   );
@@ -102,8 +102,6 @@ export function TranslationResultItems(props: {
         id="translation"
         title={result.translatedText}
         subtitle={languagePairLabel(detected, result.langTo)}
-        icon={{ lucide: 'languages' }}
-        detail={<List.Item.Detail preview={result.translatedText} />}
         actions={actions(result.translatedText, 'Copy Translation')}
       />
       {result.pronunciationText ? (
@@ -111,7 +109,6 @@ export function TranslationResultItems(props: {
           id="pronunciation"
           title={result.pronunciationText}
           subtitle={languagePairLabel(detected, result.langTo)}
-          icon={{ lucide: 'mic' }}
           actions={actions(result.pronunciationText, 'Copy Pronunciation')}
         />
       ) : null}

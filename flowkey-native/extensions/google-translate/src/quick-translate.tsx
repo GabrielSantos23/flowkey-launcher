@@ -108,14 +108,6 @@ export function QuickTranslateCommand({ query, filterValue, preferences, native 
             id={`translation:${row.target}`}
             title={result.translatedText}
             subtitle={subtitleForPair(detected, result.langTo)}
-            icon={{ lucide: 'languages' }}
-            detail={
-              result.pronunciationText ? (
-                <List.Item.Detail preview={`${result.translatedText}\n\n${result.pronunciationText}`} />
-              ) : (
-                <List.Item.Detail preview={result.translatedText} />
-              )
-            }
             actions={
               <ActionPanel>
                 <Action

@@ -26,9 +26,10 @@ export function readTranslatePreferences(preferences: Record<string, unknown>): 
   };
 }
 
-/** Filter options for picking a target language ("To: English"). */
-export function targetLanguageFilters(): { value: string; label: string }[] {
-  return LANGUAGES.map((lang) => ({ value: lang.code, label: `To: ${lang.name}` }));
+/** Filter options for picking a target language, Raycast-style "Auto-Detect → English" labels. */
+export function targetLanguageFilters(from = AUTO_DETECT): { value: string; label: string }[] {
+  const fromLabel = languageName(from);
+  return LANGUAGES.map((lang) => ({ value: lang.code, label: `${fromLabel} → ${lang.name}` }));
 }
 
 /** Filter options for picking a source language, Auto-Detect included. */

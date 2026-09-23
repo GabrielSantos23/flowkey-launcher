@@ -128,16 +128,7 @@ export function TranslateClipboardCommand({ query, preferences, native }: Comman
         from={prefs.langFrom}
         to={prefs.lang1}
         onCopy={copy}
-        onSwap={() => undefined}
       />
-      <List.Section title="Pair">
-        <List.Item
-          id="pair-note"
-          title={languagePairLabel(prefs.langFrom === AUTO_DETECT ? result.detectedFrom ?? AUTO_DETECT : prefs.langFrom, prefs.lang1)}
-          subtitle="Change the pair in FlowKey Settings → Google Translate"
-          icon={{ lucide: 'settings' }}
-        />
-      </List.Section>
     </List>
   );
 }
