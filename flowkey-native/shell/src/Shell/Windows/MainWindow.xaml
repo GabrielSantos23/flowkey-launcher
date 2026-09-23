@@ -92,6 +92,7 @@
                   CornerRadius="{DynamicResource KeycapCornerRadius}"
                   Padding="{DynamicResource DropdownPadding}"
                   MinWidth="{DynamicResource DropdownMinWidth}"
+                  VerticalAlignment="Center"
                   MouseLeftButtonUp="OnFilterButtonClick">
             <Grid>
               <Grid.ColumnDefinitions>

@@ -1124,9 +1124,11 @@ public partial class MainWindow : Window
             PaneHost.Visibility = Visibility.Collapsed;
         }
 
-        // The language/filter dropdown belongs to the search bar, not to the side
-        // pane: show it whenever the tree declares options, side pane or not.
-        if (list.Filter is null)
+        // The language/filter dropdown belongs to an extension command's search bar,
+        // not to the root aggregate view (extensions each ship their own filter; the
+        // last root result would otherwise decide the dropdown) nor to the side pane
+        // rendering: show it only past the root depth.
+        if (list.Filter is null || searchState.Depth <= 1)
         {
             FilterDropdown.Visibility = Visibility.Collapsed;
             FilterPopup.IsOpen = false;
