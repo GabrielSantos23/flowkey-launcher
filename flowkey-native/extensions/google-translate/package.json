@@ -1,0 +1,18 @@
+{
+  "name": "@flowkey/extension-google-translate",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.tsx",
+  "types": "src/index.tsx",
+  "dependencies": {
+    "@flowkey/native-sdk": "workspace:*",
+    "@flowkey/react-ui": "workspace:*",
+    "react": "19.3.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

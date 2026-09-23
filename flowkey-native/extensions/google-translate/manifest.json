@@ -1,0 +1,179 @@
+{
+  "id": "google-translate",
+  "name": "Google Translate",
+  "version": "0.1.0",
+  "description": "Translate text with Google Translate as you type.",
+  "icon": "🌐",
+  "commands": [
+    {
+      "id": "translate",
+      "title": "Translate",
+      "keywords": [
+        "translate",
+        "translation"
+      ],
+      "icon": "languages",
+      "iconColor": "#4A90D9"
+    },
+    {
+      "id": "quick-translate",
+      "title": "Quick Translate",
+      "keywords": [
+        "translate",
+        "multi"
+      ],
+      "icon": "copy",
+      "iconColor": "#4A90D9"
+    },
+    {
+      "id": "translate-clipboard",
+      "title": "Translate Clipboard",
+      "keywords": [
+        "translate",
+        "clipboard"
+      ],
+      "icon": "clipboard",
+      "iconColor": "#4A90D9"
+    }
+  ],
+  "nativeMethods": [
+    "http.fetch",
+    "clipboard.read",
+    "clipboard.write"
+  ],
+  "httpHosts": [
+    "translate.google.com"
+  ],
+  "preferences": [
+    {
+      "name": "langFrom",
+      "type": "dropdown",
+      "title": "Translate from",
+      "description": "Preferred language to translate from.",
+      "default": "auto",
+      "required": true,
+      "options": [
+        { "value": "auto", "title": "Auto-Detect" },
+        { "value": "en", "title": "English" },
+        { "value": "pt", "title": "Portuguese" },
+        { "value": "es", "title": "Spanish" },
+        { "value": "fr", "title": "French" },
+        { "value": "de", "title": "German" },
+        { "value": "it", "title": "Italian" },
+        { "value": "nl", "title": "Dutch" },
+        { "value": "pl", "title": "Polish" },
+        { "value": "ru", "title": "Russian" },
+        { "value": "uk", "title": "Ukrainian" },
+        { "value": "tr", "title": "Turkish" },
+        { "value": "ar", "title": "Arabic" },
+        { "value": "he", "title": "Hebrew" },
+        { "value": "fa", "title": "Persian" },
+        { "value": "hi", "title": "Hindi" },
+        { "value": "zh-CN", "title": "Chinese (Simplified)" },
+        { "value": "zh-TW", "title": "Chinese (Traditional)" },
+        { "value": "ja", "title": "Japanese" },
+        { "value": "ko", "title": "Korean" },
+        { "value": "vi", "title": "Vietnamese" },
+        { "value": "th", "title": "Thai" },
+        { "value": "id", "title": "Indonesian" },
+        { "value": "sv", "title": "Swedish" },
+        { "value": "el", "title": "Greek" },
+        { "value": "cs", "title": "Czech" },
+        { "value": "ro", "title": "Romanian" }
+      ]
+    },
+    {
+      "name": "langFromCustom",
+      "type": "text",
+      "title": "Translate from (custom code)",
+      "description": "Optional Google Translate language code overriding the dropdown above (e.g. 'la' for Latin).",
+      "required": false
+    },
+    {
+      "name": "lang1",
+      "type": "dropdown",
+      "title": "Primary target language",
+      "description": "Preferred primary language to translate to.",
+      "default": "en",
+      "required": true,
+      "options": [
+        { "value": "en", "title": "English" },
+        { "value": "pt", "title": "Portuguese" },
+        { "value": "es", "title": "Spanish" },
+        { "value": "fr", "title": "French" },
+        { "value": "de", "title": "German" },
+        { "value": "it", "title": "Italian" },
+        { "value": "nl", "title": "Dutch" },
+        { "value": "pl", "title": "Polish" },
+        { "value": "ru", "title": "Russian" },
+        { "value": "uk", "title": "Ukrainian" },
+        { "value": "tr", "title": "Turkish" },
+        { "value": "ar", "title": "Arabic" },
+        { "value": "he", "title": "Hebrew" },
+        { "value": "fa", "title": "Persian" },
+        { "value": "hi", "title": "Hindi" },
+        { "value": "zh-CN", "title": "Chinese (Simplified)" },
+        { "value": "zh-TW", "title": "Chinese (Traditional)" },
+        { "value": "ja", "title": "Japanese" },
+        { "value": "ko", "title": "Korean" },
+        { "value": "vi", "title": "Vietnamese" },
+        { "value": "th", "title": "Thai" },
+        { "value": "id", "title": "Indonesian" },
+        { "value": "sv", "title": "Swedish" },
+        { "value": "el", "title": "Greek" },
+        { "value": "cs", "title": "Czech" },
+        { "value": "ro", "title": "Romanian" }
+      ]
+    },
+    {
+      "name": "lang1Custom",
+      "type": "text",
+      "title": "Primary target (custom code)",
+      "description": "Optional Google Translate language code overriding the dropdown above.",
+      "required": false
+    },
+    {
+      "name": "lang2",
+      "type": "dropdown",
+      "title": "Secondary target language",
+      "description": "Second target language used by Quick Translate and as fallback when source equals the primary target.",
+      "default": "pt",
+      "required": true,
+      "options": [
+        { "value": "en", "title": "English" },
+        { "value": "pt", "title": "Portuguese" },
+        { "value": "es", "title": "Spanish" },
+        { "value": "fr", "title": "French" },
+        { "value": "de", "title": "German" },
+        { "value": "it", "title": "Italian" },
+        { "value": "nl", "title": "Dutch" },
+        { "value": "pl", "title": "Polish" },
+        { "value": "ru", "title": "Russian" },
+        { "value": "uk", "title": "Ukrainian" },
+        { "value": "tr", "title": "Turkish" },
+        { "value": "ar", "title": "Arabic" },
+        { "value": "he", "title": "Hebrew" },
+        { "value": "fa", "title": "Persian" },
+        { "value": "hi", "title": "Hindi" },
+        { "value": "zh-CN", "title": "Chinese (Simplified)" },
+        { "value": "zh-TW", "title": "Chinese (Traditional)" },
+        { "value": "ja", "title": "Japanese" },
+        { "value": "ko", "title": "Korean" },
+        { "value": "vi", "title": "Vietnamese" },
+        { "value": "th", "title": "Thai" },
+        { "value": "id", "title": "Indonesian" },
+        { "value": "sv", "title": "Swedish" },
+        { "value": "el", "title": "Greek" },
+        { "value": "cs", "title": "Czech" },
+        { "value": "ro", "title": "Romanian" }
+      ]
+    },
+    {
+      "name": "lang2Custom",
+      "type": "text",
+      "title": "Secondary target (custom code)",
+      "description": "Optional Google Translate language code overriding the dropdown above.",
+      "required": false
+    }
+  ]
+}

@@ -13,6 +13,7 @@ import { ReactRoot } from '@flowkey/react-ui';
 import { NativeBridge } from './bridge';
 import { RootManager, type ManagedRoot } from './roots';
 import emoji from '@flowkey/extension-emoji';
+import googleTranslate from '@flowkey/extension-google-translate';
 import apps from '@flowkey/extension-apps';
 import httpTest from '@flowkey/extension-http-test';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
@@ -32,6 +33,7 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   apps,
   httpTest,
   clipboardHistory,
+  googleTranslate,
   reactDemo,
   spotify,
 ];
@@ -53,6 +55,7 @@ export function toReadyExtensions(modules: LoadedModule[]): ReadyExtension[] {
     id: m.manifest.id,
     name: m.manifest.name,
     version: m.manifest.version,
+    description: m.manifest.description,
     icon: m.manifest.icon,
     preferences: ((m.manifest as { preferences?: PreferenceSchema[] }).preferences ??
       []) as PreferenceSchema[],

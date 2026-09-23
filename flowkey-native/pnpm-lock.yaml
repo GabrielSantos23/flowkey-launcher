@@ -26,6 +26,28 @@ importers:
         specifier: workspace:*
         version: link:../../sdk
 
+  extensions/google-translate:
+    dependencies:
+      '@flowkey/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      '@flowkey/react-ui':
+        specifier: workspace:*
+        version: link:../../react-ui
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.4.2
+        version: 1.4.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+
   extensions/http-test:
     dependencies:
       '@flowkey/native-sdk':
@@ -115,6 +137,9 @@ importers:
       '@flowkey/extension-emoji':
         specifier: workspace:*
         version: link:../extensions/emoji
+      '@flowkey/extension-google-translate':
+        specifier: workspace:*
+        version: link:../extensions/google-translate
       '@flowkey/extension-http-test':
         specifier: workspace:*
         version: link:../extensions/http-test

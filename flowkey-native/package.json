@@ -10,9 +10,11 @@
     "spotify:test": "cd extensions/spotify && bun test",
     "react-ui:typecheck": "cd react-ui && bunx tsc --noEmit",
     "sidecar:typecheck": "cd sidecar && bunx tsc --noEmit",
+    "google-translate:typecheck": "cd extensions/google-translate && bunx tsc --noEmit",
+    "google-translate:test": "cd extensions/google-translate && bun test",
     "sidecar:test": "cd sidecar && bun test",
     "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
     "shell:test": "cd shell && dotnet test FlowKey.sln",
-    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm sidecar:test && pnpm shell:test"
+    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm google-translate:typecheck && pnpm google-translate:test && pnpm sidecar:test && pnpm shell:test"
   }
 }
