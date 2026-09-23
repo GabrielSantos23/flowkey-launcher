@@ -13,12 +13,7 @@ interface FetchResult {
  * Failure codes surfaced to the UI, kept distinct so the user can tell
  * "the query has no translation" apart from "the endpoint is unusable right now".
  */
-export type TranslateErrorCode =
-  | 'rateLimited'
-  | 'tokenUnavailable'
-  | 'invalidResponse'
-  | 'requestFailed'
-  | 'invalidParams';
+export type TranslateErrorCode = 'rateLimited' | 'invalidResponse' | 'requestFailed' | 'invalidParams';
 
 export class TranslateError extends Error {
   constructor(
@@ -45,29 +40,8 @@ export interface TranslateResult {
 }
 
 const TRANSLATE_BASE = 'https://translate.google.com/translate_a/single';
-const HOMEPAGE_URL = 'https://translate.google.com';
 const REQUEST_TIMEOUT_MS = 15_000;
-const TKK_REFRESH_INTERVAL_MS = 60 * 60 * 1000;
 
-interface TkkCache {
-  value: string;
-  fetchedAt: number;
-}
-
-const tkkCache: TkkCache = { value: '', fetchedAt: 0 };
-
-/** Test-only hooks: the TKK cache is module-global, so tests must reset/seed it. */
-export function __resetTkkCacheForTests(): void {
-  tkkCache.value = '';
-  tkkCache.fetchedAt = 0;
-}
-
-export function __seedTkkCacheForTests(value: string, fetchedAt = Date.now()): void {
-  tkkCache.value = value;
-  tkkCache.fetchedAt = fetchedAt;
-}
-
-// ---------------------------------------------------------------------------
 // tk token derivation (reverse-engineered Google Translate web algorithm;
 // same computation the vendor library in the reference extension performs).
 // ---------------------------------------------------------------------------
@@ -122,43 +96,16 @@ export function deriveToken(text: string, tkk: string): string {
   return `${a.toString()}.${a ^ epoch}`;
 }
 
-async function fetchTkk(call: NativeCallFn, signal?: AbortSignal): Promise<string> {
-  const result = await call<FetchResult>('http.fetch', { url: HOMEPAGE_URL, method: 'GET', timeoutMs: 10_000 }, {
-    signal,
-  });
-  if (result.status !== 200) {
-    throw new TranslateError('tokenUnavailable', `Google homepage returned HTTP ${result.status} fetching the token seed.`, result.status);
-  }
-  const match = result.bodyText.match(/tkk:'\d+\.\d+'/);
-  if (!match) {
-    throw new TranslateError(
-      'tokenUnavailable',
-      'Google homepage did not contain the expected token seed — the extension may need an update.',
-    );
-  }
-  return match[0].split(':')[1].replace(/'/g, '');
-}
-
-async function currentTkk(call: NativeCallFn, signal?: AbortSignal): Promise<string> {
-  const now = Date.now();
-  if (tkkCache.value && now - tkkCache.fetchedAt < TKK_REFRESH_INTERVAL_MS) {
-    return tkkCache.value;
-  }
-  try {
-    const value = await fetchTkk(call, signal);
-    tkkCache.value = value;
-    tkkCache.fetchedAt = now;
-    return value;
-  } catch (caught) {
-    // A stale seed is better than none: Google accepts old TKK values for a while.
-    if (tkkCache.value) return tkkCache.value;
-    if (caught instanceof TranslateError) throw caught;
-    throw new TranslateError(
-      'tokenUnavailable',
-      'Could not reach Google to obtain the translation token seed — check your connection.',
-    );
-  }
-}
+/**
+ * Seed for the tk token. Google's homepage no longer embeds the tkk:'epoch.seed'
+ * literal it once did (verified 2026-09), but the endpoint still accepts tokens
+ * derived from the "0" seed for the dict-chrome-ex client (verified live: the
+ * seed-"0" token for "teste" translated successfully). The reference library
+ * degraded to "0" in exactly this situation; we go straight to it and skip a
+ * multi-megabyte homepage fetch every hour. If translations ever start failing
+ * wholesale, re-add a seed fetch from translate.google.com here.
+ */
+const TKK_SEED = '0';
 
 // ---------------------------------------------------------------------------
 // Response parsing
@@ -219,8 +166,7 @@ async function callTranslate(
   options: TranslateOptions,
   signal?: AbortSignal,
 ): Promise<unknown> {
-  const tkk = await currentTkk(call, signal);
-  const tk = deriveToken(text, tkk);
+  const tk = deriveToken(text, TKK_SEED);
   const params = new URLSearchParams({
     client: 'dict-chrome-ex',
     sl: options.from,

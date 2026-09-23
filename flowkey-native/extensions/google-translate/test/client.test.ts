@@ -1,13 +1,5 @@
-import { beforeEach, describe, expect, test } from 'bun:test';
-import {
-  TranslateError,
-  deriveToken,
-  parseTranslationResponse,
-  translate,
-  __resetTkkCacheForTests,
-  __seedTkkCacheForTests,
-  type NativeCallFn,
-} from '../src/api/client';
+import { describe, expect, test } from 'bun:test';
+import { TranslateError, deriveToken, parseTranslationResponse, translate, type NativeCallFn } from '../src/api/client';
 
 interface RecordedCall {
   method: string;
@@ -27,10 +19,6 @@ function scriptCall(responses: ScriptedResponse[]): { call: NativeCallFn; calls:
   }) as NativeCallFn;
   return { call, calls };
 }
-
-const homepageOk = () => ({
-  result: { status: 200, bodyText: "...tkk:'444123.987654'...", headers: {}, truncated: false },
-});
 
 const fetchResult = (status: number, bodyText: string) => ({
   result: { status, bodyText, headers: {}, truncated: false },
@@ -55,13 +43,13 @@ const okBody = JSON.stringify([
 ]);
 
 describe('deriveToken', () => {
-  test('produces the classic text.seed pair shape', () => {
-    const token = deriveToken('Hello world', '444123.987654');
+  test('produces the classic text.seed pair shape from the zero seed', () => {
+    // Exact value verified against the live endpoint on 2026-09: Google accepted
+    // tk=129960.129960 (derived from seed "0") for the text "teste".
+    expect(deriveToken('teste', '0')).toBe('129960.129960');
+    const token = deriveToken('Hello world', '0');
     expect(token).toMatch(/^\d+\.\d+$/);
-    // Deterministic for identical inputs.
-    expect(deriveToken('Hello world', '444123.987654')).toBe(token);
-    // Different seed produces a different token.
-    expect(deriveToken('Hello world', '0.1')).not.toBe(token);
+    expect(deriveToken('Hello world', '0')).toBe(token);
   });
 });
 
@@ -92,27 +80,19 @@ describe('parseTranslationResponse', () => {
 });
 
 describe('translate client', () => {
-  beforeEach(() => __resetTkkCacheForTests());
   const ctx = (call: NativeCallFn) => ({ call });
 
-  test('successful translation fetches homepage seed then the endpoint', async () => {
-    const { call, calls } = scriptCall([homepageOk(), fetchResult(200, okBody)]);
+  test('successful translation hits the endpoint directly with a zero-seed token', async () => {
+    const { call, calls } = scriptCall([fetchResult(200, okBody)]);
     const result = await translate(ctx(call), 'Olá mundo', { from: 'auto', to: 'en' });
     expect(result.translatedText).toBe('Hello world');
     expect(result.detectedFrom).toBe('en');
     expect(result.langTo).toBe('en');
+    expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('http.fetch');
-    expect(String(calls[0].params?.url)).toBe('https://translate.google.com');
-    expect(String(calls[1].params?.url)).toContain('https://translate.google.com/translate_a/single?');
-    expect(String(calls[1].params?.url)).toContain('client=dict-chrome-ex');
-    expect(String(calls[1].params?.url)).toContain('tk=');
-  });
-
-  test('caches the homepage seed between calls', async () => {
-    const { call, calls } = scriptCall([homepageOk(), fetchResult(200, okBody), fetchResult(200, okBody)]);
-    await translate(ctx(call), 'Olá mundo', { from: 'auto', to: 'en' });
-    await translate(ctx(call), 'Outro texto', { from: 'auto', to: 'en' });
-    expect(calls.filter((entry) => entry.params?.url === 'https://translate.google.com')).toHaveLength(1);
+    expect(String(calls[0].params?.url)).toContain('https://translate.google.com/translate_a/single?');
+    expect(String(calls[0].params?.url)).toContain('client=dict-chrome-ex');
+    expect(String(calls[0].params?.url)).toContain('tk=');
   });
 
   test('empty input returns an empty result without any network call', async () => {
@@ -123,7 +103,7 @@ describe('translate client', () => {
   });
 
   test('429 surfaces as a distinct rateLimited error', async () => {
-    const { call } = scriptCall([homepageOk(), fetchResult(429, 'too many')]);
+    const { call } = scriptCall([fetchResult(429, 'too many')]);
     try {
       await translate(ctx(call), 'Olá', { from: 'auto', to: 'en' });
       throw new Error('expected TranslateError');
@@ -135,7 +115,7 @@ describe('translate client', () => {
   });
 
   test('503 also surfaces as rateLimited', async () => {
-    const { call } = scriptCall([homepageOk(), fetchResult(503, 'unavailable')]);
+    const { call } = scriptCall([fetchResult(503, 'unavailable')]);
     await translate(ctx(call), 'Olá', { from: 'auto', to: 'en' }).then(
       () => {
         throw new Error('expected TranslateError');
@@ -145,7 +125,7 @@ describe('translate client', () => {
   });
 
   test('other non-200 statuses surface as requestFailed', async () => {
-    const { call } = scriptCall([homepageOk(), fetchResult(500, 'boom')]);
+    const { call } = scriptCall([fetchResult(500, 'boom')]);
     await translate(ctx(call), 'Olá', { from: 'auto', to: 'en' }).then(
       () => {
         throw new Error('expected TranslateError');
@@ -157,30 +137,8 @@ describe('translate client', () => {
     );
   });
 
-  test('homepage seed failure without a cached seed surfaces tokenUnavailable', async () => {
-    const { call } = scriptCall([fetchResult(503, 'down')]);
-    await translate(ctx(call), 'Olá', { from: 'auto', to: 'en' }).then(
-      () => {
-        throw new Error('expected TranslateError');
-      },
-      (caught) => {
-        expect((caught as TranslateError).code).toBe('tokenUnavailable');
-        expect((caught as TranslateError).message).toContain('token seed');
-      },
-    );
-  });
-
-  test('homepage seed failure falls back to a previously cached seed', async () => {
-    __seedTkkCacheForTests('444123.987654');
-    const { call, calls } = scriptCall([fetchResult(200, okBody)]);
-    const result = await translate(ctx(call), 'Segunda', { from: 'auto', to: 'en' });
-    expect(result.translatedText).toBe('Hello world');
-    // Only the endpoint was called; the stale-seeded homepage fetch never happened.
-    expect(calls).toHaveLength(1);
-  });
-
-  test('a token the endpoint rejects (non-200 / bad JSON) maps to invalidResponse or requestFailed', async () => {
-    const { call } = scriptCall([homepageOk(), fetchResult(200, '<html>not json</html>')]);
+  test('non-JSON 200 body maps to invalidResponse pointing at an extension update', async () => {
+    const { call } = scriptCall([fetchResult(200, '<html>not json</html>')]);
     await translate(ctx(call), 'Olá', { from: 'auto', to: 'en' }).then(
       () => {
         throw new Error('expected TranslateError');
