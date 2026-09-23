@@ -146,6 +146,7 @@ export interface ReadyExtension {
   name: string;
   version: string;
   icon?: string;
+  description?: string;
   preferences?: PreferenceSchema[];
   commands: {
     id: string;

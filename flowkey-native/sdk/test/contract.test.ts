@@ -46,7 +46,9 @@ describe('ui-tree contract fixture', () => {
       }
     }
     expect(
-      list.sections[0].items[0].actions?.some((a) => typeof a.push === 'string' && a.push.length > 0),
+      list.sections[0].items[0].actions?.some(
+        (a) => typeof a.push === 'string' && a.push.length > 0,
+      ),
     ).toBe(true);
     expect(list.emptyView?.title).toBeTruthy();
   });
@@ -125,6 +127,7 @@ describe('protocol contract fixture', () => {
     const ready: ReadyMessage = protocolFixture.sidecarToHost.ready;
     expect(ready.extensions.length).toBeGreaterThan(0);
     for (const ext of ready.extensions) {
+      expect(typeof ext.description).toBe('string');
       expect(Array.isArray(ext.nativeMethods)).toBe(true);
       expect(Array.isArray(ext.httpHosts)).toBe(true);
     }
