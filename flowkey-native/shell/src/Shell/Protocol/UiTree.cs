@@ -32,6 +32,8 @@ public sealed class UiFilterOption
 public sealed class DetailTree : UiTree
 {
     public string Title { get; set; } = "";
+    public string? Subtitle { get; set; }
+    public string? ImageUri { get; set; }
     public List<UiField> Fields { get; set; } = [];
     public string? Description { get; set; }
     public List<UiAction> Actions { get; set; } = [];
@@ -85,6 +87,7 @@ public sealed class UiAction
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
     public bool? Primary { get; set; }
+    public string? Push { get; set; }
 }
 
 public sealed class UiEmptyView

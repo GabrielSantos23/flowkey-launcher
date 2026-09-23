@@ -130,6 +130,12 @@ and provide the client id via either:
 { "clientId": "your-client-id", "redirectPort": 0 }
 ```
 
+3. the extension's own preference: open FlowKey Settings, find the Spotify
+   section, and paste the client id into the "Spotify client id" field. It is
+   stored DPAPI-encrypted like any password preference and is passed to the
+   shell with the `oauth.authorize` call; the environment variable and config
+   file above still take precedence.
+
 Register `http://127.0.0.1/callback` (loopback IP literal **without a port**)
 as the app's redirect URI — per the Spotify docs, the dynamically assigned
 port may then be added at authorization time. If you prefer to pin a fixed

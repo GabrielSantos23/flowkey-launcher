@@ -402,6 +402,8 @@ describe('serializer validation', () => {
         Detail,
         {
           title: 'D',
+          subtitle: 'by Raycast',
+          imageUri: 'file:///icon-cache/np.png',
           markdown: '# hi',
           actions: createElement(Action, { title: 'Go', primary: true, onAction: () => {} }),
         },
@@ -415,6 +417,8 @@ describe('serializer validation', () => {
     const detailTree = detail as DetailTree;
     expect(detailTree.type).toBe('detail');
     expect(detailTree.title).toBe('D');
+    expect(detailTree.subtitle).toBe('by Raycast');
+    expect(detailTree.imageUri).toBe('file:///icon-cache/np.png');
     expect(detailTree.description).toBe('# hi');
     expect(detailTree.fields).toEqual([{ label: 'L', value: 'V' }]);
     expect(detailTree.actions?.[0].primary).toBe(true);
@@ -482,5 +486,58 @@ describe('serializer validation', () => {
       ),
     );
     expect((ok as ListTree).sections[0].items[0].pane?.fields?.[0].valueIconUri).toBe('x');
+  });
+});
+
+describe('push actions', () => {
+  function renderAlbum(): { generations: CommittedGeneration[]; root: ReactRoot } {
+    const generations: CommittedGeneration[] = [];
+    const root = new ReactRoot(() =>
+      createElement(
+        List,
+        null,
+        createElement(List.Item, {
+          id: 'x',
+          title: 'Album',
+          actions: createElement(
+            ActionPanel,
+            null,
+            createElement(Action, { title: 'Songs', push: 'album-songs:al1', onAction: () => {} }),
+          ),
+        }),
+      ), {
+      onCommit: (tree, json, registry) => generations.push({ tree, json, registry }),
+      onError: () => {},
+    });
+    return { root, generations };
+  }
+
+  const props = {
+    query: '',
+    preferences: {},
+    native: { call: async () => null },
+    signal: new AbortController().signal,
+  } as never;
+
+  test('push keys serialize onto the action', () => {
+    const { root, generations } = renderAlbum();
+    root.update(props);
+    const tree = generations.at(-1)!.tree as Extract<UiTree, { sections: unknown[] }>;
+    const actions = tree.sections[0].items[0].actions;
+    expect(actions?.[0].push).toBe('album-songs:al1');
+  });
+
+  test('empty push keys are rejected', () => {
+    const root = new ReactRoot(() =>
+      createElement(
+        List,
+        null,
+        createElement(List.Item, {
+          id: 'x',
+          title: 'Album',
+          actions: createElement(ActionPanel, null, createElement(Action, { title: 'Songs', push: '', onAction: () => {} })),
+        }),
+      ), { onCommit: () => {}, onError: () => {} });
+    expect(() => root.update(props)).toThrow(/non-empty sub-view key/);
   });
 });

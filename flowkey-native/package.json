@@ -6,11 +6,13 @@
     "sdk:test": "cd sdk && bun test",
     "sdk:typecheck": "cd sdk && bunx tsc --noEmit",
     "react-ui:test": "cd react-ui && bun test",
+    "spotify:typecheck": "cd extensions/spotify && bunx tsc --noEmit",
+    "spotify:test": "cd extensions/spotify && bun test",
     "react-ui:typecheck": "cd react-ui && bunx tsc --noEmit",
     "sidecar:typecheck": "cd sidecar && bunx tsc --noEmit",
     "sidecar:test": "cd sidecar && bun test",
     "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
     "shell:test": "cd shell && dotnet test FlowKey.sln",
-    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm sidecar:test && pnpm shell:test"
+    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm sidecar:test && pnpm shell:test"
   }
 }

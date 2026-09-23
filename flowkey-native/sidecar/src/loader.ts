@@ -16,6 +16,7 @@ import emoji from '@flowkey/extension-emoji';
 import apps from '@flowkey/extension-apps';
 import httpTest from '@flowkey/extension-http-test';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
+import spotify from '@flowkey/extension-spotify';
 import reactDemo from '@flowkey/extension-react-demo';
 
 type LoadedFunctional = ExtensionModule & { preferences: Preferences };
@@ -32,6 +33,7 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   httpTest,
   clipboardHistory,
   reactDemo,
+  spotify,
 ];
 
 export function loadExtensions(): LoadedModule[] {
@@ -208,17 +210,6 @@ export class Dispatcher {
           return;
         }
         if (isReactModule(ext)) {
-          if (command.mode === 'background') {
-            emit({
-              type: 'error',
-              requestId,
-              error: {
-                code: 'unknownCommand',
-                message: `command '${commandId}' is a background command and has no React handler`,
-              },
-            });
-            return;
-          }
           const root = this.roots.reset(extensionId, commandId, ext);
           this.respondFromRoot(root, requestId, emit, {
             query: '',

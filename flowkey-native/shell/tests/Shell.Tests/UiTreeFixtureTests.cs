@@ -55,6 +55,7 @@ public class UiTreeFixtureTests
                 Assert.Contains(item.Actions!, a => a.Primary == true);
             }
         }
+        Assert.Contains(list.Sections[0].Items[0].Actions!, a => a.Push == "album-songs:al1");
     }
 
     [Fact]
@@ -79,6 +80,8 @@ public class UiTreeFixtureTests
 
         var detail = Assert.IsType<DetailTree>(tree);
         Assert.Equal("🚀 Rocket", detail.Title);
+        Assert.Equal("SpaceX mission", detail.Subtitle);
+        Assert.Equal("file:///icon-cache/test.png", detail.ImageUri);
         Assert.NotEmpty(detail.Fields);
         Assert.Contains("**fast**", detail.Description);
         Assert.Contains(detail.Actions, a => a.Primary == true);

@@ -8,11 +8,12 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flowkey/extension-emoji": "workspace:*",
     "@flowkey/extension-apps": "workspace:*",
-    "@flowkey/extension-http-test": "workspace:*",
     "@flowkey/extension-clipboard-history": "workspace:*",
+    "@flowkey/extension-emoji": "workspace:*",
+    "@flowkey/extension-http-test": "workspace:*",
     "@flowkey/extension-react-demo": "workspace:*",
+    "@flowkey/extension-spotify": "workspace:*",
     "@flowkey/native-sdk": "workspace:*",
     "@flowkey/react-ui": "workspace:*"
   },

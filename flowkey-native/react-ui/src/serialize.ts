@@ -41,13 +41,13 @@ const LIST_ALLOWED = ['layout', 'filter'];
 const LIST_SECTION_ALLOWED = ['title'];
 const LIST_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions', 'detail'];
 const LIST_ITEM_DETAIL_ALLOWED = ['preview', 'previewImageUri'];
-const DETAIL_ALLOWED = ['title', 'markdown', 'actions'];
+const DETAIL_ALLOWED = ['title', 'subtitle', 'imageUri', 'markdown', 'actions'];
 const DETAIL_METADATA_ALLOWED: string[] = [];
 const DETAIL_FIELD_ALLOWED = ['label', 'value', 'valueIconUri'];
 const GRID_ALLOWED = ['columns', 'title'];
 const GRID_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions'];
 const ACTION_PANEL_ALLOWED: string[] = [];
-const ACTION_ALLOWED = ['title', 'primary', 'onAction', 'id'];
+const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id'];
 const EMPTY_VIEW_ALLOWED = ['title', 'description'];
 
 const ROOT_TYPES = new Set(['list', 'detail', 'grid']);
@@ -409,6 +409,10 @@ function serializeDetail(node: HostNode, state: SerializeState): DetailTree {
     title: requireString('detail', node.props, 'title'),
     fields: serializeMetadataFromHost(node.children, state, false),
   };
+  const subtitle = optionalString('detail', node.props, 'subtitle');
+  if (subtitle !== undefined) tree.subtitle = subtitle;
+  const imageUri = optionalString('detail', node.props, 'imageUri');
+  if (imageUri !== undefined) tree.imageUri = imageUri;
   const markdown = optionalString('detail', node.props, 'markdown');
   if (markdown !== undefined) tree.description = markdown;
   const actionsValue = node.props['actions'];
@@ -503,6 +507,10 @@ function serializeActionElement(
     throw new ReactUiError(`<action> requires a function prop 'onAction'`);
   }
   const primary = optionalBoolean('action', props, 'primary');
+  const push = optionalString('action', props, 'push');
+  if (push !== undefined && push.length === 0) {
+    throw new ReactUiError(`<action> prop 'push' must be a non-empty sub-view key`);
+  }
   const explicitId = optionalString('action', props, 'id');
   if (explicitId !== undefined) {
     if (explicitId === '__open__') {
@@ -517,10 +525,12 @@ function serializeActionElement(
     state.registry.registerExplicit(explicitId, onAction as ActionHandler);
     const action: UiAction = { id: explicitId, title };
     if (primary === true) action.primary = true;
+    if (push !== undefined) action.push = push;
     return action;
   }
   const action: UiAction = { id: state.registry.register(onAction as ActionHandler), title };
   if (primary === true) action.primary = true;
+  if (push !== undefined) action.push = push;
   return action;
 }
 

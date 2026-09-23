@@ -36,6 +36,11 @@
               {
                 "id": "insert",
                 "title": "Insert"
+              },
+              {
+                "id": "open-album",
+                "title": "Go to Songs",
+                "push": "album-songs:al1"
               }
             ]
           },
@@ -123,7 +128,9 @@
         "primary": true
       }
     ],
-    "description": "### Rocket\nA **fast** ship with *style*.\n\n-Reusable\n1. Stage one\n\n`Raptor` engines:\n\n```\nthrust = 2.2 MN\n```\n\n[SpaceX](https://www.spacex.com) and [bad](javascript:alert(1))"
+    "description": "### Rocket\nA **fast** ship with *style*.\n\n-Reusable\n1. Stage one\n\n`Raptor` engines:\n\n```\nthrust = 2.2 MN\n```\n\n[SpaceX](https://www.spacex.com) and [bad](javascript:alert(1))",
+    "subtitle": "SpaceX mission",
+    "imageUri": "file:///icon-cache/test.png"
   },
   "grid": {
     "type": "grid",

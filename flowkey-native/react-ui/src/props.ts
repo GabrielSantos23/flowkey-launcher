@@ -56,6 +56,8 @@ export interface EmptyViewProps {
 
 export interface DetailProps {
   title: string;
+  subtitle?: string;
+  imageUri?: string;
   markdown?: string;
   actions?: ReactNode;
   children?: ReactNode;
@@ -83,6 +85,7 @@ export interface ActionPanelProps {
 export interface ActionProps {
   title: string;
   primary?: boolean;
+  push?: string;
   onAction: () => void | Promise<void>;
   id?: string;
 }

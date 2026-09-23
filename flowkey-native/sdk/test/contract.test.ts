@@ -45,6 +45,9 @@ describe('ui-tree contract fixture', () => {
         expect(item.actions?.some((a) => a.primary)).toBe(true);
       }
     }
+    expect(
+      list.sections[0].items[0].actions?.some((a) => typeof a.push === 'string' && a.push.length > 0),
+    ).toBe(true);
     expect(list.emptyView?.title).toBeTruthy();
   });
 
@@ -64,6 +67,8 @@ describe('ui-tree contract fixture', () => {
     expect(typeof detail.description).toBe('string');
     expect(detail.description).toContain('**fast**');
     expect(detail.actions?.some((a) => a.primary)).toBe(true);
+    expect(detail.subtitle).toBe('SpaceX mission');
+    expect(detail.imageUri).toBe('file:///icon-cache/test.png');
   });
 
   test('grid item iconUri parses into the UiItem type', () => {

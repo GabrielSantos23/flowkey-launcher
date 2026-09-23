@@ -4,6 +4,7 @@ export interface UiAction {
   id: string;
   title: string;
   primary?: boolean;
+  push?: string;
 }
 
 export interface UiPaneField {
@@ -63,6 +64,8 @@ export interface UiField {
 export interface DetailTree {
   type: 'detail';
   title: string;
+  subtitle?: string;
+  imageUri?: string;
   fields: UiField[];
   description?: string;
   actions?: UiAction[];

@@ -24,9 +24,9 @@
       "extensionId": "emoji",
       "actionId": "copy",
       "item": {
-        "id": "🎉",
-        "title": "🎉 Party Popper",
-        "icon": "🎉",
+        "id": "\ud83c\udf89",
+        "title": "\ud83c\udf89 Party Popper",
+        "icon": "\ud83c\udf89",
         "actions": [
           {
             "id": "copy",
@@ -64,16 +64,22 @@
             {
               "id": "open",
               "title": "Emoji & Symbols",
-              "keywords": ["emoji", "symbol", "kaomoji"],
+              "keywords": [
+                "emoji",
+                "symbol",
+                "kaomoji"
+              ],
               "mode": "view",
               "icon": "smile",
               "iconColor": "#4F8CFF"
             }
           ],
-          "nativeMethods": ["clipboard.write"],
+          "nativeMethods": [
+            "clipboard.write"
+          ],
           "httpHosts": [],
           "oauth": [],
-          "icon": "😀",
+          "icon": "\ud83d\ude00",
           "preferences": [
             {
               "name": "skinTone",
@@ -104,15 +110,20 @@
           {
             "items": [
               {
-                "id": "🎉",
-                "title": "🎉 Party Popper",
+                "id": "\ud83c\udf89",
+                "title": "\ud83c\udf89 Party Popper",
                 "subtitle": "celebration, party",
-                "icon": "🎉",
+                "icon": "\ud83c\udf89",
                 "actions": [
                   {
                     "id": "copy",
                     "title": "Copy",
                     "primary": true
+                  },
+                  {
+                    "id": "open-album",
+                    "title": "Go to Songs",
+                    "push": "album-songs:al1"
                   }
                 ]
               }
@@ -144,10 +155,10 @@
           {
             "items": [
               {
-                "id": "🎉",
-                "title": "🎉 Party Popper",
+                "id": "\ud83c\udf89",
+                "title": "\ud83c\udf89 Party Popper",
                 "subtitle": "celebration, party",
-                "icon": "🎉",
+                "icon": "\ud83c\udf89",
                 "actions": [
                   {
                     "id": "copy",
@@ -167,7 +178,7 @@
       "extensionId": "emoji",
       "method": "clipboard.write",
       "params": {
-        "text": "🎉"
+        "text": "\ud83c\udf89"
       }
     },
     "nativeCallDenied": {

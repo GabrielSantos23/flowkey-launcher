@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows;
@@ -16,24 +17,47 @@ public static class DetailRenderer
 {
     public static FrameworkElement Render(DetailTree tree, Action<UiAction> onAction)
     {
-        var root = new StackPanel { Margin = new Thickness(14, 10, 14, 10) };
+        var left = new StackPanel { Margin = new Thickness(18, 14, 18, 14) };
 
         var title = PrimaryText(tree.Title);
-        title.FontSize = 17;
-        title.FontWeight = FontWeights.SemiBold;
+        title.FontSize = 26;
+        title.FontWeight = FontWeights.Bold;
         title.TextWrapping = TextWrapping.Wrap;
-        root.Children.Add(title);
+        left.Children.Add(title);
 
-        foreach (var field in tree.Fields)
+        if (!string.IsNullOrEmpty(tree.Subtitle))
         {
-            var row = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
-            var label = SecondaryText(field.Label + ":");
-            label.MinWidth = 110;
-            row.Children.Add(label);
-            var value = PrimaryText(field.Value);
-            value.TextWrapping = TextWrapping.Wrap;
-            row.Children.Add(value);
-            root.Children.Add(row);
+            var subtitle = SecondaryText(tree.Subtitle);
+            subtitle.FontSize = 14;
+            subtitle.Margin = new Thickness(0, 4, 0, 0);
+            left.Children.Add(subtitle);
+        }
+
+        if (!string.IsNullOrEmpty(tree.ImageUri) && IconUriPolicy.TryGetLocalPath(tree.ImageUri, out var imagePath) && File.Exists(imagePath))
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = LoadBitmap(imagePath),
+                MaxWidth = 200,
+                MaxHeight = 200,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+                Margin = new Thickness(0, 14, 0, 0),
+            };
+            left.Children.Add(image);
+        }
+        else if (!string.IsNullOrEmpty(tree.ImageUri) && IconUriPolicy.DecodeDataUri(tree.ImageUri) is { } bytes)
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = LoadBitmapFromBytes(bytes),
+                MaxWidth = 200,
+                MaxHeight = 200,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+                Margin = new Thickness(0, 14, 0, 0),
+            };
+            left.Children.Add(image);
         }
 
         if (!string.IsNullOrEmpty(tree.Description))
@@ -41,34 +65,79 @@ public static class DetailRenderer
             var result = MarkdownLite.Parse(tree.Description);
             foreach (var node in result.Nodes)
             {
-                root.Children.Add(RenderNode(node, onAction));
+                left.Children.Add(RenderNode(node, onAction));
             }
         }
 
-        if (tree.Actions.Count > 0)
+        var rail = new StackPanel { Margin = new Thickness(4, 16, 16, 14) };
+        foreach (var field in tree.Fields)
         {
-            var actionsPanel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal, Margin = new Thickness(0, 12, 0, 0) };
-            foreach (var action in tree.Actions)
-            {
-                var button = new Button
-                {
-                    Content = action.Title,
-                    Padding = new Thickness(12, 4, 12, 4),
-                    Margin = new Thickness(0, 0, 8, 0),
-                };
-                var captured = action;
-                button.Click += (_, _) => onAction(captured);
-                actionsPanel.Children.Add(button);
-            }
-            root.Children.Add(actionsPanel);
+            var label = SecondaryText(field.Label);
+            label.FontSize = 12;
+            rail.Children.Add(label);
+            var value = PrimaryText(field.Value);
+            value.FontSize = 14;
+            value.FontWeight = FontWeights.SemiBold;
+            value.TextWrapping = TextWrapping.Wrap;
+            value.Margin = new Thickness(0, 1, 0, 10);
+            rail.Children.Add(value);
         }
 
-        var scroll = new ScrollViewer
+        var railBorder = new Border();
+        railBorder.SetResourceReference(Border.BorderBrushProperty, "SeparatorBrush");
+        railBorder.BorderThickness = new Thickness(1, 0, 0, 0);
+        railBorder.Child = rail;
+
+        var columns = new Grid { Margin = new Thickness(0) };
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        columns.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(280) });
+        Grid.SetColumn(left, 0);
+        Grid.SetColumn(railBorder, 1);
+        columns.Children.Add(left);
+        columns.Children.Add(railBorder);
+
+        return new ScrollViewer
         {
-            Content = root,
+            Content = columns,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
-        return scroll;
+    }
+
+    private static ImageSource? LoadBitmap(string path)
+    {
+        try
+        {
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.UriSource = new Uri(path, UriKind.Absolute);
+            bitmap.EndInit();
+            bitmap.Freeze();
+            return bitmap;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    private static ImageSource? LoadBitmapFromBytes(byte[] bytes)
+    {
+        try
+        {
+            var image = new System.Windows.Media.Imaging.BitmapImage();
+            using var stream = new MemoryStream(bytes);
+            image.BeginInit();
+            image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private static FrameworkElement RenderNode(MdNode node, Action<UiAction> onAction)
