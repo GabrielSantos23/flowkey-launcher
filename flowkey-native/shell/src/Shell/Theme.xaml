@@ -65,7 +65,7 @@
   <Thickness x:Key="TitleSubtitleMargin">8,0,8,0</Thickness>
   <Thickness x:Key="ListInset">8</Thickness>
   <Thickness x:Key="SearchBarPadding">16,0,16,0</Thickness>
-  <Thickness x:Key="DropdownPadding">12,7,12,7</Thickness>
+  <Thickness x:Key="DropdownPadding">10,2,8,2</Thickness>
   <sys:Double x:Key="DropdownMinWidth">150</sys:Double>
   <Thickness x:Key="BackButtonMargin">12,0,4,0</Thickness>
   <Thickness x:Key="DetailMargin">0,0,0,6</Thickness>

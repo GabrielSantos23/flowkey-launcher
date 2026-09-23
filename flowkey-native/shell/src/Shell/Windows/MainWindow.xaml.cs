@@ -1122,8 +1122,27 @@ public partial class MainWindow : Window
             PaneColumn.Width = new GridLength(0);
             PaneDivider.Visibility = Visibility.Collapsed;
             PaneHost.Visibility = Visibility.Collapsed;
+        }
+
+        // The language/filter dropdown belongs to the search bar, not to the side
+        // pane: show it whenever the tree declares options, side pane or not.
+        if (list.Filter is null)
+        {
             FilterDropdown.Visibility = Visibility.Collapsed;
             FilterPopup.IsOpen = false;
+        }
+        else
+        {
+            FilterDropdown.Visibility = Visibility.Visible;
+            FilterList.ItemsSource = list.Filter.Options.ToList();
+            var current = list.Filter.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
+                ?? list.Filter.Options.FirstOrDefault();
+            FilterLabel.Text = current?.Label ?? "";
+            if (searchState.Top is { } top)
+            {
+                top.FilterValue = current?.Value;
+                top.Query = SearchBox.Text;
+            }
         }
     }
 

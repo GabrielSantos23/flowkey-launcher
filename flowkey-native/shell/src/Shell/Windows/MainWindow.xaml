@@ -95,27 +95,20 @@
                   MouseLeftButtonUp="OnFilterButtonClick">
             <Grid>
               <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
-              <TextBlock Text="&#xE71E;"
-                         FontFamily="{DynamicResource GlyphFontFamily}"
-                         FontSize="12"
-                         Foreground="{DynamicResource TextSecondaryBrush}"
-                         VerticalAlignment="Center" Margin="0,0,10,0" />
               <TextBlock x:Name="FilterLabel"
-                         Grid.Column="1"
-                         FontSize="{DynamicResource TitleFontSize}"
-                         FontWeight="Medium"
+                         Grid.Column="0"
+                         FontSize="{DynamicResource SecondaryFontSize}"
                          Foreground="{DynamicResource TextPrimaryBrush}"
                          VerticalAlignment="Center" />
               <TextBlock Text="&#xE70D;"
-                         Grid.Column="2"
+                         Grid.Column="1"
                          FontFamily="{DynamicResource GlyphFontFamily}"
                          FontSize="{DynamicResource GlyphFontSize}"
                          Foreground="{DynamicResource TextSecondaryBrush}"
-                         VerticalAlignment="Center" />
+                         VerticalAlignment="Center" Margin="10,0,0,0" />
             </Grid>
           </Border>
           <Popup x:Name="FilterPopup"
@@ -226,6 +219,20 @@
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <Grid.Style>
+              <Style TargetType="Grid">
+                <Style.Triggers>
+                  <MultiDataTrigger>
+                    <MultiDataTrigger.Conditions>
+                      <Condition Binding="{Binding Item.Icon}" Value="{x:Null}" />
+                      <Condition Binding="{Binding Bitmap}" Value="{x:Null}" />
+                      <Condition Binding="{Binding VectorIcon}" Value="{x:Null}" />
+                    </MultiDataTrigger.Conditions>
+                    <Setter Property="Visibility" Value="Collapsed" />
+                  </MultiDataTrigger>
+                </Style.Triggers>
+              </Style>
+            </Grid.Style>
             <Grid Grid.Column="0" Width="{DynamicResource RowIconSize}" Height="{DynamicResource RowIconSize}" Margin="{DynamicResource IconMargin}" VerticalAlignment="Center">
               <TextBlock Text="{Binding Item.Icon}" FontSize="{DynamicResource EmojiFontSize}" TextAlignment="Center" />
               <Image Source="{Binding Bitmap}" HorizontalAlignment="Left" VerticalAlignment="Top">
