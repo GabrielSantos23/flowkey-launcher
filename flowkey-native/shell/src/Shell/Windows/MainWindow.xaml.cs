@@ -871,6 +871,14 @@ public partial class MainWindow : Window
             ShowToast($"'{extension?.Name}' needs settings before it can run: missing " + string.Join(", ", missing) + ". Open Settings to configure.");
             return;
         }
+        var openedCommand = extension?.Commands.FirstOrDefault(c => c.Id == row.CommandId);
+        if (openedCommand?.Mode == "background")
+        {
+            sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
+                new UiItem { Id = row.CommandId, Title = row.Item.Title });
+            HideWindow();
+            return;
+        }
         var requestId = sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
             new UiItem { Id = row.CommandId, Title = row.Item.Title });
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
