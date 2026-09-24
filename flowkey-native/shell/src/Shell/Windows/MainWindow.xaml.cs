@@ -833,6 +833,10 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (RunPushAction(row.ExtensionId!, action))
+        {
+            return;
+        }
         DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
         var requestId = sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
         searchState.TrackAction(requestId, row.ExtensionId);
@@ -841,6 +845,18 @@ public partial class MainWindow : Window
         {
             HideWindow();
         }
+    }
+
+    private bool RunPushAction(string extensionId, UiAction action)
+    {
+        if (string.IsNullOrEmpty(action.Push))
+        {
+            return false;
+        }
+        DebugLog.Write("PushAction ext=" + extensionId + " to=" + action.Push);
+        searchState.PushRequest("push-" + Guid.NewGuid().ToString("N"), extensionId, action.Push, actionPushed: true);
+        SendSearch("");
+        return true;
     }
 
     private void OpenActionPanelForSelection()
@@ -853,7 +869,7 @@ public partial class MainWindow : Window
                 new List<UiAction> { new UiAction { Id = CalculatorRow.CopyAnswerActionId, Title = "Copy Answer", Primary = true } });
             return;
         }
-        if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null || row.IsCommand)
+        if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null)
         {
             return;
         }
@@ -918,6 +934,10 @@ public partial class MainWindow : Window
                 return;
             }
             DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
+            if (RunPushAction(extensionId, action))
+            {
+                return;
+            }
             var requestId = sidecar.SendAction(extensionId, action.Id, item);
             searchState.TrackAction(requestId, extensionId);
             BeginOperation();

@@ -119,3 +119,41 @@ public class SearchStatePushTests
         Assert.Same(before, state.CurrentRows);
     }
 }
+
+public class SearchStatePushActionTests
+{
+    private static Protocol.UiPushMessage Push(string commandId, string query, string extensionId = "spotify") =>
+        new() { ExtensionId = extensionId, CommandId = commandId, Query = query };
+
+    [Fact]
+    public void ActionPushedLevelAcceptsPushesWithUnmatchedSearchBoxText()
+    {
+        var state = new SearchState();
+        state.PushRequest("r0", "spotify", "search");
+        state.PushRequest("r1", "spotify", "album-songs:al1", actionPushed: true);
+
+        Assert.True(state.ShouldApplyPush(Push("album-songs:al1", ""), "kanye"));
+    }
+
+    [Fact]
+    public void RegularLevelsStillRequireSearchBoxMatch()
+    {
+        var state = new SearchState();
+        state.PushRequest("r0", "spotify", "search");
+        state.PushRequest("r1", "spotify", "open", actionPushed: false);
+
+        Assert.False(state.ShouldApplyPush(Push("open", ""), "kanye"));
+        Assert.True(state.ShouldApplyPush(Push("open", ""), ""));
+    }
+
+    [Fact]
+    public void ActionPushedLevelStillGuardsExtensionAndCommand()
+    {
+        var state = new SearchState();
+        state.PushRequest("r0", "spotify", "search");
+        state.PushRequest("r1", "spotify", "album-songs:al1", actionPushed: true);
+
+        Assert.False(state.ShouldApplyPush(Push("album-songs:other", ""), "kanye"));
+        Assert.False(state.ShouldApplyPush(Push("album-songs:al1", "", extensionId: "emoji"), "kanye"));
+    }
+}

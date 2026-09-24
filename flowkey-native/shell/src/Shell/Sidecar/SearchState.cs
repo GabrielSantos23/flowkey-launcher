@@ -8,6 +8,7 @@ public sealed class SearchLevel
     public string? CommandId { get; set; }
     public string? FilterValue { get; set; }
     public string Query { get; set; } = "";
+    public bool ActionPushed { get; set; }
     public List<string> RequestIds { get; } = new();
     public Dictionary<string, string> ExtensionByRequest { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, IReadOnlyList<UiRow>> RowsByRequest { get; } = new(StringComparer.Ordinal);
@@ -38,12 +39,12 @@ public sealed class SearchState
         levels.Push(level);
     }
 
-    public void PushRequest(string requestId, string extensionId, string commandId)
+    public void PushRequest(string requestId, string extensionId, string commandId, bool actionPushed = false)
     {
         generation++;
         liveRequestIds.Clear();
         actionRefreshByRequest.Clear();
-        var level = new SearchLevel { ExtensionId = extensionId, CommandId = commandId, Query = "" };
+        var level = new SearchLevel { ExtensionId = extensionId, CommandId = commandId, Query = "", ActionPushed = actionPushed };
         level.ExtensionByRequest[requestId] = extensionId;
         level.RequestIds.Add(requestId);
         level.RowsByRequest[requestId] = Array.Empty<UiRow>();
@@ -154,7 +155,7 @@ public sealed class SearchState
         return top.ExtensionId == push.ExtensionId
             && top.CommandId == push.CommandId
             && top.Query == push.Query
-            && push.Query == currentSearchText
+            && (top.ActionPushed || push.Query == currentSearchText)
             && string.Equals(top.FilterValue, push.FilterValue, StringComparison.Ordinal);
     }
 
