@@ -529,14 +529,35 @@
             <TextBlock Style="{StaticResource KeycapText}" Text="K" />
           </Border>
         </StackPanel>
+        <Border x:Name="FooterToastHost"
+                Grid.Column="0"
+                Grid.ColumnSpan="2"
+                IsHitTestVisible="False"
+                Visibility="Collapsed">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="16,0,0,0" MaxWidth="470">
+            <Ellipse x:Name="FooterToastDot"
+                     Width="7"
+                     Height="7"
+                     Fill="{StaticResource FooterToastDotBrush}"
+                     VerticalAlignment="Center" />
+            <TextBlock x:Name="FooterToastTitle"
+                       Margin="9,0,0,0"
+                       FontSize="{DynamicResource FooterFontSize}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="FooterToastDetail"
+                       Margin="8,0,0,0"
+                       FontSize="{DynamicResource FooterFontSize}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </Border>
       </Grid>
     </Border>
 
-    <StackPanel x:Name="ToastHost"
-                Grid.Row="0"
-                Grid.RowSpan="3"
-                VerticalAlignment="Bottom"
-                HorizontalAlignment="Stretch"
-                Margin="{DynamicResource ToastHostMargin}" />
+
   </Grid>
 </Window>

@@ -74,13 +74,15 @@ public partial class MainWindow : Window
 
     private void BeginOperation()
     {
-        Interlocked.Increment(ref pendingOperations);
+        var pending = Interlocked.Increment(ref pendingOperations);
+        DebugLog.Write("loading bar: begin, pending=" + pending);
         Dispatcher.BeginInvoke(UpdateLoadingBar);
     }
 
     private void EndOperation()
     {
         var remaining = Interlocked.Decrement(ref pendingOperations);
+        DebugLog.Write("loading bar: end, pending=" + remaining);
         if (remaining < 0)
         {
             Interlocked.CompareExchange(ref pendingOperations, 0, remaining);
@@ -90,6 +92,7 @@ public partial class MainWindow : Window
 
     private void UpdateLoadingBar()
     {
+        DebugLog.Write("loading bar: update, pending=" + pendingOperations);
         if (pendingOperations > 0)
         {
             if (loadingBarDelayTimer is null)
@@ -120,6 +123,7 @@ public partial class MainWindow : Window
             return;
         }
         LoadingBarHost.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        DebugLog.Write("loading bar: visible=" + visible);
         if (visible)
         {
             loadingBarAnimation = new System.Windows.Media.Animation.DoubleAnimation
@@ -1875,27 +1879,6 @@ public partial class MainWindow : Window
         || rune.Value == 0x2B50
         || rune.Value == 0x2B55;
 
-    private static IEnumerable<(string Text, bool IsEmoji)> SplitEmojiSegments(string message)
-    {
-        var builder = new System.Text.StringBuilder();
-        var inEmoji = false;
-        foreach (var rune in message.EnumerateRunes())
-        {
-            var emoji = IsEmojiRune(rune);
-            if (emoji != inEmoji && builder.Length > 0)
-            {
-                yield return (builder.ToString(), inEmoji);
-                builder.Clear();
-            }
-            inEmoji = emoji;
-            builder.Append(rune);
-        }
-        if (builder.Length > 0)
-        {
-            yield return (builder.ToString(), inEmoji);
-        }
-    }
-
     private void LoadRowIcons(IReadOnlyList<UiRow> rows)
     {
         foreach (var row in rows.OfType<ItemRow>())
@@ -1985,7 +1968,7 @@ public partial class MainWindow : Window
         EndOperation();
         Dispatcher.BeginInvoke(() =>
         {
-            ShowToast($"{message.Error.Code}: {message.Error.Message}");
+            ShowToast(message.Error.Message, message.Error.Code, true);
             SetStatusBar($"error: {message.Error.Code}");
         });
     }
@@ -2268,64 +2251,37 @@ public partial class MainWindow : Window
         EndOperation();
         if (!outcome.Ok)
         {
-            Dispatcher.BeginInvoke(() => ShowToast($"Native method '{method}' failed: {outcome.Error?.Message}"));
+            Dispatcher.BeginInvoke(() => ShowToast($"Native method '{method}' failed", outcome.Error?.Message, true));
         }
         sidecar.SendNativeResult(requestId, outcome);
     }
 
-    public void ShowToast(string message)
+    public void ShowToast(string message) => ShowToast(message, null, false);
+
+    public void ShowToast(string message, string? detail, bool isError)
     {
-        var toast = new Border();
-        toast.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
-        toast.SetResourceReference(Border.CornerRadiusProperty, "RowCornerRadius");
-        toast.SetResourceReference(FrameworkElement.MarginProperty, "ToastItemMargin");
-        toast.SetResourceReference(Border.PaddingProperty, "ToastPadding");
-        var text = new TextBlock
+        FooterToastTitle.Text = message;
+        FooterToastDetail.Text = detail ?? "";
+        FooterToastDetail.Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible;
+        FooterToastDot.Visibility = isError ? Visibility.Visible : Visibility.Collapsed;
+        FooterToastHost.Background = isError ? (System.Windows.Media.Brush)FindResource("FooterToastErrorBrush") : null;
+        FooterToastHost.Visibility = Visibility.Visible;
+        FooterLeft.Visibility = Visibility.Collapsed;
+        if (footerToastTimer is null)
         {
-            TextWrapping = TextWrapping.Wrap,
-        };
-        text.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
-        text.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
-        foreach (var (segment, isEmoji) in SplitEmojiSegments(message))
-        {
-            if (isEmoji && EmojiSpriteRenderer.IsCached(segment))
+            footerToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            footerToastTimer.Tick += (_, _) =>
             {
-                try
-                {
-                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                    bitmap.DecodePixelWidth = 18;
-                    bitmap.UriSource = new Uri(EmojiSpriteRenderer.CachePathFor(segment));
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-                    text.Inlines.Add(new System.Windows.Documents.InlineUIContainer(new System.Windows.Controls.Image
-                    {
-                        Source = bitmap,
-                        Width = 16,
-                        Height = 16,
-                        VerticalAlignment = VerticalAlignment.Bottom,
-                        Margin = new Thickness(0, 0, 1, -2),
-                    }));
-                    continue;
-                }
-                catch
-                {
-                    /* fall through to the text glyph */
-                }
-            }
-            text.Inlines.Add(new System.Windows.Documents.Run(segment));
+                footerToastTimer.Stop();
+                FooterToastHost.Visibility = Visibility.Collapsed;
+                FooterLeft.Visibility = Visibility.Visible;
+            };
         }
-        toast.Child = text;
-        ToastHost.Children.Add(toast);
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-        timer.Tick += (_, _) =>
-        {
-            timer.Stop();
-            ToastHost.Children.Remove(toast);
-        };
-        timer.Start();
+        footerToastTimer.Stop();
+        footerToastTimer.Start();
     }
+
+    private DispatcherTimer? footerToastTimer;
 
     private void SetStatusBar(string message) => DebugLog.Write("status: " + message);
 

@@ -93,15 +93,19 @@
   <Thickness x:Key="KeycapSpacing">0,0,4,0</Thickness>
   <Thickness x:Key="FooterDividerMargin">12,0,12,0</Thickness>
   <Thickness x:Key="ActionsLabelMargin">0,0,6,0</Thickness>
-  <Thickness x:Key="ToastHostMargin">16,0,16,16</Thickness>
-  <Thickness x:Key="ToastItemMargin">0,4,0,0</Thickness>
   <sys:Double x:Key="PanelRowMinHeight">28</sys:Double>
   <Thickness x:Key="PanelRowPadding">10,4</Thickness>
   <sys:Double x:Key="FilterOptionMinHeight">26</sys:Double>
   <Thickness x:Key="FilterOptionPadding">10,4</Thickness>
-  <Thickness x:Key="ToastPadding">12,8,12,8</Thickness>
 
   <CornerRadius x:Key="BackButtonCornerRadius">16</CornerRadius>
+
+  <LinearGradientBrush x:Key="FooterToastErrorBrush" StartPoint="0,0" EndPoint="1,0">
+    <GradientStop Color="#96462323" Offset="0" />
+    <GradientStop Color="#59462323" Offset="0.45" />
+    <GradientStop Color="#00462323" Offset="1" />
+  </LinearGradientBrush>
+  <SolidColorBrush x:Key="FooterToastDotBrush" Color="#FF5C5C" />
 
   <SolidColorBrush x:Key="ScrollbarThumbBrush" Color="#4A4A4A" />
   <SolidColorBrush x:Key="ScrollbarThumbHoverBrush" Color="#545454" />
