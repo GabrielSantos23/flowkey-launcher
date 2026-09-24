@@ -57,11 +57,15 @@
   <sys:Double x:Key="EmojiFontSize">16</sys:Double>
   <sys:Double x:Key="CellEmojiFontSize">26</sys:Double>
   <sys:Double x:Key="CommandIconSize">18</sys:Double>
+  <sys:Double x:Key="IconTileSize">28</sys:Double>
+  <sys:Double x:Key="IconTileIconSize">16</sys:Double>
+  <CornerRadius x:Key="IconTileCornerRadius">6</CornerRadius>
+  <SolidColorBrush x:Key="TileBorderBrush" Color="#333333" />
+  <sys:Double x:Key="TitleMaxWidth">420</sys:Double>
 
   <sys:Double x:Key="SearchBarHeight">64</sys:Double>
   <sys:Double x:Key="FooterHeight">40</sys:Double>
-  <sys:Double x:Key="RowMinHeight">32</sys:Double>
-  <sys:Double x:Key="RowSelectedHeight">40</sys:Double>
+  <sys:Double x:Key="RowMinHeight">40</sys:Double>
   <sys:Double x:Key="RowIconSize">20</sys:Double>
   <sys:Double x:Key="FooterIconSize">16</sys:Double>
   <sys:Double x:Key="FooterDividerHeight">16</sys:Double>

@@ -593,6 +593,30 @@ public partial class MainWindow : Window
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (ResultsList.SelectedItem is HeaderRow)
+        {
+            // Section headers are not actionable: a mouse click lands on the next
+            // item row instead (keyboard navigation already skips headers).
+            var index = ResultsList.Items.IndexOf(ResultsList.SelectedItem);
+            for (var i = index + 1; i < ResultsList.Items.Count; i++)
+            {
+                if (ResultsList.Items[i] is ItemRow)
+                {
+                    ResultsList.SelectedIndex = i;
+                    return;
+                }
+            }
+            for (var i = index - 1; i >= 0; i--)
+            {
+                if (ResultsList.Items[i] is ItemRow)
+                {
+                    ResultsList.SelectedIndex = i;
+                    return;
+                }
+            }
+            ResultsList.SelectedIndex = -1;
+            return;
+        }
         UpdateChrome();
         UpdatePane();
     }
@@ -619,7 +643,7 @@ public partial class MainWindow : Window
                 label += " – " + selectedTitle;
             }
             var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-            panel.Children.Add(CreateEmojiIcon(extension?.Icon));
+            panel.Children.Add(CreateExtensionIcon(extension));
             var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
             name.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
             name.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
@@ -1046,29 +1070,7 @@ public partial class MainWindow : Window
         var commandRows = CommandCatalog
             .Search(query, readyExtensions)
             .Where(cmd => CommandToggles.IsEnabled(cmd.ExtensionId, cmd.Command.Id))
-            .Select(cmd =>
-            {
-                var row = UiRow.Item(new UiItem
-                {
-                    Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
-                    Title = cmd.Command.Title,
-                    Subtitle = cmd.ExtensionName + (cmd.Command.Mode == "background" ? " (background)" : ""),
-                    Kind = "Command",
-                    Icon = cmd.Command.Icon is null ? cmd.Extension.Icon : "",
-                    Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
-                });
-                row.ExtensionId = cmd.ExtensionId;
-                row.IsCommand = true;
-                row.CommandId = cmd.Command.Id;
-                if (row is ItemRow itemRow && cmd.Command.Icon is not null)
-                {
-                    itemRow.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
-                    itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
-                        cmd.Command.IconColor,
-                        (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
-                }
-                return row;
-            })
+            .Select(BuildCommandRow)
             .ToList();
         var extensionRowList = extensionRows.ToList();
         // Every root-level row can be favorited, with or without an active query
@@ -1109,18 +1111,29 @@ public partial class MainWindow : Window
         {
             Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
             Title = cmd.Command.Title,
-            Subtitle = cmd.ExtensionName + (cmd.Command.Mode == "background" ? " (background)" : ""),
+            Subtitle = cmd.ExtensionName,
             Kind = "Command",
             Icon = cmd.Command.Icon is null ? cmd.Extension.Icon : "",
+            IconColor = cmd.Command.IconColor,
             Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
         });
         row.ExtensionId = cmd.ExtensionId;
         row.IsCommand = true;
         row.CommandId = cmd.Command.Id;
-        if (row is ItemRow itemRow && cmd.Command.Icon is not null)
+        if (Rendering.BrandIcons.TryGet(cmd.ExtensionId, out var brandGeometry, out var brandBrush))
         {
-            itemRow.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
-            itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+            row.VectorIcon = brandGeometry;
+            row.VectorIconBrush = brandBrush;
+            row.VectorIconFilled = true;
+        }
+        else if (Rendering.BrandIcons.TryGetBitmap(cmd.ExtensionId, out var brandBitmap))
+        {
+            row.Bitmap = brandBitmap;
+        }
+        else if (cmd.Command.Icon is not null)
+        {
+            row.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
+            row.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
                 cmd.Command.IconColor,
                 (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
         }
@@ -1456,6 +1469,8 @@ public partial class MainWindow : Window
                 GlyphSize = Math.Floor(cellSize * 0.42),
                 IconSize = Math.Floor(cellSize * 0.45),
                 CellBackground = (System.Windows.Media.Brush)FindResource("CellBackgroundBrush"),
+                Title = gridItems[i].Title,
+                Subtitle = gridItems[i].Subtitle ?? "",
             };
             gridCells.Add(cell);
             if (i % gridColumns == 0)
@@ -1514,34 +1529,76 @@ public partial class MainWindow : Window
     private double ContentWidth => ActualWidth > 0 ? ActualWidth - 16 : 718;
     private const double CellGap = 2;
     private const double MinCellSize = 48;
-    private const double MaxCellSize = 96;
+    private const double MaxCellSize = 160;
 
     private void LoadGridBitmaps()
     {
         foreach (var cell in gridCells)
         {
-            var path = EmojiSpriteRenderer.CachePathFor(cell.Item.Icon);
-            if (!File.Exists(path))
-            {
-                cell.Bitmap = null;
-                continue;
-            }
-            try
-            {
-                var image = new System.Windows.Media.Imaging.BitmapImage();
-                image.BeginInit();
-                image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                image.DecodePixelWidth = 32;
-                image.UriSource = new Uri(path);
-                image.EndInit();
-                image.Freeze();
-                cell.Bitmap = image;
-            }
-            catch
-            {
-                cell.Bitmap = null;
-            }
+            cell.Bitmap = LoadCellBitmap(cell.Item);
         }
+    }
+
+    private System.Windows.Media.Imaging.BitmapImage? LoadCellBitmap(UiItem item)
+    {
+        if (!string.IsNullOrEmpty(item.IconUri))
+        {
+            if (IconUriPolicy.TryGetLocalPath(item.IconUri, out var uriPath) && File.Exists(uriPath))
+            {
+                return LoadBitmapFromPath(uriPath, 320);
+            }
+            if (IconUriPolicy.DecodeDataUri(item.IconUri) is { } bytes)
+            {
+                try
+                {
+                    return LoadBitmapFromBytes(bytes);
+                }
+                catch
+                {
+                    return null;
+                }
+            }
+            return null;
+        }
+        if (string.IsNullOrEmpty(item.Icon))
+        {
+            return null;
+        }
+        var path = EmojiSpriteRenderer.CachePathFor(item.Icon);
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        return LoadBitmapFromPath(path);
+    }
+
+    private System.Windows.Media.Imaging.BitmapImage LoadBitmapFromPath(string path)
+    {
+        return LoadBitmapFromPath(path, 32);
+    }
+
+    private System.Windows.Media.Imaging.BitmapImage LoadBitmapFromPath(string path, int decodePixelWidth)
+    {
+        var image = new System.Windows.Media.Imaging.BitmapImage();
+        image.BeginInit();
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.DecodePixelWidth = decodePixelWidth;
+        image.UriSource = new Uri(path);
+        image.EndInit();
+        image.Freeze();
+        return image;
+    }
+
+    private System.Windows.Media.Imaging.BitmapImage LoadBitmapFromBytes(byte[] bytes)
+    {
+        var image = new System.Windows.Media.Imaging.BitmapImage();
+        image.BeginInit();
+        image.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+        image.DecodePixelWidth = 32;
+        image.StreamSource = new MemoryStream(bytes);
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     private bool HandleGridKeys(KeyEventArgs e)
@@ -1630,6 +1687,37 @@ public partial class MainWindow : Window
         }
         sidecar.SendAction(extensionId, action.Id, item);
         HideWindow();
+    }
+
+    private FrameworkElement CreateExtensionIcon(ReadyExtension? extension)
+    {
+        if (extension is not null && Rendering.BrandIcons.TryGet(extension.Id, out var geometry, out var brush))
+        {
+            var drawing = new System.Windows.Media.GeometryDrawing
+            {
+                Geometry = geometry,
+                Brush = brush,
+            };
+            var imageSource = new System.Windows.Media.DrawingImage { Drawing = drawing };
+            var image = new System.Windows.Controls.Image
+            {
+                Source = imageSource,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
+        if (extension is not null && Rendering.BrandIcons.TryGetBitmap(extension.Id, out var brandBitmap))
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = brandBitmap,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
+        return CreateEmojiIcon(extension?.Icon);
     }
 
     private FrameworkElement CreateEmojiIcon(string? emoji)

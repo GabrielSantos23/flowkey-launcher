@@ -241,6 +241,7 @@ public sealed class ItemRow : UiRow
     public System.Windows.Media.ImageSource? Bitmap { get; set; }
     public System.Windows.Media.Geometry? VectorIcon { get; set; }
     public System.Windows.Media.Brush? VectorIconBrush { get; set; }
+    public bool VectorIconFilled { get; set; }
     public bool IsCommand { get; set; }
     public string? CommandId { get; set; }
 }
@@ -264,6 +265,13 @@ public static class RowBuilder
             {
                 var row = UiRow.Item(item);
                 row.ExtensionId = extensionId;
+                if (row is ItemRow itemRow && item.IconName is not null)
+                {
+                    itemRow.VectorIcon = Rendering.LucideIcon.Load(item.IconName);
+                    itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                        item.IconColor,
+                        (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("TextPrimaryBrush"));
+                }
                 rows.Add(row);
             }
         }

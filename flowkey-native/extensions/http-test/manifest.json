@@ -3,11 +3,13 @@
   "name": "HTTP Test",
   "version": "1.0.0",
   "description": "Developer verification for the mediated http.fetch method.",
-  "icon": "\ud83c\udf10",
+  "icon": "🌐",
   "commands": [
     {
       "id": "open",
-      "title": "HTTP Test"
+      "title": "HTTP Test",
+      "icon": "globe",
+      "iconColor": "#22C55E"
     }
   ],
   "nativeMethods": [

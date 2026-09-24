@@ -34,7 +34,25 @@ public sealed class GridCellVm : DependencyObject
     public static readonly DependencyProperty BitmapProperty = DependencyProperty.Register(
         nameof(Bitmap), typeof(ImageSource), typeof(GridCellVm), new PropertyMetadata(null));
 
+    public static readonly DependencyProperty TitleProperty = DependencyProperty.Register(
+        nameof(Title), typeof(string), typeof(GridCellVm), new PropertyMetadata(string.Empty));
+
+    public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(
+        nameof(Subtitle), typeof(string), typeof(GridCellVm), new PropertyMetadata(string.Empty));
+
     public UiItem Item { get; init; } = new();
+
+    public string Title
+    {
+        get => (string)GetValue(TitleProperty);
+        set => SetValue(TitleProperty, value);
+    }
+
+    public string Subtitle
+    {
+        get => (string)GetValue(SubtitleProperty);
+        set => SetValue(SubtitleProperty, value);
+    }
     public int FlatIndex { get; init; }
 
     public bool Selected

@@ -4,7 +4,16 @@
   "version": "1.0.0",
   "description": "Emoji, symbol, and kaomoji picker with categories and keyword search.",
   "icon": "😀",
-  "commands": [{ "id": "open", "title": "Emoji & Symbols" }],
-  "nativeMethods": ["clipboard.write"],
+  "commands": [
+    {
+      "id": "open",
+      "title": "Emoji & Symbols",
+      "icon": "smile",
+      "iconColor": "#F59E0B"
+    }
+  ],
+  "nativeMethods": [
+    "clipboard.write"
+  ],
   "httpHosts": []
 }

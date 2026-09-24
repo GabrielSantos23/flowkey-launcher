@@ -7,7 +7,9 @@
   "commands": [
     {
       "id": "open",
-      "title": "React Demo"
+      "title": "React Demo",
+      "icon": "atom",
+      "iconColor": "#3B82F6"
     }
   ],
   "nativeMethods": [
