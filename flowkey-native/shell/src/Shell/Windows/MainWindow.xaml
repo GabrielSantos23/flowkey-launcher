@@ -179,6 +179,7 @@
       <ListBox x:Name="ResultsList"
              Grid.Column="0"
              Margin="{DynamicResource ListInset}"
+             rendering:SmoothScroll.Enabled="True"
              Background="Transparent"
              BorderThickness="0"
              Foreground="{DynamicResource TextPrimaryBrush}"
@@ -412,7 +413,7 @@
           <RowDefinition Height="*" />
           <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="0" rendering:SmoothScroll.Enabled="True" VerticalScrollBarVisibility="Auto">
           <StackPanel x:Name="PanePreview" Margin="14,10,14,10" />
         </ScrollViewer>
         <StackPanel x:Name="PaneInfo" Grid.Row="1" Margin="14,0,14,10" />
@@ -421,6 +422,7 @@
 
     <ScrollViewer x:Name="DetailHost"
              Grid.Row="1"
+             rendering:SmoothScroll.Enabled="True"
              Margin="{DynamicResource DetailMargin}"
              VerticalScrollBarVisibility="Auto"
              Visibility="Collapsed" />
@@ -437,6 +439,7 @@
                  Margin="{DynamicResource HeaderMargin}"
                  Visibility="Collapsed" />
       <ListBox x:Name="GridHost"
+             rendering:SmoothScroll.Enabled="True"
              Background="Transparent"
              BorderThickness="0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
