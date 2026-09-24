@@ -142,6 +142,15 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         new WindowInteropHelper(this).EnsureHandle();
+        foregroundEventCallback = OnForegroundWindowChanged;
+        foregroundEventHook = SetWinEventHook(
+            EVENT_SYSTEM_FOREGROUND,
+            EVENT_SYSTEM_FOREGROUND,
+            IntPtr.Zero,
+            foregroundEventCallback,
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT);
         searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(SearchDebounceMs) };
         searchDebounce.Tick += (_, _) =>
         {
@@ -488,6 +497,26 @@ public partial class MainWindow : Window
     }
 
     private IntPtr Handle => new WindowInteropHelper(this).Handle;
+
+    private void OnForegroundWindowChanged(IntPtr hook, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => OnForegroundWindowChanged(hook, evt, hwnd, idObject, idChild, thread, time));
+            return;
+        }
+        if (!IsVisible || hwnd == Handle)
+        {
+            return;
+        }
+        GetWindowThreadProcessId(hwnd, out var foregroundPid);
+        if (foregroundPid != 0 && foregroundPid == (uint)Environment.ProcessId)
+        {
+            return;
+        }
+        DebugLog.Write("foreground moved to another process — hiding");
+        HideWindow();
+    }
 
     private void OnDeactivated(object sender, EventArgs e) => HideWindow();
 
@@ -2329,4 +2358,21 @@ public partial class MainWindow : Window
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetWinEventHook(
+        uint eventMin,
+        uint eventMax,
+        IntPtr hmodWinEventProc,
+        WinEventDelegate pfnWinEventProc,
+        uint idProcess,
+        uint idThread,
+        uint dwFlags);
+
+    private delegate void WinEventDelegate(IntPtr hHook, uint msg, IntPtr hwnd, int idObject, int idChild, uint thread, uint time);
+
+    private const uint EVENT_SYSTEM_FOREGROUND = 0x0003;
+    private const uint WINEVENT_OUTOFCONTEXT = 0;
+    private IntPtr foregroundEventHook;
+    private WinEventDelegate? foregroundEventCallback;
 }
