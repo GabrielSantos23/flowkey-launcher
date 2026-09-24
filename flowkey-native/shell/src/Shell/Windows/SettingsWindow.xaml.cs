@@ -521,34 +521,6 @@ public partial class SettingsWindow : Window
         return page;
     }
 
-    
-
-    
-
-    
-
-    private System.Windows.Media.Brush SpotifyBrandBrush()
-    {
-        try
-        {
-            var resource = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Assets/Icons/spotify-brand.svg"));
-            using var reader = new System.IO.StreamReader(resource.Stream);
-            var document = System.Xml.Linq.XDocument.Load(reader);
-            var fill = (string?)document.Descendants()
-                .FirstOrDefault(element => element.Attribute("fill") is not null)
-                ?.Attribute("fill");
-            if (!string.IsNullOrEmpty(fill) && fill.StartsWith("#", StringComparison.Ordinal))
-            {
-                return Rendering.LucideIcon.ColorFromHex(fill, FindResource("AccentBrush") as Brush);
-            }
-        }
-        catch
-        {
-            /* fall back to the accent brush */
-        }
-        return (System.Windows.Media.Brush)FindResource("AccentBrush");
-    }
-
     private FrameworkElement BuildExtensionHeader(ReadyExtension extension)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 4, 0, 14) };
