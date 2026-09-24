@@ -23,6 +23,25 @@ public partial class App : Application
             return;
         }
 
+        DispatcherUnhandledException += (_, args) =>
+        {
+            var animationGlitch =
+                args.Exception is System.ArgumentNullException
+                && args.Exception.Message.Contains("defaultDestinationValue", StringComparison.Ordinal);
+            if (!animationGlitch && args.Exception is System.InvalidOperationException)
+            {
+                animationGlitch = (args.Exception.StackTrace ?? string.Empty)
+                    .Contains("Storyboard.ClockTreeWalkRecursive", StringComparison.Ordinal);
+            }
+            if (animationGlitch)
+            {
+                DebugLog.Write("swallowed decorative animation exception: "
+                    + args.Exception.GetType().Name + ": " + args.Exception.Message);
+                args.Handled = true;
+                return;
+            }
+        };
+
         base.OnStartup(e);
 
         mainWindow = new MainWindow();

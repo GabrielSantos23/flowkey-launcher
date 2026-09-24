@@ -63,6 +63,75 @@ public partial class MainWindow : Window
     private bool commandHotkeysRegistered;
 
     private IReadOnlyList<Protocol.ReadyExtension> readyExtensions = Array.Empty<Protocol.ReadyExtension>();
+    private int pendingOperations;
+    private DispatcherTimer? loadingBarDelayTimer;
+    private System.Windows.Media.Animation.DoubleAnimation? loadingBarAnimation;
+
+    private void BeginOperation()
+    {
+        Interlocked.Increment(ref pendingOperations);
+        Dispatcher.BeginInvoke(UpdateLoadingBar);
+    }
+
+    private void EndOperation()
+    {
+        var remaining = Interlocked.Decrement(ref pendingOperations);
+        if (remaining < 0)
+        {
+            Interlocked.CompareExchange(ref pendingOperations, 0, remaining);
+        }
+        Dispatcher.BeginInvoke(UpdateLoadingBar);
+    }
+
+    private void UpdateLoadingBar()
+    {
+        if (pendingOperations > 0)
+        {
+            if (loadingBarDelayTimer is null)
+            {
+                loadingBarDelayTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+                loadingBarDelayTimer.Tick += (_, _) =>
+                {
+                    loadingBarDelayTimer.Stop();
+                    SetLoadingBarVisible(true);
+                };
+            }
+            if (!loadingBarDelayTimer.IsEnabled)
+            {
+                loadingBarDelayTimer.Start();
+            }
+        }
+        else
+        {
+            loadingBarDelayTimer?.Stop();
+            SetLoadingBarVisible(false);
+        }
+    }
+
+    private void SetLoadingBarVisible(bool visible)
+    {
+        if (LoadingBarHost.Visibility == (visible ? Visibility.Visible : Visibility.Collapsed))
+        {
+            return;
+        }
+        LoadingBarHost.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (visible)
+        {
+            loadingBarAnimation = new System.Windows.Media.Animation.DoubleAnimation
+            {
+                From = -180,
+                To = Math.Max(400, ActualWidth),
+                Duration = new Duration(TimeSpan.FromMilliseconds(1100)),
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+            };
+            LoadingBarTranslate.BeginAnimation(TranslateTransform.XProperty, loadingBarAnimation);
+        }
+        else
+        {
+            LoadingBarTranslate.BeginAnimation(TranslateTransform.XProperty, null);
+            LoadingBarTranslate.X = -180;
+        }
+    }
 
     public MainWindow()
     {
@@ -666,7 +735,11 @@ public partial class MainWindow : Window
         DebugLog.Write("SendAction ext=" + row.ExtensionId + " action=" + action.Id);
         var requestId = sidecar.SendAction(row.ExtensionId, action.Id, row.Item);
         searchState.TrackAction(requestId, row.ExtensionId);
-        HideWindow();
+        BeginOperation();
+        if (action.Primary == true)
+        {
+            HideWindow();
+        }
     }
 
     private void OpenActionPanelForSelection()
@@ -718,6 +791,7 @@ public partial class MainWindow : Window
             DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
             var requestId = sidecar.SendAction(extensionId, action.Id, item);
             searchState.TrackAction(requestId, extensionId);
+            BeginOperation();
             if (action.Primary == true)
             {
                 HideWindow();
@@ -871,6 +945,7 @@ public partial class MainWindow : Window
 
     private void OnSidecarAck(AckMessage ack)
     {
+        EndOperation();
         Dispatcher.BeginInvoke(() =>
         {
             if (searchState.Depth > 1)
@@ -910,6 +985,7 @@ public partial class MainWindow : Window
             searchState.BeginLevelQuery(requests);
         }
         top.Query = query;
+        BeginOperation();
     }
 
     private IReadOnlyList<UiRow> BuildDisplayRows()
@@ -1011,6 +1087,7 @@ public partial class MainWindow : Window
 
     private void OnSidecarUi(UiMessage message)
     {
+        EndOperation();
         Dispatcher.BeginInvoke(() =>
         {
             if (message.Tree is null)
@@ -1587,6 +1664,7 @@ public partial class MainWindow : Window
 
     private void OnSidecarError(ErrorMessage message)
     {
+        EndOperation();
         Dispatcher.BeginInvoke(() =>
         {
             ShowToast($"{message.Error.Code}: {message.Error.Message}");
@@ -1781,6 +1859,7 @@ public partial class MainWindow : Window
     private void OnNativeCallRequested(string requestId, string extensionId, string method, Dictionary<string, JsonElement>? parameters)
     {
         DebugLog.Write($"NativeCall req={requestId} ext={extensionId} method={method}");
+        BeginOperation();
         var extension = readyExtensions.FirstOrDefault(e => e.Id == extensionId);
         var declared = extension?.NativeMethods ?? (IReadOnlyList<string>)Array.Empty<string>();
         if (!declared.Contains(method, StringComparer.Ordinal))
@@ -1868,6 +1947,7 @@ public partial class MainWindow : Window
     private void CompleteNativeCall(string requestId, string method, NativeCallOutcome outcome)
     {
         DebugLog.Write($"NativeCall outcome ok={outcome.Ok} code={outcome.Error?.Code ?? "none"}");
+        EndOperation();
         if (!outcome.Ok)
         {
             Dispatcher.BeginInvoke(() => ShowToast($"Native method '{method}' failed: {outcome.Error?.Message}"));

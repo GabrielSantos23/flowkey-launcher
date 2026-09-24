@@ -42,6 +42,13 @@
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="Auto" />
         </Grid.ColumnDefinitions>
+        <Canvas x:Name="LoadingBarHost" Grid.Column="0" Grid.ColumnSpan="3" Height="3" VerticalAlignment="Bottom" IsHitTestVisible="False" ClipToBounds="True" Visibility="Collapsed">
+          <Rectangle x:Name="LoadingBarSegment" Canvas.Bottom="0" Height="3" Width="170" RadiusX="1.5" RadiusY="1.5" Fill="#FFFFFF">
+            <Rectangle.RenderTransform>
+              <TranslateTransform x:Name="LoadingBarTranslate" X="-180" />
+            </Rectangle.RenderTransform>
+          </Rectangle>
+        </Canvas>
         <Border x:Name="BackButton"
                 Grid.Column="0"
                 Width="{DynamicResource BackButtonSize}"
