@@ -183,7 +183,7 @@
              BorderThickness="0"
              Foreground="{DynamicResource TextPrimaryBrush}"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-             ScrollViewer.VerticalScrollBarVisibility="Hidden"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"
              ScrollViewer.CanContentScroll="True"
              VirtualizingPanel.IsVirtualizing="True"
              VirtualizingPanel.VirtualizationMode="Recycling"
@@ -440,7 +440,7 @@
              Background="Transparent"
              BorderThickness="0"
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-             ScrollViewer.VerticalScrollBarVisibility="Hidden"
+             ScrollViewer.VerticalScrollBarVisibility="Auto"
              ScrollViewer.CanContentScroll="True"
              VirtualizingPanel.IsVirtualizing="True"
              VirtualizingPanel.VirtualizationMode="Recycling">
