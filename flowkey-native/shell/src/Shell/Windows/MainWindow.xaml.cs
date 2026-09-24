@@ -11,6 +11,7 @@ using System.Windows.Threading;
 using FlowKey.Shell.Native;
 using FlowKey.Shell.Rendering;
 using FlowKey.Shell.Protocol;
+using FlowKey.Shell.Search.Calculator;
 using FlowKey.Shell.Sidecar;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
@@ -46,6 +47,8 @@ public partial class MainWindow : Window
     private readonly TokenVault tokenVault = new(AppLauncherService.DataDirectory);
     private readonly UsageTracker usageTracker = new(AppLauncherService.DataDirectory);
     private readonly FavoritesStore favoritesStore = new(AppLauncherService.DataDirectory);
+    private readonly CalculatorEvaluator calculator = new(AppLauncherService.DataDirectory);
+    private CalculatorResult? lastCalculator;
     private readonly SecretsStore secretsStore = new(AppLauncherService.DataDirectory);
     private readonly OAuthService oauthService;
     private readonly ImageFetchService imageFetch = new();
@@ -145,6 +148,7 @@ public partial class MainWindow : Window
             searchDebounce.Stop();
             SendSearch(SearchBox.Text);
         };
+        calculator.RatesUpdated += () => Dispatcher.BeginInvoke(UpdateCalculatorPreview);
 
         appLauncher = new AppLauncherService();
         appLauncher.SetRebuildDispatcher(Dispatcher);
@@ -449,6 +453,7 @@ public partial class MainWindow : Window
         Activate();
         SearchBox.Focus();
         SearchBox.SelectAll();
+        InvalidateVisual();
         DebugLog.Write("summoned");
     }
 
@@ -494,6 +499,7 @@ public partial class MainWindow : Window
         }
         searchDebounce.Stop();
         searchDebounce.Start();
+        UpdateCalculatorPreview();
     }
 
     private void SetSearchBoxSilently(string text)
@@ -756,6 +762,13 @@ public partial class MainWindow : Window
     private void RunPrimaryAction()
     {
         DebugLog.Write("RunPrimaryAction");
+        if (ResultsList.SelectedItem is CalculatorRow calculatorRow)
+        {
+            ClipboardService.WriteText(calculatorRow.CopyText);
+            ShowToast("Answer copied");
+            HideWindow();
+            return;
+        }
         if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null)
         {
             return;
@@ -783,6 +796,14 @@ public partial class MainWindow : Window
 
     private void OpenActionPanelForSelection()
     {
+        if (ResultsList.SelectedItem is CalculatorRow calculatorRow)
+        {
+            OpenActionPanel(
+                "calculator",
+                new UiItem { Id = "__calculator__", Title = calculatorRow.Expression, Subtitle = calculatorRow.CopyText },
+                new List<UiAction> { new UiAction { Id = CalculatorRow.CopyAnswerActionId, Title = "Copy Answer", Primary = true } });
+            return;
+        }
         if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null || row.IsCommand)
         {
             return;
@@ -827,6 +848,12 @@ public partial class MainWindow : Window
         actionPanel = new ActionPanel();
         actionPanel.Committed += action =>
         {
+            if (action.Id == CalculatorRow.CopyAnswerActionId)
+            {
+                ClipboardService.WriteText(item.Subtitle ?? "");
+                ShowToast("Answer copied");
+                return;
+            }
             if (action.Id == RootSectionsBuilder.FavoriteActionId)
             {
                 var kind = extensionId == "apps" ? "app" : "cmd";
@@ -1103,14 +1130,56 @@ public partial class MainWindow : Window
             var result = new List<UiRow>();
             if (query.Length == 0)
             {
+                lastCalculator = null;
                 var pixelSize = (int)Math.Round(VisualTreeHelper.GetDpi(this).PixelsPerDip * 32);
                 result.AddRange(RootSectionsBuilder.Build(
                     favoritesStore, usageTracker, readyExtensions, appLauncher.List("", pixelSize), BuildCommandRow));
+            }
+            else
+            {
+                var calculatorResult = calculator.Evaluate(query);
+                lastCalculator = calculatorResult;
+                if (calculatorResult is not null)
+                {
+                    result.Add(UiRow.Header("Calculator"));
+                    result.Add(CalculatorRow.From(calculatorResult));
+                }
             }
             result.AddRange(WithGroupHeaders(merged));
             return result;
         }
         return merged;
+    }
+
+    private void UpdateCalculatorPreview()
+    {
+        if (searchState.Depth > 1)
+        {
+            return;
+        }
+        var query = SearchBox.Text.Trim();
+        var result = query.Length == 0 ? null : calculator.Evaluate(query);
+        if (result is null && lastCalculator is null)
+        {
+            return;
+        }
+        if (result is not null && lastCalculator is not null && result == lastCalculator)
+        {
+            return;
+        }
+        lastCalculator = result;
+        var display = BuildDisplayRows();
+        LoadRowIcons(display);
+        ApplyRows(display, null);
+        for (var i = 0; i < display.Count; i++)
+        {
+            if (display[i] is CalculatorRow)
+            {
+                ResultsList.SelectedIndex = i;
+                ResultsList.ScrollIntoView(display[i]);
+                return;
+            }
+        }
     }
 
     private ItemRow BuildCommandRow(CommandRow cmd)
@@ -1838,7 +1907,19 @@ public partial class MainWindow : Window
         {
             ResultsList.Visibility = Visibility.Visible;
             EmptyView.Visibility = Visibility.Collapsed;
-            var first = RowBuilder.FirstItemIndex(rows);
+            var first = -1;
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i] is CalculatorRow)
+                {
+                    first = i;
+                    break;
+                }
+            }
+            if (first < 0)
+            {
+                first = RowBuilder.FirstItemIndex(rows);
+            }
             if (first >= 0)
             {
                 ResultsList.SelectedIndex = first;

@@ -23,17 +23,24 @@ Contract implications:
 
 ## Calculator result card and "Use ... with" fallback (reference screenshot 4)
 
-A rich result card above the list, and a fallback section ("Use 123 + 456
-with…") listing commands that can handle the query.
+IMPLEMENTED (Phase S): the calculator lives shell-side (`Shell/Search/Calculator/`),
+evaluates synchronously per keystroke outside the 120 ms search debounce, and
+renders as a shell-reserved `CalculatorRow` with its own DataTemplate in the
+root list. No contract change: nothing crosses the NDJSON protocol. The
+fallback section needs no `handlesQuery` capability — the root fan-out already
+delivers every query to all extensions, so whatever matches shows below the
+card, same as before.
 
-Contract implications:
+Follow-ups recorded from the design gate:
 
-- A result card is a new top-level tree region (e.g., optional `card` field on
-  ListTree) with its own item shape — additive but a real protocol surface.
-- The fallback section is expressible with existing `sections`, but populating
-  it requires cross-extension query fan-out with per-extension "can handle"
-  declarations — a manifest capability (`handlesQuery`) plus ranking policy in
-  the shell.
+- Calculator History (recent calculations section when the query is empty,
+  copy/re-edit actions) — would use the UsageTracker/FavoritesStore
+  JSON-file pattern when built.
+- Wider natural-language date grammar from the Raycast reference
+  ("5pm ldn in sf", "time diff Paris", "monday in 3 weeks", workhours math,
+  "mins to timespan", "inches in px at ppi").
+- Crypto rates (Frankfurter covers fiat only).
+- Syntax highlighting of the expression inside the card.
 
 ## "Quick AI" / "Ask AI" hint
 
