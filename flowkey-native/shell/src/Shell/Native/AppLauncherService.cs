@@ -8,6 +8,7 @@ namespace FlowKey.Shell.Native;
 public sealed class AppLauncherService : IDisposable
 {
     private readonly AppUsageStore usage;
+    private readonly UsageTracker usageTracker;
     private readonly List<AppEntry> cache = new();
     private readonly object gate = new();
     private readonly FileSystemWatcher[] watchers;
@@ -16,6 +17,7 @@ public sealed class AppLauncherService : IDisposable
     public AppLauncherService()
     {
         usage = new AppUsageStore(DataDirectory);
+        usageTracker = new UsageTracker(DataDirectory);
         Directory.CreateDirectory(IconUriPolicy.IconCacheRoot);
         watchers = new[]
         {
@@ -171,6 +173,7 @@ public sealed class AppLauncherService : IDisposable
             throw new KeyNotFoundException(appId);
         }
         usage.Increment(entry.Id);
+        usageTracker.Increment(UsageTracker.AppKey(entry.Id));
         var psi = new System.Diagnostics.ProcessStartInfo
         {
             FileName = entry.LaunchPath,

@@ -44,6 +44,8 @@ public partial class MainWindow : Window
     private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
     private readonly PreferencesStore preferencesStore = new(AppLauncherService.DataDirectory);
     private readonly TokenVault tokenVault = new(AppLauncherService.DataDirectory);
+    private readonly UsageTracker usageTracker = new(AppLauncherService.DataDirectory);
+    private readonly FavoritesStore favoritesStore = new(AppLauncherService.DataDirectory);
     private readonly SecretsStore secretsStore = new(AppLauncherService.DataDirectory);
     private readonly OAuthService oauthService;
     private readonly ImageFetchService imageFetch = new();
@@ -801,6 +803,20 @@ public partial class MainWindow : Window
         actionPanel = new ActionPanel();
         actionPanel.Committed += action =>
         {
+            if (action.Id == RootSectionsBuilder.FavoriteActionId)
+            {
+                var kind = extensionId == "apps" ? "app" : "cmd";
+                favoritesStore.Toggle(new FavoriteEntry(
+                    kind,
+                    item.Id,
+                    item.Title,
+                    item.Subtitle ?? "",
+                    null,
+                    item.IconColor,
+                    item.IconUri));
+                SendSearch(SearchBox.Text);
+                return;
+            }
             DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
             var requestId = sidecar.SendAction(extensionId, action.Id, item);
             searchState.TrackAction(requestId, extensionId);
@@ -822,6 +838,7 @@ public partial class MainWindow : Window
 
     private void OpenCommand(ItemRow row)
     {
+        usageTracker.Increment(row.Item.Id);
         var extension = readyExtensions.FirstOrDefault(e => e.Id == row.ExtensionId);
         var schema = extension?.Preferences ?? (IReadOnlyList<Protocol.PreferenceSchema>)Array.Empty<Protocol.PreferenceSchema>();
         var missing = preferencesStore.MissingRequired(row.ExtensionId!, schema);
@@ -1053,14 +1070,63 @@ public partial class MainWindow : Window
                 return row;
             })
             .ToList();
-        DebugLog.Write("display rows: commands=" + commandRows.Count + " ext=" + extensionRows.Count + " depth=" + searchState.Depth);
+        var extensionRowList = extensionRows.ToList();
+        // Every root-level row can be favorited, with or without an active query
+        // (only the Favorites/Suggestions sections hide while searching).
+        foreach (var row in extensionRowList.OfType<ItemRow>())
+        {
+            if (row.ExtensionId == "apps")
+            {
+                var actions = (row.Item.Actions ?? new List<UiAction>()).ToList();
+                if (actions.All(a => a.Id != RootSectionsBuilder.FavoriteActionId))
+                {
+                    actions.Add(RootSectionsBuilder.FavoriteAction(favoritesStore, "app", row.Item.Id));
+                    row.Item.Actions = actions;
+                }
+            }
+        }
         var merged = new List<UiRow>(commandRows);
-        merged.AddRange(extensionRows);
+        merged.AddRange(extensionRowList);
+        DebugLog.Write("display rows: commands=" + commandRows.Count + " ext=" + extensionRowList.Count + " depth=" + searchState.Depth);
         if (searchState.Depth == 1)
         {
-            return WithGroupHeaders(merged);
+            var result = new List<UiRow>();
+            if (query.Length == 0)
+            {
+                var pixelSize = (int)Math.Round(VisualTreeHelper.GetDpi(this).PixelsPerDip * 32);
+                result.AddRange(RootSectionsBuilder.Build(
+                    favoritesStore, usageTracker, readyExtensions, appLauncher.List("", pixelSize), BuildCommandRow));
+            }
+            result.AddRange(WithGroupHeaders(merged));
+            return result;
         }
         return merged;
+    }
+
+    private ItemRow BuildCommandRow(CommandRow cmd)
+    {
+        var row = UiRow.Item(new UiItem
+        {
+            Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
+            Title = cmd.Command.Title,
+            Subtitle = cmd.ExtensionName + (cmd.Command.Mode == "background" ? " (background)" : ""),
+            Kind = "Command",
+            Icon = cmd.Command.Icon is null ? cmd.Extension.Icon : "",
+            Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
+        });
+        row.ExtensionId = cmd.ExtensionId;
+        row.IsCommand = true;
+        row.CommandId = cmd.Command.Id;
+        if (row is ItemRow itemRow && cmd.Command.Icon is not null)
+        {
+            itemRow.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
+            itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                cmd.Command.IconColor,
+                (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+        }
+        row.Item.Actions.Add(RootSectionsBuilder.FavoriteAction(
+            favoritesStore, "cmd", row.Item.Id));
+        return row;
     }
 
     private IReadOnlyList<UiRow> WithGroupHeaders(List<UiRow> rows)
