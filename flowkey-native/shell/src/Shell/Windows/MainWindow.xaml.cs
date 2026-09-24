@@ -1548,6 +1548,9 @@ public partial class MainWindow : Window
                 CellBackground = (System.Windows.Media.Brush)FindResource("CellBackgroundBrush"),
                 Title = gridItems[i].Title,
                 Subtitle = gridItems[i].Subtitle ?? "",
+                ImageDisplaySize = string.IsNullOrEmpty(gridItems[i].IconUri)
+                    ? Math.Floor(cellSize * 0.55)
+                    : cellSize,
             };
             gridCells.Add(cell);
             if (i % gridColumns == 0)
@@ -1569,14 +1572,12 @@ public partial class MainWindow : Window
         {
             var thread = new Thread(() =>
             {
-                var ok = EmojiSpriteRenderer.EnsureSprites(missing);
+                var ok = EmojiSpriteRenderer.EnsureSprites(
+                    missing,
+                    () => Dispatcher.BeginInvoke(LoadGridBitmaps));
                 Dispatcher.BeginInvoke(() =>
                 {
-                    if (ok)
-                    {
-                        LoadGridBitmaps();
-                    }
-                    else
+                    if (!ok)
                     {
                         ShowToast("color emoji rendering unavailable (Edge not found) — using monochrome");
                     }
@@ -1610,9 +1611,23 @@ public partial class MainWindow : Window
 
     private void LoadGridBitmaps()
     {
-        foreach (var cell in gridCells)
+        LoadGridBitmapsChunk(0);
+    }
+
+    private void LoadGridBitmapsChunk(int start)
+    {
+        if (start >= gridCells.Count)
         {
-            cell.Bitmap = LoadCellBitmap(cell.Item);
+            return;
+        }
+        var end = Math.Min(start + 64, gridCells.Count);
+        for (var i = start; i < end; i++)
+        {
+            gridCells[i].Bitmap = LoadCellBitmap(gridCells[i].Item);
+        }
+        if (end < gridCells.Count)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () => LoadGridBitmapsChunk(end));
         }
     }
 
@@ -1646,7 +1661,7 @@ public partial class MainWindow : Window
         {
             return null;
         }
-        return LoadBitmapFromPath(path);
+        return LoadBitmapFromPath(path, 96);
     }
 
     private System.Windows.Media.Imaging.BitmapImage LoadBitmapFromPath(string path)

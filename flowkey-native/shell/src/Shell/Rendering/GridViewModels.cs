@@ -40,6 +40,9 @@ public sealed class GridCellVm : DependencyObject
     public static readonly DependencyProperty SubtitleProperty = DependencyProperty.Register(
         nameof(Subtitle), typeof(string), typeof(GridCellVm), new PropertyMetadata(string.Empty));
 
+    public static readonly DependencyProperty ImageDisplaySizeProperty = DependencyProperty.Register(
+        nameof(ImageDisplaySize), typeof(double), typeof(GridCellVm), new PropertyMetadata(0d));
+
     public UiItem Item { get; init; } = new();
 
     public string Title
@@ -52,6 +55,12 @@ public sealed class GridCellVm : DependencyObject
     {
         get => (string)GetValue(SubtitleProperty);
         set => SetValue(SubtitleProperty, value);
+    }
+
+    public double ImageDisplaySize
+    {
+        get => (double)GetValue(ImageDisplaySizeProperty);
+        set => SetValue(ImageDisplaySizeProperty, value);
     }
     public int FlatIndex { get; init; }
 

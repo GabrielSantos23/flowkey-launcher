@@ -21,14 +21,13 @@ export default defineExtension({
     icon: '😀',
     commands: [
       { id: 'open', title: 'Emoji & Symbols', keywords: ['emoji', 'symbol'], icon: 'smile', iconColor: '#4F8CFF' },
-      { id: 'grid', title: 'Emoji Grid', keywords: ['emoji', 'grid', 'pick'], mode: 'view', icon: 'layout-grid', iconColor: '#22C55E' },
     ],
     nativeMethods: ['clipboard.write'],
     httpHosts: [],
   },
   handlers: {
     async search(query, ctx) {
-      if (ctx.commandId === 'grid' || ctx.commandId === 'open') {
+      if (ctx.commandId === 'open') {
         const q = query.trim().toLowerCase();
         const matches = q
           ? DATA.filter(

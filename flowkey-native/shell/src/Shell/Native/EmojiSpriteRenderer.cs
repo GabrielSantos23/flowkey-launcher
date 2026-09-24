@@ -11,11 +11,12 @@ namespace FlowKey.Shell.Native;
 
 public static class EmojiSpriteRenderer
 {
-    public const int CellSize = 48;
+    public const int CellSize = 96;
     private const int Columns = 32;
+    private const int BatchSize = 256;
 
     public static string CacheRoot =>
-        Path.Combine(AppLauncherService.DataDirectory, "emoji-cache");
+        Path.Combine(AppLauncherService.DataDirectory, "emoji-cache-96b");
 
     private static readonly object Gate = new();
 
@@ -24,7 +25,7 @@ public static class EmojiSpriteRenderer
 
     public static bool IsCached(string emoji) => File.Exists(CachePathFor(emoji));
 
-    public static bool EnsureSprites(IEnumerable<string> emojis)
+    public static bool EnsureSprites(IEnumerable<string> emojis, Action? batchRendered = null)
     {
         var edge = ResolveEdge();
         if (edge is null)
@@ -45,13 +46,41 @@ public static class EmojiSpriteRenderer
             }
 
             var workDir = Path.Combine(Path.GetTempPath(), "flowkey-emoji-" + Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(workDir);
             try
+            {
+            for (var offset = 0; offset < missing.Count; offset += BatchSize)
+            {
+                var batch = missing.Skip(offset).Take(BatchSize).ToList();
+                if (!GenerateBatch(edge, workDir, batch))
+                {
+                    return false;
+                }
+                batchRendered?.Invoke();
+            }
+            return true;
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(workDir, recursive: true);
+                }
+                catch
+                {
+                    /* temp cleanup is best-effort */
+                }
+            }
+        }
+    }
+
+    private static bool GenerateBatch(string edge, string workDir, List<string> batch)
+    {
+            Directory.CreateDirectory(workDir);
             {
                 var htmlPath = Path.Combine(workDir, "sheet.html");
                 var pngPath = Path.Combine(workDir, "sheet.png");
-                var rows = (missing.Count + Columns - 1) / Columns;
-                File.WriteAllText(htmlPath, BuildHtml(missing), new UTF8Encoding(false));
+                var rows = (batch.Count + Columns - 1) / Columns;
+                File.WriteAllText(htmlPath, BuildHtml(batch), new UTF8Encoding(false));
 
                 var psi = new ProcessStartInfo
                 {
@@ -87,22 +116,11 @@ public static class EmojiSpriteRenderer
                     DebugLog.Write("emoji sprites: sheet decode failed");
                     return false;
                 }
-                var pixels = new byte[Columns * CellSize * rows * CellSize * 4];
-                Slice(sheet, missing, rows, pixels);
+                var rows1 = (batch.Count + Columns - 1) / Columns;
+                var pixels = new byte[Columns * CellSize * rows1 * CellSize * 4];
+                Slice(sheet, batch, rows1, pixels);
                 return true;
             }
-            finally
-            {
-                try
-                {
-                    Directory.Delete(workDir, recursive: true);
-                }
-                catch
-                {
-                    /* temp cleanup is best-effort */
-                }
-            }
-        }
     }
 
     private static string BuildHtml(List<string> emojis)
@@ -110,7 +128,7 @@ public static class EmojiSpriteRenderer
         var sb = new StringBuilder();
         sb.Append("<!doctype html><html><head><meta charset='utf-8'><style>");
         sb.Append("body{margin:0;background:rgba(0,0,0,0);overflow:hidden}");
-        sb.Append($"div{{position:absolute;width:{CellSize}px;height:{CellSize}px;font:{CellSize - 8}px 'Segoe UI Emoji';text-align:center;line-height:{CellSize}px}}");
+        sb.Append($"div{{position:absolute;width:{CellSize}px;height:{CellSize}px;font:{CellSize * 4 / 5}px 'Segoe UI Emoji';text-align:center;line-height:{CellSize}px;overflow:hidden}}");
         sb.Append("</style></head><body>");
         for (var i = 0; i < emojis.Count; i++)
         {

@@ -463,7 +463,7 @@
                             Tag="{Binding FlatIndex}"
                             MouseLeftButtonDown="OnGridCellClick">
                       <Grid>
-                        <Image Source="{Binding Bitmap}" Width="{Binding CellSize}" Height="{Binding CellSize}" Stretch="UniformToFill" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Image Source="{Binding Bitmap}" Width="{Binding ImageDisplaySize}" Height="{Binding ImageDisplaySize}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         <TextBlock Text="{Binding Item.Icon}" FontSize="{Binding GlyphSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Visibility="{Binding BitmapFallback}" />
                       </Grid>
