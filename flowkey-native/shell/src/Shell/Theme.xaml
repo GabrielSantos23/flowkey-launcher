@@ -10,18 +10,29 @@
   </FontFamily>
   <FontFamily x:Key="GlyphFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#1F1F1F" />
+  <Color x:Key="WindowBackgroundColor">#1F1F1F</Color>
+  <Color x:Key="AccentColor">#4F8CFF</Color>
+  <Color x:Key="TextPrimaryColor">#FFFFFF</Color>
+  <Color x:Key="TextTertiaryColor">#797979</Color>
+  <Color x:Key="KeycapBackgroundColor">#353535</Color>
+  <Color x:Key="KeycapBorderColor">#4B4B4B</Color>
+
+  <Color x:Key="ChromeBackgroundColor">#2A2A2A</Color>
+
+  <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
+  <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="{StaticResource ChromeBackgroundColor}" />
   <SolidColorBrush x:Key="RowSelectedBackgroundBrush" Color="#363636" />
   <SolidColorBrush x:Key="RowBackgroundBrush" Color="Transparent" />
   <SolidColorBrush x:Key="DividerBrush" Color="#363636" />
-  <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FFFFFF" />
+  <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
   <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A6A6A6" />
   <SolidColorBrush x:Key="TextTertiaryBrush" Color="#797979" />
-  <SolidColorBrush x:Key="KeycapBackgroundBrush" Color="#353535" />
+  <SolidColorBrush x:Key="KeycapBackgroundBrush" Color="{StaticResource KeycapBackgroundColor}" />
   <SolidColorBrush x:Key="EnterKeycapBackgroundBrush" Color="#1F1F1F" />
-  <SolidColorBrush x:Key="KeycapBorderBrush" Color="#4B4B4B" />
+  <SolidColorBrush x:Key="KeycapBorderBrush" Color="{StaticResource KeycapBorderColor}" />
   <SolidColorBrush x:Key="PaneLabelBrush" Color="#6B7A99" />
-  <SolidColorBrush x:Key="AccentBrush" Color="#4F8CFF" />
+  <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+  <SolidColorBrush x:Key="SpotifyBrandBrush" Color="#1DB954" />
   <SolidColorBrush x:Key="SurfaceBrush" Color="#262626" />
   <SolidColorBrush x:Key="SurfaceAltBrush" Color="#161616" />
   <SolidColorBrush x:Key="CellBackgroundBrush" Color="#2A2A2C" />

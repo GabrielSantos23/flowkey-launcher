@@ -24,9 +24,9 @@
       "extensionId": "emoji",
       "actionId": "copy",
       "item": {
-        "id": "\ud83c\udf89",
-        "title": "\ud83c\udf89 Party Popper",
-        "icon": "\ud83c\udf89",
+        "id": "🎉",
+        "title": "🎉 Party Popper",
+        "icon": "🎉",
         "actions": [
           {
             "id": "copy",
@@ -79,7 +79,7 @@
           ],
           "httpHosts": [],
           "oauth": [],
-          "icon": "\ud83d\ude00",
+          "icon": "😀",
           "preferences": [
             {
               "name": "skinTone",
@@ -97,7 +97,8 @@
                 }
               ]
             }
-          ]
+          ],
+          "description": "Fixture extension description."
         }
       ]
     },
@@ -110,10 +111,10 @@
           {
             "items": [
               {
-                "id": "\ud83c\udf89",
-                "title": "\ud83c\udf89 Party Popper",
+                "id": "🎉",
+                "title": "🎉 Party Popper",
                 "subtitle": "celebration, party",
-                "icon": "\ud83c\udf89",
+                "icon": "🎉",
                 "actions": [
                   {
                     "id": "copy",
@@ -155,10 +156,10 @@
           {
             "items": [
               {
-                "id": "\ud83c\udf89",
-                "title": "\ud83c\udf89 Party Popper",
+                "id": "🎉",
+                "title": "🎉 Party Popper",
                 "subtitle": "celebration, party",
-                "icon": "\ud83c\udf89",
+                "icon": "🎉",
                 "actions": [
                   {
                     "id": "copy",
@@ -178,7 +179,7 @@
       "extensionId": "emoji",
       "method": "clipboard.write",
       "params": {
-        "text": "\ud83c\udf89"
+        "text": "🎉"
       }
     },
     "nativeCallDenied": {

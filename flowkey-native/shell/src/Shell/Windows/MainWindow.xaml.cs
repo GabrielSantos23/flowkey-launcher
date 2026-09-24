@@ -331,6 +331,7 @@ public partial class MainWindow : Window
             hotkeySettings,
             preferencesStore,
             readyExtensions,
+            oauthService,
             () => clipboardHistory.Clear(),
             ShowToast,
             ApplySummonHotkey);
@@ -349,6 +350,7 @@ public partial class MainWindow : Window
             hotkeySettings.Save(settings);
             RegisterCommandHotkeys();
         };
+        settingsWindow.CommandToggled += (_, _, _) => RegisterCommandHotkeys();
         settingsWindow.DescribeCommandShortcut = _ => "";
         settingsWindow.ShortcutConflict = combo =>
         {
@@ -625,11 +627,22 @@ public partial class MainWindow : Window
         }
         else
         {
+            var settingsButton = new System.Windows.Controls.Border
+            {
+                Background = System.Windows.Media.Brushes.Transparent,
+                Padding = new Thickness(6, 2, 6, 2),
+                Margin = new Thickness(-6, -2, 0, -2),
+                Cursor = System.Windows.Input.Cursors.Hand,
+                ToolTip = "Settings",
+                VerticalAlignment = VerticalAlignment.Center,
+            };
             var glyph = new TextBlock { Text = "\uE700", VerticalAlignment = VerticalAlignment.Center };
             glyph.SetResourceReference(TextBlock.FontFamilyProperty, "GlyphFontFamily");
             glyph.SetResourceReference(TextBlock.FontSizeProperty, "GlyphFontSize");
             glyph.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            FooterLeft.Content = glyph;
+            settingsButton.Child = glyph;
+            settingsButton.MouseLeftButtonUp += (_, _) => OpenSettings();
+            FooterLeft.Content = settingsButton;
         }
 
         var primary = SelectedPrimaryActionTitle();
@@ -839,6 +852,10 @@ public partial class MainWindow : Window
             foreach (var command in extension.Commands)
             {
                 var commandKey = extension.Id + ":" + command.Id;
+                if (!CommandToggles.IsEnabled(extension.Id, command.Id))
+                {
+                    continue;
+                }
                 if (!settings.CommandShortcuts.TryGetValue(commandKey, out var combo))
                 {
                     continue;
@@ -936,6 +953,19 @@ public partial class MainWindow : Window
         virtualKey = keyPart switch
         {
             "Space" => 0x20,
+            "Left" => 0x25,
+            "Up" => 0x26,
+            "Right" => 0x27,
+            "Down" => 0x28,
+            "." => 0xBE,
+            "," => 0xBC,
+            "-" => 0xBD,
+            "=" => 0xBB,
+            "/" => 0xBF,
+            ";" => 0xBA,
+            "'" => 0xDE,
+            "[" => 0xDB,
+            "]" => 0xDD,
             _ when keyPart.Length == 1 && char.IsLetterOrDigit(keyPart[0]) => (uint)char.ToUpperInvariant(keyPart[0]),
             _ when keyPart.StartsWith("F") && int.TryParse(keyPart[1..], out var f) && f is >= 1 and <= 24 => (uint)(0x70 + f - 1),
             _ => 0,
@@ -998,6 +1028,7 @@ public partial class MainWindow : Window
         var query = SearchBox.Text.Trim();
         var commandRows = CommandCatalog
             .Search(query, readyExtensions)
+            .Where(cmd => CommandToggles.IsEnabled(cmd.ExtensionId, cmd.Command.Id))
             .Select(cmd =>
             {
                 var row = UiRow.Item(new UiItem

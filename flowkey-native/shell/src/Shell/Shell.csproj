@@ -17,9 +17,14 @@
     <Resource Include="Assets\Fonts\Inter-Medium.ttf" />
     <Resource Include="Assets\Fonts\Inter-SemiBold.ttf" />
     <Resource Include="Assets\Icons\*.svg" />
+    <Resource Include="Assets\Icons\*.png" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Shell.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>
 </Project>
