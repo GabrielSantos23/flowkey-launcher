@@ -423,7 +423,23 @@ public partial class MainWindow : Window
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             if (capture is not null && capture.Text is not null)
             {
-                clipboardHistory.Record(capture.Text, timestamp, capture.SourceApp);
+                clipboardHistory.Record(capture.Text, timestamp, capture.SourceApp, capture.SourceIconUri);
+            }
+            else if (capture is { HasFiles: true })
+            {
+                try
+                {
+                    var files = System.Windows.Forms.Clipboard.GetFileDropList();
+                    var paths = files.Cast<string>().ToList();
+                    if (paths.Count > 0)
+                    {
+                        clipboardHistory.RecordFiles(paths, timestamp, capture.SourceApp, capture.SourceIconUri);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write("clipboard file capture failed: " + ex.Message);
+                }
             }
             else if (capture is { HasImage: true })
             {
@@ -432,7 +448,7 @@ public partial class MainWindow : Window
                     using var image = System.Windows.Forms.Clipboard.GetImage();
                     if (image is not null)
                     {
-                        clipboardHistory.RecordImage(image, timestamp, capture.SourceApp);
+                        clipboardHistory.RecordImage(image, timestamp, capture.SourceApp, capture.SourceIconUri);
                     }
                 }
                 catch (Exception ex)
@@ -1547,13 +1563,45 @@ public partial class MainWindow : Window
                 var label = new System.Windows.Controls.TextBlock { Text = field.Label, VerticalAlignment = VerticalAlignment.Center };
                 label.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "PaneLabelBrush");
                 label.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "SecondaryFontSize");
-                var value = new System.Windows.Controls.TextBlock { Text = field.Value, TextAlignment = TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center };
+                var valueHost = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Horizontal,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+                };
+                if (!string.IsNullOrEmpty(field.ValueIconUri) && IconUriPolicy.TryGetLocalPath(field.ValueIconUri, out var valueIconPath) && File.Exists(valueIconPath))
+                {
+                    try
+                    {
+                        var iconBitmap = new System.Windows.Media.Imaging.BitmapImage();
+                        iconBitmap.BeginInit();
+                        iconBitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        iconBitmap.DecodePixelWidth = 28;
+                        iconBitmap.UriSource = new Uri(valueIconPath);
+                        iconBitmap.EndInit();
+                        iconBitmap.Freeze();
+                        valueHost.Children.Add(new System.Windows.Controls.Image
+                        {
+                            Source = iconBitmap,
+                            Width = 14,
+                            Height = 14,
+                            VerticalAlignment = VerticalAlignment.Center,
+                            Margin = new Thickness(0, 0, 6, 0),
+                        });
+                    }
+                    catch
+                    {
+                        /* value icons are best-effort */
+                    }
+                }
+                var value = new System.Windows.Controls.TextBlock { Text = field.Value, VerticalAlignment = VerticalAlignment.Center };
                 value.SetResourceReference(System.Windows.Controls.TextBlock.ForegroundProperty, "TextPrimaryBrush");
                 value.SetResourceReference(System.Windows.Controls.TextBlock.FontSizeProperty, "SecondaryFontSize");
+                valueHost.Children.Add(value);
                 System.Windows.Controls.Grid.SetColumn(label, 0);
-                System.Windows.Controls.Grid.SetColumn(value, 1);
+                System.Windows.Controls.Grid.SetColumn(valueHost, 1);
                 line.Children.Add(label);
-                line.Children.Add(value);
+                line.Children.Add(valueHost);
                 PaneInfo.Children.Add(line);
             }
         }
@@ -2021,6 +2069,7 @@ public partial class MainWindow : Window
                 ["iconUri"] = clipboardHistory.ThumbnailUriFor(e),
                 ["previewImageUri"] = clipboardHistory.PreviewUriFor(e),
                 ["source"] = e.SourceApp,
+                ["sourceIconUri"] = e.SourceIconUri,
                 ["width"] = e.ImageWidth,
                 ["height"] = e.ImageHeight,
             })
@@ -2112,6 +2161,12 @@ public partial class MainWindow : Window
             {
                 using var image = System.Drawing.Image.FromFile(entry.ImagePath);
                 System.Windows.Forms.Clipboard.SetImage(image);
+            }
+            else if (entry.Kind == "file")
+            {
+                var list = new System.Collections.Specialized.StringCollection();
+                list.AddRange(entry.Text.Split('\n'));
+                System.Windows.Forms.Clipboard.SetFileDropList(list);
             }
             else
             {

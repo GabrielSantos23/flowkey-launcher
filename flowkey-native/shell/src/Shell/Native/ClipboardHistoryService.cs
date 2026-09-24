@@ -15,6 +15,7 @@ public sealed record ClipboardEntry
     public int ImageWidth { get; init; }
     public int ImageHeight { get; init; }
     public string? SourceApp { get; init; }
+    public string? SourceIconUri { get; init; }
 }
 
 public static class ClipboardExclusions
@@ -52,27 +53,74 @@ public sealed class ClipboardHistoryStore
         get { lock (gate) { EnsureLoaded(); return entries.Count; } }
     }
 
-    public void Record(string text, long timestampUnixMs, string? sourceApp)
+    public void Record(string text, long timestampUnixMs, string? sourceApp, string? sourceIconUri = null)
     {
         if (string.IsNullOrEmpty(text) || text.Length > MaxTextChars)
         {
             return;
         }
+        var kind = ClassifyText(text);
         lock (gate)
         {
             EnsureLoaded();
-            if (entries.Count > 0 && entries[0].Kind == "text" && entries[0].Text == text && timestampUnixMs - entries[0].TimestampUnixMs < DuplicateWindowMs)
+            if (entries.Count > 0 && entries[0].Kind == kind && entries[0].Text == text && timestampUnixMs - entries[0].TimestampUnixMs < DuplicateWindowMs)
             {
                 return;
             }
-            entries.RemoveAll(e => e.Kind == "text" && e.Text == text);
-            entries.Insert(0, new ClipboardEntry { Text = text, TimestampUnixMs = timestampUnixMs, SourceApp = sourceApp });
+            entries.RemoveAll(e => e.Kind == kind && e.Text == text);
+            entries.Insert(0, new ClipboardEntry { Text = text, Kind = kind, TimestampUnixMs = timestampUnixMs, SourceApp = sourceApp, SourceIconUri = sourceIconUri });
             Trim();
             Persist();
         }
     }
 
-    public void RecordImage(Image image, long timestampUnixMs, string? sourceApp)
+    public static string ClassifyText(string text)
+    {
+        var trimmed = text.Trim();
+        if (trimmed.Length == 0 || trimmed.Length != text.Length || trimmed.Contains('\n') || trimmed.Contains('\r'))
+        {
+            return "text";
+        }
+        if (trimmed.StartsWith('#') && trimmed.Length is 4 or 7
+            && trimmed[1..].All(ch => Uri.IsHexDigit(ch)))
+        {
+            return "color";
+        }
+        if (Uri.TryCreate(trimmed, UriKind.Absolute, out var uri)
+            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        {
+            return "link";
+        }
+        if (trimmed.Contains('@') && !trimmed.Contains(' ')
+            && System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            return "email";
+        }
+        return "text";
+    }
+
+    public void RecordFiles(IReadOnlyList<string> paths, long timestampUnixMs, string? sourceApp, string? sourceIconUri = null)
+    {
+        if (paths.Count == 0)
+        {
+            return;
+        }
+        var text = string.Join("\n", paths);
+        lock (gate)
+        {
+            EnsureLoaded();
+            if (entries.Count > 0 && entries[0].Kind == "file" && entries[0].Text == text && timestampUnixMs - entries[0].TimestampUnixMs < DuplicateWindowMs)
+            {
+                return;
+            }
+            entries.RemoveAll(e => e.Kind == "file" && e.Text == text);
+            entries.Insert(0, new ClipboardEntry { Text = text, Kind = "file", TimestampUnixMs = timestampUnixMs, SourceApp = sourceApp, SourceIconUri = sourceIconUri });
+            Trim();
+            Persist();
+        }
+    }
+
+    public void RecordImage(Image image, long timestampUnixMs, string? sourceApp, string? sourceIconUri = null)
     {
         if (image is null)
         {
@@ -99,6 +147,7 @@ public sealed class ClipboardHistoryStore
                 ImageHeight = image.Height,
                 TimestampUnixMs = timestampUnixMs,
                 SourceApp = sourceApp,
+                SourceIconUri = sourceIconUri,
             });
             SaveThumbnail(imagePath);
             Trim();
@@ -166,6 +215,42 @@ public sealed class ClipboardHistoryStore
         }
     }
 
+    private string? ColorSwatchUriFor(ClipboardEntry entry)
+    {
+        try
+        {
+            var id = ComputeEntryId(entry).ToLowerInvariant();
+            var swatchPath = Path.Combine(thumbnailsDirectory, "color-" + id + "_card.png");
+            if (File.Exists(swatchPath))
+            {
+                return new Uri(swatchPath).AbsoluteUri;
+            }
+            using var block = new System.Drawing.SolidBrush(System.Drawing.ColorTranslator.FromHtml(entry.Text.Trim()));
+            using var card = new System.Drawing.Bitmap(320, 250);
+            using (var graphics = System.Drawing.Graphics.FromImage(card))
+            {
+                graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                graphics.Clear(System.Drawing.Color.Transparent);
+                var radius = 14;
+                var path = new System.Drawing.Drawing2D.GraphicsPath();
+                path.AddArc(0, 0, radius * 2, radius * 2, 180, 90);
+                path.AddArc(320 - radius * 2, 0, radius * 2, radius * 2, 270, 90);
+                path.AddArc(320 - radius * 2, 200 - radius * 2, radius * 2, radius * 2, 0, 90);
+                path.AddArc(0, 200 - radius * 2, radius * 2, radius * 2, 90, 90);
+                path.CloseFigure();
+                graphics.FillPath(block, path);
+                using var font = new System.Drawing.Font("Consolas", 13, System.Drawing.FontStyle.Regular);
+                graphics.DrawString(entry.Text.Trim(), font, System.Drawing.Brushes.White, 6, 214);
+            }
+            card.Save(swatchPath, System.Drawing.Imaging.ImageFormat.Png);
+            return new Uri(swatchPath).AbsoluteUri;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     public string? ThumbnailUriFor(ClipboardEntry entry)
     {
         if (entry.Kind != "image" || entry.ImagePath is null || !File.Exists(entry.ImagePath))
@@ -174,11 +259,28 @@ public sealed class ClipboardHistoryStore
         }
         var hash = Path.GetFileNameWithoutExtension(entry.ImagePath);
         var thumbPath = Path.Combine(thumbnailsDirectory, hash + "_32.png");
+        if (!File.Exists(thumbPath))
+        {
+            try
+            {
+                using var original = Image.FromFile(entry.ImagePath);
+                using var thumb = new System.Drawing.Bitmap(original, 32, Math.Max(1, 32 * original.Height / Math.Max(1, original.Width)));
+                thumb.Save(thumbPath, System.Drawing.Imaging.ImageFormat.Png);
+            }
+            catch
+            {
+                return null;
+            }
+        }
         return File.Exists(thumbPath) ? new Uri(thumbPath).AbsoluteUri : null;
     }
 
     public string? PreviewUriFor(ClipboardEntry entry)
     {
+        if (entry.Kind == "color")
+        {
+            return ColorSwatchUriFor(entry);
+        }
         if (entry.Kind != "image" || entry.ImagePath is null || !File.Exists(entry.ImagePath))
         {
             return null;
@@ -226,9 +328,11 @@ public sealed class ClipboardHistoryStore
 
     private static bool MatchesQuery(ClipboardEntry entry, string query)
     {
-        return entry.Kind == "image"
-            ? "image".Contains(query, StringComparison.OrdinalIgnoreCase)
-            : entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase);
+        if (entry.Kind == "text")
+        {
+            return entry.Text.Contains(query, StringComparison.OrdinalIgnoreCase);
+        }
+        return entry.Kind.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
     public string? Latest()
@@ -363,6 +467,7 @@ public static class ClipboardReader
     public const int CF_BITMAP = 2;
     public const int CF_DIB = 8;
     public const int CF_DIBV5 = 17;
+    public const int CF_HDROP = 15;
     public const int CF_UNICODETEXT = 13;
     private const uint RetryCount = 5;
     private const int RetryBackoffMs = 15;
@@ -370,7 +475,7 @@ public static class ClipboardReader
     private static readonly uint ExcludeFormat = RegisterClipboardFormat("ExcludeClipboardContentFromMonitorProcessing");
     private static readonly uint CanIncludeFormat = RegisterClipboardFormat("CanIncludeInClipboardHistory");
 
-    public sealed record ClipboardCapture(string? Text, string? SourceApp, bool HasImage);
+    public sealed record ClipboardCapture(string? Text, string? SourceApp, string? SourceIconUri, bool HasImage, bool HasFiles);
 
     public static ClipboardCapture? TryCapture()
     {
@@ -390,7 +495,7 @@ public static class ClipboardReader
                 {
                     return null;
                 }
-                var sourceApp = SourceAppOf(GetClipboardOwner());
+                var (sourceApp, sourceIcon) = SourceOf(GetClipboardOwner());
                 if (IsClipboardFormatAvailable(CF_UNICODETEXT))
                 {
                     var handle = GetClipboardData(CF_UNICODETEXT);
@@ -405,16 +510,20 @@ public static class ClipboardReader
                     }
                     try
                     {
-                        return new ClipboardCapture(Marshal.PtrToStringUni(pointer), sourceApp, HasImage: false);
+                        return new ClipboardCapture(Marshal.PtrToStringUni(pointer), sourceApp, sourceIcon, HasImage: false, HasFiles: false);
                     }
                     finally
                     {
                         GlobalUnlock(handle);
                     }
                 }
+                if (IsClipboardFormatAvailable(CF_HDROP))
+                {
+                    return new ClipboardCapture(null, sourceApp, sourceIcon, HasImage: false, HasFiles: true);
+                }
                 if (IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5) || IsClipboardFormatAvailable(CF_BITMAP))
                 {
-                    return new ClipboardCapture(null, sourceApp, HasImage: true);
+                    return new ClipboardCapture(null, sourceApp, sourceIcon, HasImage: true, HasFiles: false);
                 }
                 return null;
             }
@@ -426,25 +535,44 @@ public static class ClipboardReader
         return null;
     }
 
-    private static string? SourceAppOf(IntPtr ownerWindow)
+    private static (string? Name, string? IconUri) SourceOf(IntPtr ownerWindow)
     {
         if (ownerWindow == IntPtr.Zero)
         {
-            return null;
+            return (null, null);
         }
         GetWindowThreadProcessId(ownerWindow, out var pid);
         if (pid == 0)
         {
-            return null;
+            return (null, null);
         }
         try
         {
             using var process = System.Diagnostics.Process.GetProcessById((int)pid);
-            return process.ProcessName;
+            var name = process.ProcessName;
+            var exePath = process.MainModule?.FileName;
+            if (name is null || exePath is null)
+            {
+                return (name, null);
+            }
+            var directory = Path.Combine(IconUriPolicy.IconCacheRoot, "sources");
+            Directory.CreateDirectory(directory);
+            var iconPath = Path.Combine(directory, name + ".png");
+            if (!File.Exists(iconPath))
+            {
+                using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                if (icon is not null)
+                {
+                    using var bitmap = icon.ToBitmap();
+                    bitmap.Save(iconPath, System.Drawing.Imaging.ImageFormat.Png);
+                }
+            }
+            var iconUri = File.Exists(iconPath) ? new Uri(iconPath).AbsoluteUri : null;
+            return (name, iconUri);
         }
         catch
         {
-            return null;
+            return (null, null);
         }
     }
 

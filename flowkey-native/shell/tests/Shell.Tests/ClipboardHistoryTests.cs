@@ -210,6 +210,30 @@ public class ClipboardHistoryTests : IDisposable
     }
 
     [Fact]
+    public void TextEntriesAreClassifiedByContent()
+    {
+        Assert.Equal("link", ClipboardHistoryStore.ClassifyText("https://github.com/raycast"));
+        Assert.Equal("email", ClipboardHistoryStore.ClassifyText("person@example.com"));
+        Assert.Equal("color", ClipboardHistoryStore.ClassifyText("#F54927"));
+        Assert.Equal("text", ClipboardHistoryStore.ClassifyText("just some text"));
+        Assert.Equal("text", ClipboardHistoryStore.ClassifyText("https://x.com and more"));
+        Assert.Equal("text", ClipboardHistoryStore.ClassifyText("not a color #GGGGGG"));
+    }
+
+    [Fact]
+    public void RecordFilesPersistsTypedEntry()
+    {
+        var store = new ClipboardHistoryStore(tempDir);
+        store.RecordFiles(["C:\a.txt", "C:\b.txt"], 1000, "explorer");
+        var entry = Assert.Single(store.Query("", 50));
+        Assert.Equal("file", entry.Kind);
+        Assert.Equal("explorer", entry.SourceApp);
+        var reloaded = new ClipboardHistoryStore(tempDir);
+        Assert.Equal("file", Assert.Single(reloaded.Query("", 50)).Kind);
+        Assert.Single(store.Query("file", 50));
+    }
+
+    [Fact]
     public void ImageEntriesMatchImageQuery()
     {
         var store = new ClipboardHistoryStore(tempDir);

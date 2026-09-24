@@ -5,41 +5,56 @@ interface HistoryItem {
   id: string;
   text: string;
   timestamp: number;
-  kind?: 'text' | 'image';
+  kind?: string;
   iconUri?: string;
   previewImageUri?: string;
   source?: string;
+  sourceIconUri?: string;
   width?: number;
   height?: number;
+}
+
+const KIND_META: Record<string, { label: string; iconName: string }> = {
+  text: { label: 'Text', iconName: 'file-text' },
+  link: { label: 'Link', iconName: 'link' },
+  email: { label: 'Email', iconName: 'at-sign' },
+  file: { label: 'File', iconName: 'file' },
+  color: { label: 'Color', iconName: 'square' },
+  image: { label: 'Image', iconName: 'image' },
+};
+
+function kindOf(entry: HistoryItem): string {
+  return entry.kind ?? 'text';
 }
 
 let lastQuery = '';
 
 function toUiItem(entry: HistoryItem, showTimestamps: boolean): UiItem {
-  const isImage = entry.kind === 'image';
-  const time = showTimestamps ? new Date(entry.timestamp).toLocaleTimeString() : undefined;
-  const subtitle = [entry.source, time].filter(Boolean).join(' · ') || undefined;
+  const kind = kindOf(entry);
+  const meta = KIND_META[kind] ?? KIND_META.text;
+  const isImage = kind === 'image';
   const preview = entry.text.replace(/\s+/g, ' ').slice(0, 80);
   const pane = {
     preview: isImage ? undefined : entry.text,
     previewImageUri: entry.previewImageUri,
     fields: isImage
       ? [
-          { label: 'Source', value: entry.source ?? 'Unknown' },
-          { label: 'Type', value: 'Image' },
+          { label: 'Source', value: entry.source ?? 'Unknown', valueIconUri: entry.sourceIconUri },
+          { label: 'Type', value: meta.label },
           { label: 'Dimensions', value: `${entry.width ?? 0}×${entry.height ?? 0}` },
         ]
       : [
-          { label: 'Source', value: entry.source ?? 'Unknown' },
-          { label: 'Type', value: 'Text' },
+          { label: 'Source', value: entry.source ?? 'Unknown', valueIconUri: entry.sourceIconUri },
+          { label: 'Type', value: meta.label },
           { label: 'Characters', value: String(entry.text.length) },
         ],
   };
   return {
     id: entry.id,
     title: isImage ? `Image (${entry.width ?? 0}×${entry.height ?? 0})` : preview.length > 0 ? preview : '(empty)',
-    subtitle,
-    kind: isImage ? 'Image' : undefined,
+    kind: meta.label,
+    iconName: isImage ? undefined : meta.iconName,
+    iconColor: kind === 'color' ? entry.text.trim() : undefined,
     iconUri: isImage ? entry.iconUri : undefined,
     pane,
     actions: [
@@ -62,13 +77,13 @@ export default defineExtension({
     async search(query, ctx) {
       const q = query.trim();
       lastQuery = q;
-      const filterValue = (ctx.filterValue ?? 'all') as 'all' | 'text' | 'image';
+      const filterValue = ctx.filterValue ?? 'all';
       const result = (await ctx.native.call<{ items: HistoryItem[] }>('clipboard.history', {
         query: q,
         limit: 50,
       })) ?? { items: [] };
       const filtered = result.items.filter(
-        (entry) => filterValue === 'all' || (entry.kind ?? 'text') === filterValue,
+        (entry) => filterValue === 'all' || kindOf(entry) === filterValue,
       );
       const showTimestamps = (ctx.preferences['showTimestamps'] as boolean | undefined) ?? true;
       const items = filtered.map((entry) => toUiItem(entry, showTimestamps));
@@ -79,7 +94,11 @@ export default defineExtension({
           options: [
             { label: 'All Types', value: 'all' },
             { label: 'Text', value: 'text' },
-            { label: 'Image', value: 'image' },
+            { label: 'Links', value: 'link' },
+            { label: 'Emails', value: 'email' },
+            { label: 'Files', value: 'file' },
+            { label: 'Images', value: 'image' },
+            { label: 'Colors', value: 'color' },
           ],
         },
         sections: items.length > 0 ? [{ title: 'Recent', items }] : [],
