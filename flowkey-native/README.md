@@ -32,6 +32,13 @@ repo root):
 | `shell:test`        | `dotnet test` (xunit contract tests) |
 | `test`              | sdk:test + shell:test                |
 
+## Development flags
+
+- `FlowKey.Shell.exe --settings` — launches straight into the settings window
+  (4s delayed so automation can attach first). Used by the `screenshot-*.ps1`
+  and `measure-settings.ps1` helper scripts in `shell/`; not part of the
+  end-user surface.
+
 ## Protocol (v1)
 
 Newline-delimited JSON, one object per line, over the sidecar's stdin/stdout.
