@@ -6,6 +6,7 @@
         xmlns:calc="clr-namespace:FlowKey.Shell.Search.Calculator"
         Title="FlowKey"
         Width="750" Height="475"
+        WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
@@ -223,7 +224,8 @@
       </ListBox.ItemContainerStyle>
       <ListBox.Resources>
         <DataTemplate DataType="{x:Type rows:HeaderRow}">
-          <TextBlock Text="{Binding Title}"
+          <TextBlock IsHitTestVisible="False"
+                     Text="{Binding Title}"
                      FontSize="{DynamicResource HeaderFontSize}"
                      FontWeight="SemiBold"
                      Foreground="{DynamicResource TextSecondaryBrush}"
@@ -519,7 +521,7 @@
       <TextBlock x:Name="EmptyDescription" FontSize="{DynamicResource EmptyDescriptionFontSize}" Foreground="{DynamicResource TextTertiaryBrush}" TextAlignment="Center" Margin="{DynamicResource EmptyDescriptionMargin}" />
     </StackPanel>
 
-    <Border Grid.Row="2" Height="{DynamicResource FooterHeight}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0">
+    <Border Grid.Row="2" Height="{DynamicResource FooterHeight}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Background="Transparent" MouseLeftButtonDown="OnFooterDragMove">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="*" />

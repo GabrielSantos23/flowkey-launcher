@@ -157,6 +157,10 @@ public partial class MainWindow : Window
             0,
             0,
             WINEVENT_OUTOFCONTEXT);
+        DebugLog.Write("foreground hook installed: " + foregroundEventHook);
+        foregroundPollTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+        foregroundPollTimer.Tick += (_, _) => CheckForeignForeground();
+        foregroundPollTimer.Start();
         searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(SearchDebounceMs) };
         searchDebounce.Tick += (_, _) =>
         {
@@ -508,13 +512,20 @@ public partial class MainWindow : Window
 
     public void HideWindow()
     {
-        actionPanel?.Close();
-        var previous = previousForegroundWindow;
-        Hide();
-        Visibility = Visibility.Hidden;
-        if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
+        try
         {
-            SetForegroundWindow(previous);
+            actionPanel?.Close();
+            var previous = previousForegroundWindow;
+            Hide();
+            Visibility = Visibility.Hidden;
+            if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
+            {
+                SetForegroundWindow(previous);
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            DebugLog.Write("HideWindow lost a race with window close: " + ex.Message);
         }
     }
 
@@ -527,7 +538,17 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(() => OnForegroundWindowChanged(hook, evt, hwnd, idObject, idChild, thread, time));
             return;
         }
-        if (!IsVisible || hwnd == Handle)
+        CheckForeignForeground();
+    }
+
+    private void CheckForeignForeground()
+    {
+        if (!IsVisible)
+        {
+            return;
+        }
+        var hwnd = GetForegroundWindow();
+        if (hwnd == Handle)
         {
             return;
         }
@@ -654,6 +675,27 @@ public partial class MainWindow : Window
         while (list.Items[index] is not ItemRow);
         list.SelectedIndex = index;
         list.ScrollIntoView(list.Items[index]);
+    }
+
+    private void OnFooterDragMove(object sender, MouseButtonEventArgs e)
+    {
+        // Only drags that start on the footer background itself; clicks landing on
+        // interactive children (settings button, keycaps) must reach their handlers.
+        if (!ReferenceEquals(e.OriginalSource, sender))
+        {
+            return;
+        }
+        if (e.ButtonState == MouseButtonState.Pressed && WindowState == WindowState.Normal)
+        {
+            try
+            {
+                DragMove();
+            }
+            catch (InvalidOperationException)
+            {
+                /* drag can race with a pending click; harmless */
+            }
+        }
     }
 
     private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -2026,13 +2068,23 @@ public partial class MainWindow : Window
 
     private void LoadRowIcons(IReadOnlyList<UiRow> rows)
     {
-        foreach (var row in rows.OfType<ItemRow>())
+        LoadRowIconsChunk(rows, 0);
+    }
+
+    private void LoadRowIconsChunk(IReadOnlyList<UiRow> rows, int start)
+    {
+        if (start >= rows.Count)
         {
-            var uri = row.Item.IconUri;
-            if (uri is null)
+            return;
+        }
+        var end = Math.Min(start + 16, rows.Count);
+        for (var i = start; i < end; i++)
+        {
+            if (rows[i] is not ItemRow row || row.Item.IconUri is null)
             {
                 continue;
             }
+            var uri = row.Item.IconUri;
             try
             {
                 if (IconUriPolicy.TryGetLocalPath(uri, out var path) && File.Exists(path))
@@ -2062,6 +2114,10 @@ public partial class MainWindow : Window
             {
                 row.Bitmap = null;
             }
+        }
+        if (end < rows.Count)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, () => LoadRowIconsChunk(rows, end));
         }
     }
 
@@ -2434,6 +2490,7 @@ public partial class MainWindow : Window
     }
 
     private DispatcherTimer? footerToastTimer;
+    private DispatcherTimer? foregroundPollTimer;
 
     private void SetStatusBar(string message) => DebugLog.Write("status: " + message);
 
