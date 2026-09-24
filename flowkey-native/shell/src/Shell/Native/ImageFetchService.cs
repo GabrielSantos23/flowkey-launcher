@@ -112,13 +112,34 @@ public sealed class ImageFetchService
     {
         try
         {
-            return new Bitmap(stream);
+            var decoder = System.Windows.Media.Imaging.BitmapDecoder.Create(
+                stream,
+                System.Windows.Media.Imaging.BitmapCreateOptions.PreservePixelFormat,
+                System.Windows.Media.Imaging.BitmapCacheOption.OnLoad);
+            if (decoder.Frames.Count == 0)
+            {
+                return null;
+            }
+            var converted = new MemoryStream();
+            var encoder = new System.Windows.Media.Imaging.BmpBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(decoder.Frames[0]));
+            encoder.Save(converted);
+            converted.Position = 0;
+            return new Bitmap(converted);
         }
         catch (ArgumentException)
         {
             return null;
         }
         catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+        catch (System.IO.IOException)
         {
             return null;
         }

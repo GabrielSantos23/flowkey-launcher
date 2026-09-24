@@ -262,6 +262,30 @@ public class HttpFetchServiceAuthTests
     }
 
     [Fact]
+    public async Task AuthedFetchEnforcesOneTotalBudgetAcrossRetries()
+    {
+        var rateLimited = JsonResponse(HttpStatusCode.TooManyRequests, "{}");
+        rateLimited.Headers.RetryAfter = new RetryConditionHeaderValue(TimeSpan.FromSeconds(3));
+        var handler = new StubHandler(new Queue<HttpResponseMessage>(new[] { rateLimited }));
+        var service = new HttpFetchService();
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+
+        var parameters = Params("https://api.spotify.com/v1/search?q=kanye");
+        parameters["timeoutMs"] = System.Text.Json.JsonSerializer.SerializeToElement(1000);
+        var outcome = await service.FetchAsync(
+            parameters,
+            Hosts("api.spotify.com"),
+            CancellationToken.None,
+            _ => new AuthedFetchContext("api.spotify.com", _ => Task.FromResult<string?>("tok-1"), _ => Task.FromResult(false)),
+            () => handler);
+
+        Assert.False(outcome.Ok);
+        Assert.Equal("timeout", outcome.Error!.Code);
+        Assert.Single(handler.Requests);
+        Assert.True(stopwatch.ElapsedMilliseconds < 10_000);
+    }
+
+    [Fact]
     public async Task Surfaces429WhenRetryAfterExceedsCap()
     {
         var queue = JsonQueue((HttpStatusCode.TooManyRequests, "slow down"));

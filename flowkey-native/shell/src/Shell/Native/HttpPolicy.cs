@@ -56,7 +56,7 @@ public static partial class HttpPolicy
             return PolicyDecision.Deny("userInfoBlocked", "URLs with embedded credentials are not allowed");
         }
         var host = uri.Host.ToLowerInvariant();
-        var rule = ParseHostRules(httpHosts).FirstOrDefault(r => r.Host == host);
+        var rule = ParseHostRules(httpHosts).FirstOrDefault(r => MatchesRule(host, r));
         if (rule is null)
         {
             return PolicyDecision.Deny("hostNotAllowed", $"host '{host}' is not in the extension's httpHosts allowlist");
@@ -70,6 +70,16 @@ public static partial class HttpPolicy
             return PolicyDecision.Deny("portBlocked", $"port {uri.Port} is not allowed for '{host}' (allowed: {rule.Port})");
         }
         return PolicyDecision.Ok();
+    }
+
+    private static bool MatchesRule(string host, HostRule rule)
+    {
+        if (string.Equals(rule.Host, host, StringComparison.Ordinal))
+        {
+            return true;
+        }
+        return rule.Host.StartsWith(".", StringComparison.Ordinal)
+            && host.EndsWith(rule.Host, StringComparison.OrdinalIgnoreCase);
     }
 
     public static PolicyDecision ValidateResolvedAddresses(string host, IPAddress[] addresses)

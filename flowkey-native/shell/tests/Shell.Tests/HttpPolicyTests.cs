@@ -129,6 +129,17 @@ public class HttpPolicyTests
     }
 
     [Fact]
+    public void SuffixRuleMatchesSubdomainsButNotOtherDomains()
+    {
+        var hosts = new[] { ".spotifycdn.com" };
+        Assert.True(HttpPolicy.ValidateRequest(new Uri("https://image-cdn-ak.spotifycdn.com/a.jpg"), hosts).Allowed);
+        Assert.True(HttpPolicy.ValidateRequest(new Uri("https://i.spotifycdn.com/a.jpg"), hosts).Allowed);
+        Assert.False(HttpPolicy.ValidateRequest(new Uri("https://spotifycdn.com.evil.test/a.jpg"), hosts).Allowed);
+        Assert.False(HttpPolicy.ValidateRequest(new Uri("https://notspotifycdn.com/a.jpg"), hosts).Allowed);
+        Assert.False(HttpPolicy.ValidateRequest(new Uri("https://spotifycdn.com/a.jpg"), hosts).Allowed);
+    }
+
+    [Fact]
     public void CrossHostRedirectDropsAuthorization()
     {
         var same = HttpPolicy.IsCrossHost(new Uri("https://api.example.com/a"), new Uri("https://api.example.com/b"));

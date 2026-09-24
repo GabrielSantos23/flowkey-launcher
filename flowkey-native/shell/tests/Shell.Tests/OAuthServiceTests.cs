@@ -136,8 +136,8 @@ public class OAuthServiceTests : IDisposable
     private OAuthProviderDefinition Definition(string tokenUrl, string? clientId = "client-1") =>
         new("spotify", clientId, "https://accounts.example.test/authorize", tokenUrl, "scope-a scope-b", "api.spotify.com", 0);
 
-    private static OAuthProviderDefinition UnconfiguredDefinition() =>
-        new("spotify", null, "https://accounts.example.test/authorize", "http://127.0.0.1:1/token", "scope-a", "api.spotify.com", 0);
+    private static OAuthProviderDefinition UnconfiguredDefinition(string tokenUrl = "http://127.0.0.1:1/token") =>
+        new("spotify", null, "https://accounts.example.test/authorize", tokenUrl, "scope-a", "api.spotify.com", 0);
 
     private static Dictionary<string, JsonElement> ProviderParams() => new()
     {
@@ -222,6 +222,43 @@ public class OAuthServiceTests : IDisposable
         var outcome = await service.AuthorizeAsync("ext-a", ProviderParams(), Array.Empty<string>(), CancellationToken.None);
         Assert.False(outcome.Ok);
         Assert.Equal("providerNotDeclared", outcome.Error!.Code);
+    }
+
+    [Fact]
+    public async Task AuthorizeAcceptsClientIdParameterOnUnconfiguredProvider()
+    {
+        var tokenUrl = StartStubServer();
+        stubResponses.Enqueue(TokenResponse("at-1", "rt-1", 3600, "scope-a scope-b"));
+        string? capturedAuthorizeUrl = null;
+        var service = new OAuthService(vault, () => new Dictionary<string, OAuthProviderDefinition> { ["spotify"] = UnconfiguredDefinition(tokenUrl) }, url =>
+        {
+            capturedAuthorizeUrl = url;
+            var query = HttpUtility.ParseQueryString(new Uri(url).Query);
+            var redirect = new Uri(query["redirect_uri"]!);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await new HttpClient().GetStringAsync($"http://127.0.0.1:{redirect.Port}/callback?code=code-x&state={query["state"]}");
+                }
+                catch
+                {
+                }
+            });
+            return Task.CompletedTask;
+        });
+        var parameters = new Dictionary<string, JsonElement>
+        {
+            ["provider"] = JsonSerializer.SerializeToElement("spotify"),
+            ["clientId"] = JsonSerializer.SerializeToElement("pref-client-id"),
+        };
+
+        var outcome = await service.AuthorizeAsync("ext-a", parameters, new[] { "spotify" }, CancellationToken.None, TimeSpan.FromSeconds(20));
+
+        Assert.True(outcome.Ok, outcome.Error?.Message ?? "authorize failed");
+        Assert.Contains("client_id=pref-client-id", capturedAuthorizeUrl);
+        Assert.Contains("client_id=pref-client-id", tokenRequests.Single(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("pref-client-id", vault.Get("ext-a", "spotify")!.ClientId);
     }
 
     [Fact]

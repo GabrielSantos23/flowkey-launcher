@@ -54,7 +54,8 @@ public sealed class OAuthService
         {
             return NativeCallOutcome.Failure("unknownProvider", $"oauth provider '{provider}' is not implemented by this shell");
         }
-        if (!definition.IsConfigured)
+        var clientId = ReadClientId(parameters) ?? definition.ClientId;
+        if (string.IsNullOrWhiteSpace(clientId))
         {
             return NativeCallOutcome.Failure("notConfigured", SpotifyAuthConfig.ClientIdDocs);
         }
@@ -82,7 +83,7 @@ public sealed class OAuthService
         }
 
         var redirectUri = $"http://127.0.0.1:{port}/callback";
-        var authorizeUrl = BuildAuthorizeUrl(definition, redirectUri, state, challenge);
+        var authorizeUrl = BuildAuthorizeUrl(definition, clientId, redirectUri, state, challenge);
         try
         {
             await launchBrowser(authorizeUrl);
@@ -95,7 +96,7 @@ public sealed class OAuthService
                         ? $"authorization failed: {code.ProviderError}"
                         : "oauth callback did not contain an authorization code");
             }
-            var exchanged = await ExchangeCodeAsync(definition, code.Code!, redirectUri, verifier, cancellationToken);
+            var exchanged = await ExchangeCodeAsync(definition, clientId, code.Code!, redirectUri, verifier, cancellationToken);
             if (exchanged.Error is not null)
             {
                 return NativeCallOutcome.Failure(exchanged.Error.Code, exchanged.Error.Message);
@@ -103,7 +104,7 @@ public sealed class OAuthService
             var refreshedRefresh = exchanged.Token!.RefreshToken.Length > 0
                 ? exchanged.Token.RefreshToken
                 : existing?.RefreshToken ?? "";
-            var stored = new VaultedToken(exchanged.Token.AccessToken, refreshedRefresh, exchanged.Token.ExpiresAt, exchanged.Token.Scope);
+            var stored = new VaultedToken(exchanged.Token.AccessToken, refreshedRefresh, exchanged.Token.ExpiresAt, exchanged.Token.Scope, clientId);
             vault.Store(extensionId, provider, stored);
             return AuthorizedResult(stored);
         }
@@ -215,16 +216,16 @@ public sealed class OAuthService
         VaultedToken entry,
         CancellationToken cancellationToken)
     {
-        if (!definition.IsConfigured)
+        if (!definition.IsConfigured && entry.ClientId.Length == 0)
         {
             return null;
         }
-        using var client = new HttpClient();
+        using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["grant_type"] = "refresh_token",
             ["refresh_token"] = entry.RefreshToken,
-            ["client_id"] = definition.ClientId!,
+            ["client_id"] = entry.ClientId.Length > 0 ? entry.ClientId : definition.ClientId!,
         });
         using var response = await client.PostAsync(definition.TokenUrl, content, cancellationToken);
         if ((int)response.StatusCode is 400 or 401)
@@ -253,7 +254,8 @@ public sealed class OAuthService
             DateTimeOffset.UtcNow + TimeSpan.FromSeconds(expiresIn),
             root.TryGetProperty("scope", out var scopeElement) && scopeElement.ValueKind == JsonValueKind.String
                 ? scopeElement.GetString() ?? entry.Scope
-                : entry.Scope);
+                : entry.Scope,
+            entry.ClientId);
         vault.Store(extensionId, provider, next);
         return next;
     }
@@ -329,6 +331,7 @@ public sealed class OAuthService
 
     private async Task<(VaultedToken? Token, Protocol.ProtocolError? Error)> ExchangeCodeAsync(
         OAuthProviderDefinition definition,
+        string clientId,
         string code,
         string redirectUri,
         string verifier,
@@ -336,13 +339,13 @@ public sealed class OAuthService
     {
         try
         {
-            using var client = new HttpClient();
+            using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
             using var content = new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["grant_type"] = "authorization_code",
                 ["code"] = code,
                 ["redirect_uri"] = redirectUri,
-                ["client_id"] = definition.ClientId!,
+                ["client_id"] = clientId,
                 ["code_verifier"] = verifier,
             });
             using var response = await client.PostAsync(definition.TokenUrl, content, cancellationToken);
@@ -381,6 +384,16 @@ public sealed class OAuthService
         return providers().GetValueOrDefault(provider);
     }
 
+    private static string? ReadClientId(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("clientId", out var element) || element.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+        var value = element.GetString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
     private static bool TryProvider(Dictionary<string, JsonElement>? parameters, out string provider, out NativeCallOutcome? failure)
     {
         provider = "";
@@ -404,12 +417,13 @@ public sealed class OAuthService
 
     public static string BuildAuthorizeUrl(
         OAuthProviderDefinition definition,
+        string clientId,
         string redirectUri,
         string state,
         string challenge)
     {
         var builder = new UriBuilder(definition.AuthorizeUrl);
-        var query = $"client_id={Uri.EscapeDataString(definition.ClientId!)}"
+        var query = $"client_id={Uri.EscapeDataString(clientId)}"
             + "&response_type=code"
             + $"&redirect_uri={Uri.EscapeDataString(redirectUri)}"
             + $"&state={Uri.EscapeDataString(state)}"

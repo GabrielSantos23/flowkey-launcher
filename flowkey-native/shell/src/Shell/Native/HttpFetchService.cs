@@ -113,7 +113,9 @@ public sealed class HttpFetchService
             return await SendOnceAndMapAsync(uri, method, headers, null, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory);
         }
 
-        var token = await authed.AcquireToken(cancellationToken);
+        using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budgetCts.CancelAfter(Math.Max(1, timeoutMs));
+        var token = await authed.AcquireToken(budgetCts.Token);
         if (token is null)
         {
             return NativeCallOutcome.Failure("authRequired", $"no valid token for provider '{provider}'; run oauth.authorize first");
@@ -123,7 +125,7 @@ public sealed class HttpFetchService
         var rateRetried = false;
         for (var attempt = 0; attempt <= MaxAuthAttempts; attempt++)
         {
-            var sent = await SendLoopAsync(uri, method, headers, $"Bearer {token}", body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory);
+            var sent = await SendLoopAsync(uri, method, headers, $"Bearer {token}", body, httpHosts, pinnedHost, timeoutMs, budgetCts.Token, handlerFactory);
             if (sent.Failure is not null)
             {
                 return sent.Failure;
@@ -131,9 +133,9 @@ public sealed class HttpFetchService
             if (sent.Status == 401 && !refreshed)
             {
                 refreshed = true;
-                if (await authed.ForceRefresh(cancellationToken))
+                if (await authed.ForceRefresh(budgetCts.Token))
                 {
-                    token = await authed.AcquireToken(cancellationToken);
+                    token = await authed.AcquireToken(budgetCts.Token);
                     if (token is null)
                     {
                         return NativeCallOutcome.Failure("authRequired", $"token refresh for provider '{provider}' did not yield a token");
@@ -152,8 +154,15 @@ public sealed class HttpFetchService
                 var delay = ParseRetryAfter(sent.Headers);
                 if (delay > TimeSpan.Zero && delay <= RetryAfterCap)
                 {
-                    await Task.Delay(delay.Value, cancellationToken);
-                    continue;
+                    try
+                    {
+                        await Task.Delay(delay.Value, budgetCts.Token);
+                        continue;
+                    }
+                    catch (OperationCanceledException) when (budgetCts.IsCancellationRequested)
+                    {
+                        return NativeCallOutcome.Failure("timeout", $"request timed out after {timeoutMs} ms");
+                    }
                 }
             }
             return MapSuccess(sent);
@@ -173,7 +182,9 @@ public sealed class HttpFetchService
         CancellationToken cancellationToken,
         Func<HttpMessageHandler>? handlerFactory)
     {
-        var sent = await SendLoopAsync(uri, method, headers, authorization, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory);
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(Math.Max(1, timeoutMs));
+        var sent = await SendLoopAsync(uri, method, headers, authorization, body, httpHosts, pinnedHost, timeoutMs, timeoutCts.Token, handlerFactory);
         if (sent.Failure is not null)
         {
             return sent.Failure;
@@ -206,7 +217,6 @@ public sealed class HttpFetchService
         Func<HttpMessageHandler>? handlerFactory)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeoutCts.CancelAfter(Math.Max(1, timeoutMs));
 
         var current = uri;
         string? requestBody = body;

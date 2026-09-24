@@ -4,7 +4,12 @@ using System.Text.Json;
 
 namespace FlowKey.Shell.Native;
 
-public sealed record VaultedToken(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAt, string Scope);
+public sealed record VaultedToken(
+    string AccessToken,
+    string RefreshToken,
+    DateTimeOffset ExpiresAt,
+    string Scope,
+    string ClientId = "");
 
 public sealed class TokenVault
 {
@@ -65,6 +70,7 @@ public sealed class TokenVault
                 ["refreshToken"] = DpapiProtector.Encrypt(entry.RefreshToken),
                 ["expiresAt"] = entry.ExpiresAt.ToString("o"),
                 ["scope"] = entry.Scope,
+                ["clientId"] = entry.ClientId,
             };
         }
         File.WriteAllText(filePath, Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(plain)));
@@ -99,9 +105,12 @@ public sealed class TokenVault
                 var scope = property.Value.TryGetProperty("scope", out var scopeElement) && scopeElement.ValueKind == JsonValueKind.String
                     ? scopeElement.GetString() ?? ""
                     : "";
+                var clientId = property.Value.TryGetProperty("clientId", out var clientIdElement) && clientIdElement.ValueKind == JsonValueKind.String
+                    ? clientIdElement.GetString() ?? ""
+                    : "";
                 if (accessToken is not null && refreshToken is not null)
                 {
-                    entries[property.Name] = new VaultedToken(accessToken, refreshToken, expiresAt, scope);
+                    entries[property.Name] = new VaultedToken(accessToken, refreshToken, expiresAt, scope, clientId);
                 }
             }
         }
