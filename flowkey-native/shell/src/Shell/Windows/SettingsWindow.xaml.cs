@@ -163,7 +163,7 @@ public partial class SettingsWindow : Window
             Tag = entry.Key,
             Style = FindResource("SettingsNavButton") as Style,
             Content = BuildNavLabel(entry.Label, entry.Glyph, brand),
-            Margin = new Thickness(0, topGap ? 14 : 0, 0, 1),
+            Margin = new Thickness(0, topGap ? (double)FindResource("NavGroupGap") : 0, 0, (double)FindResource("NavRowSpacing")),
         };
         button.Checked += (_, _) =>
         {
@@ -177,16 +177,28 @@ public partial class SettingsWindow : Window
     {
         if (string.IsNullOrEmpty(glyph))
         {
-            return new TextBlock { Width = 16 };
+            return new TextBlock { Width = (double)FindResource("SettingsNavIconSize") };
         }
         if (glyph.Length == 1 && glyph[0] >= 0xE000 && glyph[0] <= 0xF8FF)
         {
-            return new TextBlock
+            // Core nav entries render as a rounded tile outline with the glyph centered,
+            // matching the reference sidebar's icon treatment.
+            return new Border
             {
-                Text = glyph,
-                FontFamily = FindResource("GlyphFontFamily") as System.Windows.Media.FontFamily,
-                FontSize = 14,
+                Width = (double)FindResource("SettingsNavIconSize"),
+                Height = (double)FindResource("SettingsNavIconSize"),
+                CornerRadius = (System.Windows.CornerRadius)FindResource("SettingsNavTileCornerRadius"),
+                BorderBrush = (Brush)FindResource("SettingsNavTileStrokeBrush"),
+                BorderThickness = new Thickness(1),
                 VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = glyph,
+                    FontFamily = FindResource("GlyphFontFamily") as System.Windows.Media.FontFamily,
+                    FontSize = (double)FindResource("SettingsNavGlyphSize"),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
             };
         }
         if (EmojiSpriteRenderer.IsCached(glyph))
@@ -203,8 +215,8 @@ public partial class SettingsWindow : Window
                 return new System.Windows.Controls.Image
                 {
                     Source = bitmap,
-                    Width = 16,
-                    Height = 16,
+                    Width = (double)FindResource("SettingsNavIconSize"),
+                    Height = (double)FindResource("SettingsNavIconSize"),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
             }
@@ -224,8 +236,10 @@ public partial class SettingsWindow : Window
     private StackPanel BuildNavLabel(string label, string? glyph, ReadyExtension? brand = null)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal };
-        var glyphElement = brand is not null ? BuildBrandMark(brand, 16) : BuildNavGlyph(glyph);
-        glyphElement.Margin = new Thickness(0, 0, 10, 0);
+        var glyphElement = brand is not null
+            ? BuildBrandMark(brand, (double)FindResource("SettingsNavIconSize"))
+            : BuildNavGlyph(glyph);
+        glyphElement.Margin = new Thickness(0, 0, (double)FindResource("NavIconGap"), 0);
         panel.Children.Add(glyphElement);
         panel.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
         return panel;

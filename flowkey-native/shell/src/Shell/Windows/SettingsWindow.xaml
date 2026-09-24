@@ -3,14 +3,19 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:ui="http://lepoco/wpfui"
         xmlns:uiD="clr-namespace:Wpf.Ui.Markup;assembly=Wpf.Ui"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         Title="FlowKey Settings"
-        Width="980" Height="640"
+        Width="{DynamicResource SettingsWindowWidth}" Height="{DynamicResource SettingsWindowHeight}"
+        MinWidth="{DynamicResource SettingsWindowWidth}" MinHeight="{DynamicResource SettingsWindowHeight}"
         WindowStartupLocation="CenterScreen"
         ShowInTaskbar="True"
         WindowStyle="None"
-        ResizeMode="CanMinimize"
+        ResizeMode="CanResize"
         Background="{DynamicResource WindowBackgroundBrush}"
         FontFamily="{DynamicResource AppFontFamily}">
+  <shell:WindowChrome.WindowChrome>
+    <shell:WindowChrome CaptionHeight="0" ResizeBorderThickness="{StaticResource ChromeResizeBorderThickness}" GlassFrameThickness="0" CornerRadius="0" UseAeroCaptionButtons="False" />
+  </shell:WindowChrome.WindowChrome>
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.MergedDictionaries>
@@ -43,7 +48,7 @@
       <SolidColorBrush x:Key="ToggleSwitchContentForegroundDisabled" Color="{StaticResource TextTertiaryColor}" />
 
       <Style x:Key="SettingsNavButton" TargetType="RadioButton">
-        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="FontSize" Value="{DynamicResource KindFontSize}" />
         <Setter Property="FontWeight" Value="Regular" />
@@ -52,7 +57,7 @@
         <Setter Property="Template">
           <Setter.Value>
             <ControlTemplate TargetType="RadioButton">
-              <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource RowCornerRadius}" Padding="{DynamicResource PanelRowPadding}" SnapsToDevicePixels="True">
+              <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource SettingsNavRowCornerRadius}" Padding="{DynamicResource NavRowPadding}" SnapsToDevicePixels="True">
                 <ContentPresenter VerticalAlignment="Center" />
               </Border>
               <ControlTemplate.Triggers>
@@ -78,7 +83,6 @@
       </Style>
 
       <Style x:Key="ChromeButton" TargetType="Button">
-        <Setter Property="Width" Value="34" />
         <Setter Property="Height" Value="26" />
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
@@ -89,12 +93,15 @@
           <Setter.Value>
             <ControlTemplate TargetType="Button">
               <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="{DynamicResource KeycapCornerRadius}">
-                <TextBlock Text="{TemplateBinding Content}" FontFamily="{DynamicResource GlyphFontFamily}" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Text="{TemplateBinding Content}" FontFamily="{DynamicResource GlyphFontFamily}" FontSize="{TemplateBinding FontSize}" HorizontalAlignment="Center" VerticalAlignment="Center" />
               </Border>
               <ControlTemplate.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource SurfaceBrush}" />
                   <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter Property="Foreground" Value="{DynamicResource ChromeNavDisabledBrush}" />
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>
@@ -263,56 +270,52 @@
       <RowDefinition Height="1" />
       <RowDefinition Height="*" />
     </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="{StaticResource SidebarWidth}" />
+      <ColumnDefinition Width="1" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
 
-    <Grid Grid.Row="0" Background="{DynamicResource ChromeBackgroundBrush}" MouseLeftButtonDown="OnChromeDrag">
-      <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="12,0,0,0">
-        <TextBlock Text="Settings" FontSize="{DynamicResource HeaderFontSize}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
-        <Button Style="{StaticResource ChromeButton}" Content="&#xE72B;" Click="OnBackClick" IsEnabled="{Binding CanNavigateBack, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
-        <Button Style="{StaticResource ChromeButton}" Content="&#xE72A;" Click="OnForwardClick" IsEnabled="{Binding CanNavigateForward, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
-      </StackPanel>
-      <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,6,0">
-        <Button Style="{StaticResource ChromeButton}" Content="&#xE712;" ToolTip="Not available yet" IsEnabled="False" />
-        <Button Style="{StaticResource ChromeButton}" Content="&#xE921;" Click="OnMinimizeClick" />
-        <Button Style="{StaticResource ChromeButton}" Content="&#xE8BB;" Click="OnCloseClick" />
-      </StackPanel>
-    </Grid>
+    <!-- Chrome: drag band, then title zone | full-height divider | nav + window controls -->
+    <Border Grid.Row="0" Grid.ColumnSpan="3" Background="{DynamicResource ChromeBackgroundBrush}" MouseLeftButtonDown="OnChromeDrag" />
+    <Border Grid.Row="1" Grid.ColumnSpan="3" Background="{DynamicResource ChromeDividerBrush}" />
+    <Border Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Background="{DynamicResource DividerBrush}" />
+    <TextBlock Grid.Row="0" Grid.Column="0" Text="Settings" FontSize="{DynamicResource HeaderFontSize}" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="{DynamicResource ChromeTitleMargin}" MouseLeftButtonDown="OnChromeDrag" />
+    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="{DynamicResource ChromeNavClusterMargin}" Background="Transparent" MouseLeftButtonDown="OnChromeDrag">
+      <Button Style="{StaticResource ChromeButton}" Width="{DynamicResource ChromeNavButtonWidth}" FontSize="{DynamicResource ChromeNavGlyphSize}" Content="&#xE76B;" Click="OnBackClick" IsEnabled="{Binding CanNavigateBack, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
+      <Button Style="{StaticResource ChromeButton}" Width="{DynamicResource ChromeNavButtonWidth}" FontSize="{DynamicResource ChromeNavGlyphSize}" Content="&#xE76C;" Click="OnForwardClick" IsEnabled="{Binding CanNavigateForward, RelativeSource={RelativeSource AncestorType={x:Type Window}}}" />
+    </StackPanel>
+    <StackPanel Grid.Row="0" Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Background="Transparent" MouseLeftButtonDown="OnChromeDrag">
+      <Button Style="{StaticResource ChromeButton}" Width="{DynamicResource ChromeWindowButtonWidth}" FontSize="{DynamicResource ChromeGlyphFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" Content="&#xE921;" Click="OnMinimizeClick" />
+      <Button Style="{StaticResource ChromeButton}" Width="{DynamicResource ChromeWindowButtonWidth}" FontSize="{DynamicResource ChromeGlyphFontSize}" Foreground="{DynamicResource TextPrimaryBrush}" Content="&#xE8BB;" Click="OnCloseClick" />
+    </StackPanel>
 
-    <Border Grid.Row="1" Background="{DynamicResource DividerBrush}" />
+    <Border Grid.Row="2" Grid.Column="0" Background="{DynamicResource WindowBackgroundBrush}" Padding="{DynamicResource SidebarPadding}">
+      <DockPanel>
+        <Border DockPanel.Dock="Top" Background="{DynamicResource RowSelectedBackgroundBrush}" BorderThickness="0" CornerRadius="{DynamicResource SettingsSearchCornerRadius}" Padding="{DynamicResource SidebarSearchPadding}" Margin="{DynamicResource SidebarSearchMargin}" ToolTip="Not available yet">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="{DynamicResource GlyphFontFamily}" FontSize="{DynamicResource SearchIconSize}" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="{DynamicResource IconMargin}" />
+            <TextBox Grid.Column="1" x:Name="SearchBox" IsEnabled="False" Text="Search settings…" Foreground="{DynamicResource TextTertiaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" />
+          </Grid>
+        </Border>
 
-    <Grid Grid.Row="2">
-      <Grid.ColumnDefinitions>
-        <ColumnDefinition Width="240" />
-        <ColumnDefinition Width="1" />
-        <ColumnDefinition Width="*" />
-      </Grid.ColumnDefinitions>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <StackPanel x:Name="NavPanel" />
+        </ScrollViewer>
+      </DockPanel>
+    </Border>
 
-      <Border Grid.Column="0" Background="{DynamicResource WindowBackgroundBrush}" Padding="10,14,10,10">
-        <DockPanel>
-          <Border DockPanel.Dock="Top" Background="{DynamicResource SurfaceBrush}" BorderThickness="0" CornerRadius="{DynamicResource RowCornerRadius}" Padding="8,5" Margin="0,0,0,12" ToolTip="Not available yet">
-            <Grid>
-              <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="*" />
-              </Grid.ColumnDefinitions>
-              <TextBlock Grid.Column="0" Text="&#xE721;" FontFamily="{DynamicResource GlyphFontFamily}" FontSize="{DynamicResource GlyphFontSize}" Foreground="{DynamicResource TextTertiaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-              <TextBox Grid.Column="1" x:Name="SearchBox" IsEnabled="False" Text="Search settings…" Foreground="{DynamicResource TextTertiaryBrush}" Background="Transparent" BorderThickness="0" Padding="0" />
-            </Grid>
-          </Border>
+    <Border Grid.Row="2" Grid.Column="1" Background="{DynamicResource DividerBrush}" />
 
-          <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <StackPanel x:Name="NavPanel" />
-          </ScrollViewer>
-        </DockPanel>
-      </Border>
+    <ScrollViewer Grid.Row="2" Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="24,18,24,18">
+      <ContentControl x:Name="PageHost" Focusable="False" />
+    </ScrollViewer>
 
-      <Border Grid.Column="1" Background="{DynamicResource DividerBrush}" />
-
-      <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="24,18,24,18">
-        <ContentControl x:Name="PageHost" Focusable="False" />
-      </ScrollViewer>
-    </Grid>
-
-    <Grid x:Name="ModalOverlay" Grid.RowSpan="3" Visibility="Collapsed">
+    <Grid x:Name="ModalOverlay" Grid.RowSpan="3" Grid.ColumnSpan="3" Visibility="Collapsed">
       <Border Background="{DynamicResource WindowBackgroundBrush}" Opacity="0.72" MouseLeftButtonDown="OnModalBackdropClick" />
       <Border x:Name="ModalCard" Background="{DynamicResource ActionPanelBackgroundBrush}" BorderBrush="{DynamicResource KeycapBorderBrush}" BorderThickness="1" CornerRadius="{DynamicResource RowCornerRadius}" Width="480" HorizontalAlignment="Center" VerticalAlignment="Center" Padding="18,14,18,14" />
     </Grid>

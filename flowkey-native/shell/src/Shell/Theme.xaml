@@ -100,6 +100,34 @@
 
   <CornerRadius x:Key="BackButtonCornerRadius">16</CornerRadius>
 
+  <!-- Settings window chrome + sidebar (Phase E, measured against design-reference/raycast-settings-ref) -->
+  <GridLength x:Key="SidebarWidth">230</GridLength>
+  <sys:Double x:Key="SettingsWindowWidth">1080</sys:Double>
+  <sys:Double x:Key="SettingsWindowHeight">700</sys:Double>
+  <Thickness x:Key="ChromeResizeBorderThickness">7</Thickness>
+  <SolidColorBrush x:Key="ChromeDividerBrush" Color="#3F3F3F" />
+  <SolidColorBrush x:Key="ChromeNavDisabledBrush" Color="#484848" />
+  <sys:Double x:Key="ChromeWindowButtonWidth">46</sys:Double>
+  <sys:Double x:Key="ChromeNavButtonWidth">22</sys:Double>
+  <sys:Double x:Key="ChromeGlyphFontSize">10</sys:Double>
+  <sys:Double x:Key="ChromeNavGlyphSize">16</sys:Double>
+  <Thickness x:Key="ChromeTitleMargin">16,0,0,0</Thickness>
+  <Thickness x:Key="ChromeNavClusterMargin">11,0,0,0</Thickness>
+  <Thickness x:Key="SidebarPadding">10,16,10,10</Thickness>
+  <Thickness x:Key="SidebarSearchPadding">10,4</Thickness>
+  <Thickness x:Key="SidebarSearchMargin">0,0,0,20</Thickness>
+  <sys:Double x:Key="SearchIconSize">16</sys:Double>
+  <Thickness x:Key="NavRowPadding">6,5</Thickness>
+  <sys:Double x:Key="NavRowSpacing">2</sys:Double>
+  <sys:Double x:Key="NavGroupGap">14</sys:Double>
+  <sys:Double x:Key="NavIconGap">8</sys:Double>
+  <sys:Double x:Key="SettingsNavIconSize">22</sys:Double>
+  <sys:Double x:Key="SettingsNavGlyphSize">14</sys:Double>
+  <CornerRadius x:Key="SettingsNavRowCornerRadius">6</CornerRadius>
+  <CornerRadius x:Key="SettingsNavTileCornerRadius">6</CornerRadius>
+  <CornerRadius x:Key="SettingsSearchCornerRadius">4</CornerRadius>
+  <SolidColorBrush x:Key="SettingsNavTileStrokeBrush" Color="#686868" />
+
   <LinearGradientBrush x:Key="FooterToastErrorBrush" StartPoint="0,0" EndPoint="1,0">
     <GradientStop Color="#96462323" Offset="0" />
     <GradientStop Color="#59462323" Offset="0.45" />
