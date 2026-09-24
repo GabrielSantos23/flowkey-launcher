@@ -15,7 +15,6 @@ import { RootManager, type ManagedRoot } from './roots';
 import emoji from '@flowkey/extension-emoji';
 import googleTranslate from '@flowkey/extension-google-translate';
 import apps from '@flowkey/extension-apps';
-import httpTest from '@flowkey/extension-http-test';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
 import spotify from '@flowkey/extension-spotify';
 import reactDemo from '@flowkey/extension-react-demo';
@@ -31,7 +30,6 @@ function isReactModule(module: LoadedModule): module is LoadedReact {
 const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   emoji,
   apps,
-  httpTest,
   clipboardHistory,
   googleTranslate,
   reactDemo,
