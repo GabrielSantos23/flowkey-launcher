@@ -53,6 +53,8 @@ public partial class MainWindow : Window
     private readonly OAuthService oauthService;
     private readonly ImageFetchService imageFetch = new();
     private List<UiItem> gridItems = new();
+    private DetailTree? currentDetail;
+    private string? currentDetailExtensionId;
     private int gridColumns;
     private int gridIndex;
     private List<GridCellVm> gridCells = new();
@@ -591,6 +593,14 @@ public partial class MainWindow : Window
             }
             return;
         }
+        if (DetailHost.Visibility == Visibility.Visible)
+        {
+            if (HandleDetailKeys(e))
+            {
+                e.Handled = true;
+            }
+            return;
+        }
         HandleListKeys(e);
     }
 
@@ -734,6 +744,12 @@ public partial class MainWindow : Window
 
     private string? SelectedPrimaryActionTitle()
     {
+        if (DetailHost.Visibility == Visibility.Visible && currentDetail is not null)
+        {
+            var detailAction = currentDetail.Actions?.FirstOrDefault(a => a.Primary == true)
+                ?? currentDetail.Actions?.FirstOrDefault();
+            return detailAction?.Title;
+        }
         if (GridHostPanel.Visibility == Visibility.Visible)
         {
             if (gridIndex >= 0 && gridIndex < gridItems.Count)
@@ -807,6 +823,67 @@ public partial class MainWindow : Window
     private void OnBackButtonClick(object sender, MouseButtonEventArgs e) => PerformEscape();
 
     private void OnListDoubleClick(object sender, MouseButtonEventArgs e) => RunPrimaryAction();
+
+    private bool HandleDetailKeys(KeyEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case Key.Enter:
+                RunDetailPrimary();
+                return true;
+            case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenDetailActionPanel();
+                return true;
+            case Key.OemComma when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                OpenSettings();
+                return true;
+            case Key.Escape:
+                PerformEscape();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private void RunDetailPrimary()
+    {
+        if (currentDetail is null || currentDetailExtensionId is null)
+        {
+            return;
+        }
+        var action = currentDetail.Actions?.FirstOrDefault(a => a.Primary == true)
+            ?? currentDetail.Actions?.FirstOrDefault();
+        if (action is null)
+        {
+            return;
+        }
+        if (RunPushAction(currentDetailExtensionId, action))
+        {
+            return;
+        }
+        var requestId = sidecar.SendAction(
+            currentDetailExtensionId, action.Id, new UiItem { Id = currentDetail.Title });
+        searchState.TrackAction(requestId, currentDetailExtensionId);
+        BeginOperation();
+    }
+
+    private void OpenDetailActionPanel()
+    {
+        if (currentDetail is null || currentDetailExtensionId is null)
+        {
+            return;
+        }
+        var actions = (currentDetail.Actions ?? new List<UiAction>()).ToList();
+        if (actions.Count < 2)
+        {
+            RunDetailPrimary();
+            return;
+        }
+        OpenActionPanel(
+            currentDetailExtensionId,
+            new UiItem { Id = currentDetail.Title, Title = currentDetail.Title },
+            actions);
+    }
 
     private void RunPrimaryAction()
     {
@@ -975,6 +1052,7 @@ public partial class MainWindow : Window
             HideWindow();
             return;
         }
+        BeginOperation();
         var requestId = sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
             new UiItem { Id = row.CommandId, Title = row.Item.Title });
         searchState.PushRequest(requestId, row.ExtensionId!, row.CommandId!);
@@ -1343,9 +1421,10 @@ public partial class MainWindow : Window
 
     private void OnSidecarUi(UiMessage message)
     {
-        EndOperation();
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, (Action)EndOperation);
         Dispatcher.BeginInvoke(() =>
         {
+            currentDetail = null;
             if (message.Tree is null)
             {
                 return;
@@ -1358,12 +1437,15 @@ public partial class MainWindow : Window
             if (message.Tree is DetailTree detail)
             {
                 var extensionId = searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId;
+                currentDetail = detail;
+                currentDetailExtensionId = extensionId;
                 DetailHost.Content = DetailRenderer.Render(detail, action =>
                     sidecar.SendAction(extensionId ?? "", action.Id,
                         new UiItem { Id = detail.Title }));
                 DetailHost.Visibility = Visibility.Visible;
                 ResultsList.Visibility = Visibility.Collapsed;
                 EmptyView.Visibility = Visibility.Collapsed;
+                UpdateFooter();
                 return;
             }
             DetailHost.Visibility = Visibility.Collapsed;
@@ -1380,7 +1462,7 @@ public partial class MainWindow : Window
             }
             DetailHost.Visibility = Visibility.Collapsed;
             GridHostPanel.Visibility = Visibility.Collapsed;
-            ApplyListLayout(list);
+            ApplyListLayout(list, searchState.Depth > 1);
             var display = BuildDisplayRows();
             LoadRowIcons(display);
             ApplyRows(display, list.EmptyView);
@@ -1395,6 +1477,7 @@ public partial class MainWindow : Window
             {
                 return;
             }
+            currentDetail = null;
             if (!searchState.ShouldApplyPush(message, SearchBox.Text))
             {
                 DebugLog.Write(
@@ -1408,12 +1491,15 @@ public partial class MainWindow : Window
             }
             if (message.Tree is DetailTree detail)
             {
+                currentDetail = detail;
+                currentDetailExtensionId = message.ExtensionId;
                 DetailHost.Content = DetailRenderer.Render(detail, action =>
                     sidecar.SendAction(message.ExtensionId, action.Id,
                         new UiItem { Id = detail.Title }));
                 DetailHost.Visibility = Visibility.Visible;
                 ResultsList.Visibility = Visibility.Collapsed;
                 EmptyView.Visibility = Visibility.Collapsed;
+                UpdateFooter();
                 return;
             }
             if (message.Tree is ListTree list)
@@ -1421,7 +1507,7 @@ public partial class MainWindow : Window
                 DebugLog.Write($"UiPushApplied ext={message.ExtensionId} cmd={message.CommandId}");
                 DetailHost.Visibility = Visibility.Collapsed;
                 GridHostPanel.Visibility = Visibility.Collapsed;
-                ApplyListLayout(list);
+                ApplyListLayout(list, allowSidePane: true);
                 searchState.PushResult(message.ExtensionId, list);
                 var display = BuildDisplayRows();
                 LoadRowIcons(display);
@@ -1430,24 +1516,15 @@ public partial class MainWindow : Window
         });
     }
 
-    private void ApplyListLayout(ListTree list)
+    private void ApplyListLayout(ListTree list, bool allowSidePane)
     {
-        var sidePane = list.Layout == "side-pane";        if (sidePane)
+        DebugLog.Write($"ListLayout layout={list.Layout} allow={allowSidePane} depth={searchState.Depth}");
+        var sidePane = allowSidePane && list.Layout == "side-pane";        if (sidePane)
         {
             ListColumn.Width = new GridLength(SidePaneListWidth);
             PaneColumn.Width = new GridLength(1, GridUnitType.Star);
             PaneDivider.Visibility = Visibility.Visible;
             PaneHost.Visibility = Visibility.Visible;
-            FilterDropdown.Visibility = list.Filter is null ? Visibility.Collapsed : Visibility.Visible;
-            FilterList.ItemsSource = list.Filter?.Options.ToList();
-            var current = list.Filter?.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
-                ?? list.Filter?.Options.FirstOrDefault();
-            FilterLabel.Text = current?.Label ?? "";
-            if (searchState.Top is { } top)
-            {
-                top.FilterValue = current?.Value;
-                top.Query = SearchBox.Text;
-            }
         }
         else
         {
