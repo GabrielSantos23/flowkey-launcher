@@ -213,6 +213,12 @@
               </ControlTemplate>
             </Setter.Value>
           </Setter>
+          <Style.Triggers>
+            <DataTrigger Binding="{Binding IsHeader}" Value="True">
+              <Setter Property="Focusable" Value="False" />
+              <Setter Property="IsHitTestVisible" Value="False" />
+            </DataTrigger>
+          </Style.Triggers>
         </Style>
       </ListBox.ItemContainerStyle>
       <ListBox.Resources>

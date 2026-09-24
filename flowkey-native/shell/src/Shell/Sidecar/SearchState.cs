@@ -226,6 +226,8 @@ public abstract class UiRow
 {
     public string? ExtensionId { get; set; }
 
+    public bool IsHeader => this is HeaderRow;
+
     public static HeaderRow Header(string title) => new() { Title = title };
     public static ItemRow Item(UiItem item) => new() { Item = item };
 }
