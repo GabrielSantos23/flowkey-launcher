@@ -1,0 +1,26 @@
+{
+  "name": "@flowkey/sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@flowkey/extension-apps": "workspace:*",
+    "@flowkey/extension-clipboard-history": "workspace:*",
+    "@flowkey/extension-emoji": "workspace:*",
+    "@flowkey/extension-google-translate": "workspace:*",
+    "@flowkey/extension-react-demo": "workspace:*",
+    "@flowkey/extension-spotify": "workspace:*",
+    "@flowkey/native-sdk": "workspace:*",
+    "@flowkey/react-ui": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "react": "19.3.0",
+    "typescript": "^7.0.2"
+  }
+}

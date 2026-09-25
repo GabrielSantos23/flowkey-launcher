@@ -1,0 +1,53 @@
+{
+  "id": "clipboard-history",
+  "name": "Clipboard History",
+  "version": "1.0.0",
+  "description": "Browse and re-copy recent clipboard text.",
+  "icon": "📋",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Clipboard History",
+      "mode": "view",
+      "keywords": [
+        "clipboard",
+        "history",
+        "paste"
+      ],
+      "icon": "clipboard",
+      "iconColor": "#F59E0B"
+    },
+    {
+      "id": "clear",
+      "title": "Clear Clipboard History",
+      "mode": "background",
+      "keywords": [
+        "clipboard",
+        "clear",
+        "wipe"
+      ],
+      "icon": "trash-2",
+      "iconColor": "#EF4444"
+    }
+  ],
+  "nativeMethods": [
+    "clipboard.read",
+    "clipboard.history",
+    "clipboard.clearHistory",
+    "clipboard.write",
+    "clipboard.deleteEntry",
+    "clipboard.copyEntry",
+    "clipboard.pasteEntry",
+    "clipboard.editEntry",
+    "hud.show"
+  ],
+  "httpHosts": [],
+  "preferences": [
+    {
+      "name": "showTimestamps",
+      "type": "checkbox",
+      "title": "Show timestamps in results",
+      "default": true
+    }
+  ]
+}

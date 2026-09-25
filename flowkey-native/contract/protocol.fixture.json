@@ -1,0 +1,204 @@
+{
+  "protocolVersion": 1,
+  "hostToSidecar": {
+    "init": {
+      "type": "init",
+      "protocolVersion": 1,
+      "extensionsDir": "C:/app/extensions",
+      "preferences": {
+        "emoji": {
+          "skinTone": "none"
+        }
+      }
+    },
+    "search": {
+      "type": "search",
+      "requestId": "s-1",
+      "extensionId": "emoji",
+      "query": "part",
+      "commandId": null
+    },
+    "action": {
+      "type": "action",
+      "requestId": "a-1",
+      "extensionId": "emoji",
+      "actionId": "copy",
+      "item": {
+        "id": "🎉",
+        "title": "🎉 Party Popper",
+        "icon": "🎉",
+        "actions": [
+          {
+            "id": "copy",
+            "title": "Copy",
+            "primary": true
+          }
+        ]
+      }
+    },
+    "preferences": {
+      "type": "preferences",
+      "extensionId": "emoji",
+      "values": {
+        "skinTone": "1F3FD"
+      }
+    },
+    "searchWithCommand": {
+      "type": "search",
+      "requestId": "s-9",
+      "extensionId": "clipboard-history",
+      "query": "",
+      "commandId": "open"
+    }
+  },
+  "sidecarToHost": {
+    "ready": {
+      "type": "ready",
+      "protocolVersion": 1,
+      "extensions": [
+        {
+          "id": "emoji",
+          "name": "Emoji",
+          "version": "1.0.0",
+          "commands": [
+            {
+              "id": "open",
+              "title": "Emoji & Symbols",
+              "keywords": [
+                "emoji",
+                "symbol",
+                "kaomoji"
+              ],
+              "mode": "view",
+              "icon": "smile",
+              "iconColor": "#4F8CFF"
+            }
+          ],
+          "nativeMethods": [
+            "clipboard.write"
+          ],
+          "httpHosts": [],
+          "oauth": [],
+          "icon": "😀",
+          "preferences": [
+            {
+              "name": "skinTone",
+              "type": "dropdown",
+              "title": "Default skin tone",
+              "default": "none",
+              "options": [
+                {
+                  "value": "none",
+                  "title": "None"
+                },
+                {
+                  "value": "1F3FD",
+                  "title": "Medium"
+                }
+              ]
+            }
+          ],
+          "description": "Fixture extension description."
+        }
+      ]
+    },
+    "ui": {
+      "type": "ui",
+      "requestId": "s-1",
+      "tree": {
+        "type": "list",
+        "sections": [
+          {
+            "items": [
+              {
+                "id": "🎉",
+                "title": "🎉 Party Popper",
+                "subtitle": "celebration, party",
+                "icon": "🎉",
+                "actions": [
+                  {
+                    "id": "copy",
+                    "title": "Copy",
+                    "primary": true
+                  },
+                  {
+                    "id": "open-album",
+                    "title": "Go to Songs",
+                    "push": "album-songs:al1"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "emptyView": {
+          "title": "No matches"
+        }
+      }
+    },
+    "error": {
+      "type": "error",
+      "requestId": "a-1",
+      "error": {
+        "code": "nativeMethodFailed",
+        "message": "clipboard.write failed: access denied"
+      }
+    },
+    "uiPush": {
+      "type": "uiPush",
+      "extensionId": "clipboard-history",
+      "commandId": "open",
+      "query": "par",
+      "filterValue": "all",
+      "tree": {
+        "type": "list",
+        "sections": [
+          {
+            "items": [
+              {
+                "id": "🎉",
+                "title": "🎉 Party Popper",
+                "subtitle": "celebration, party",
+                "icon": "🎉",
+                "actions": [
+                  {
+                    "id": "copy",
+                    "title": "Copy",
+                    "primary": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "nativeCall": {
+      "type": "nativeCall",
+      "requestId": "n-1",
+      "extensionId": "emoji",
+      "method": "clipboard.write",
+      "params": {
+        "text": "🎉"
+      }
+    },
+    "nativeCallDenied": {
+      "type": "nativeCall",
+      "requestId": "n-2",
+      "extensionId": "emoji",
+      "method": "http.fetch",
+      "params": {
+        "url": "https://evil.example.com/api"
+      }
+    },
+    "log": {
+      "type": "log",
+      "level": "info",
+      "message": "emoji catalog loaded (1878 items)"
+    },
+    "ack": {
+      "type": "ack",
+      "requestId": "a-2"
+    }
+  }
+}

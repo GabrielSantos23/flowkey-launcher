@@ -1,0 +1,171 @@
+name: Release Shell
+
+# The C# shell (flowkey-native/shell) has its own release line because the
+# Tauri launcher already owns `v*` tags. Tags prefixed `shell-v` produce a
+# Velopack release on GitHub Releases, which the shell's UpdateManager
+# (UpdateService.cs) checks against the same repository.
+
+on:
+  push:
+    tags:
+      - 'shell-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing shell-v* tag to (re-)release'
+        required: true
+
+concurrency:
+  group: release-shell-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run shell tests
+        run: dotnet test flowkey-native/shell/FlowKey.sln -c Release --filter
+          "FullyQualifiedName!~EmojiSpriteTests&FullyQualifiedName!~SidecarPipeDeadlockTests&FullyQualifiedName!~AuthedFetchEnforcesOneTotalBudgetAcrossRetries"
+        # EmojiSpriteTests requires a local headless browser (not on the runner);
+        # SidecarPipeDeadlockTests and the auth retry-budget test are timing-
+        # sensitive and flake under CI load. All stay in the local `dotnet test`
+        # run — excluded here only because they are environment-dependent.
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10.26.0
+
+      - name: Resolve version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          $version = $tag -replace '^shell-v', ''
+          if ($version -notmatch '^\d+(\.\d+){0,3}$') {
+            Write-Error "Tag '$tag' does not carry a numeric version (expected shell-vX.Y.Z)"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish self-contained win-x64
+        run: dotnet publish flowkey-native/shell/src/Shell/Shell.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:ReleaseVersion=${{ steps.version.outputs.version }}
+          -o publish
+
+      # flowkey-native is its own pnpm workspace (sdk, sidecar, react-ui,
+      # extensions) — install there, not at the repo root.
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: flowkey-native
+
+      # The sidecar runs from source via bun and resolves workspace packages
+      # (@flowkey/native-sdk, react-ui, the extensions) through relative pnpm
+      # symlinks into flowkey-native/node_modules/.pnpm. Ship the trees with
+      # symlinks preserved (tar, unlike Copy-Item/robocopy) and include the
+      # ui-tree fixture so MainWindow.FindRepoRoot's walk-up finds the layout.
+      # The sidecar is compiled to a single self-contained exe (bun bake in of
+      # the sidecar, all extensions, sdk and react-ui) because Velopack's zip
+      # packaging does not preserve pnpm's junction/symlink node_modules layout.
+      # Only plain-file trees ship: sidecar sources (the FindRepoRoot marker
+      # lives at sidecar/src/main.ts), the compiled exe, and extensions.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Compile sidecar
+        run: bun build --compile --target=bun-windows-x64 src/main.ts --outfile FlowKey.Sidecar.exe
+        working-directory: flowkey-native/sidecar
+
+      - name: Bundle sidecar and extensions
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force publish/flowkey-native/sidecar, publish/flowkey-native/contract | Out-Null
+          Copy-Item flowkey-native/sidecar/FlowKey.Sidecar.exe publish/flowkey-native/sidecar/
+          Copy-Item flowkey-native/sidecar/src publish/flowkey-native/sidecar/src -Recurse
+          # Extensions are baked into the exe; only their plain files (manifest,
+          # assets) ship. node_modules is dev-only — exclude it.
+          tar -cf - --exclude '*node_modules*' -C flowkey-native extensions | tar -xf - -C publish/flowkey-native
+          Copy-Item flowkey-native/contract/ui-tree.fixture.json publish/flowkey-native/contract/
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          # Kept outside publish/ so vpk pack doesn't swallow the archive into
+          # the installer payload.
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Compress-Archive -Path "publish/*" -DestinationPath "portable/FlowKey_${{ steps.version.outputs.version }}_windows_x64_portable.zip" -Force
+
+      - name: Pack Velopack release
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk
+          vpk pack `
+            --packId FlowKey `
+            --packVersion ${{ steps.version.outputs.version }} `
+            --packDir publish `
+            --mainExe FlowKey.Shell.exe `
+            --packTitle FlowKey
+          # Unsigned artifacts: pair with `vpk sign` + repo secrets before
+          # distributing outside development. Velopack only enforces signature
+          # verification when the release metadata carries one.
+
+      - name: Upload Velopack release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: shell-release
+          if-no-files-found: error
+          path: |
+            Releases/*
+            portable/*.zip
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: shell-release
+          path: shell-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2.6.1
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          # vpk names the setup bundle `FlowKey-win-Setup.exe` (not Setup.exe)
+          # and the portable zip lands in its own artifact subfolder, so the
+          # globs must cover prefixes and subdirectories.
+          files: |
+            shell-release/Releases/*
+            shell-release/portable/*.zip
+          draft: false
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          generate_release_notes: true

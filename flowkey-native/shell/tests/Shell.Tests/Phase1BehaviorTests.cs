@@ -1,0 +1,254 @@
+using System.Text.Json;
+using FlowKey.Shell.Native;
+using FlowKey.Shell.Protocol;
+using FlowKey.Shell.Sidecar;
+using Xunit;
+
+namespace FlowKey.Shell.Tests;
+
+public class NativeMethodTableTests
+{
+    private static Dictionary<string, JsonElement> Params(string key, string value) =>
+        new() { [key] = JsonDocument.Parse($"\"{value}\"").RootElement };
+
+    [Fact]
+    public void UndeclaredMethodIsRejectedBeforeLookup()
+    {
+        var table = new NativeMethodTable();
+        var outcome = table.Execute("clipboard.write", Array.Empty<string>(), Params("text", "x"));
+        Assert.False(outcome.Ok);
+        Assert.Equal("methodNotDeclared", outcome.Error!.Code);
+    }
+
+    [Fact]
+    public void FakeMethodYieldsNotImplementedStructuredError()
+    {
+        var table = new NativeMethodTable();
+        var declared = new[] { "fake.method" };
+        var outcome = table.Execute("fake.method", declared, Params("x", "y"));
+        Assert.False(outcome.Ok);
+        Assert.Equal("notImplemented", outcome.Error!.Code);
+        Assert.Contains("fake.method", outcome.Error.Message);
+        Assert.Null(outcome.Result);
+    }
+
+    [Fact]
+    public void DeclaredClipboardWriteSucceeds()
+    {
+        JsonElement? error = null;
+        var thread = new Thread(() =>
+        {
+            var table = new NativeMethodTable();
+            var outcome = table.Execute("clipboard.write", new[] { "clipboard.write" }, Params("text", "🎉"));
+            if (!outcome.Ok)
+            {
+                error = JsonSerializer.SerializeToElement(outcome.Error);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        Assert.Null(error);
+    }
+
+    [Fact]
+    public void ClipboardWriteWithMissingTextFailsWithInvalidParams()
+    {
+        var table = new NativeMethodTable();
+        var outcome = table.Execute("clipboard.write", new[] { "clipboard.write" }, null);
+        Assert.False(outcome.Ok);
+        Assert.Equal("invalidParams", outcome.Error!.Code);
+    }
+
+    [Fact]
+    public void DeleteEntryGateRejectsUndeclaredExtension()
+    {
+        var table = new NativeMethodTable();
+        table.Register("clipboard.deleteEntry", _ => NativeCallOutcome.Success());
+        var outcome = table.Execute("clipboard.deleteEntry", Array.Empty<string>(), Params("id", "abc"));
+        Assert.False(outcome.Ok);
+        Assert.Equal("methodNotDeclared", outcome.Error!.Code);
+        Assert.Null(outcome.Result);
+    }
+
+    [Fact]
+    public void DeleteEntryDeclaredExtensionReachesHandler()
+    {
+        var table = new NativeMethodTable();
+        table.Register("clipboard.deleteEntry", _ =>
+            NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true })));
+        var outcome = table.Execute("clipboard.deleteEntry", new[] { "clipboard.deleteEntry" }, Params("id", "abc"));
+        Assert.True(outcome.Ok);
+        Assert.True(outcome.Result!.Value.GetProperty("ok").GetBoolean());
+    }
+}
+
+public class SearchStateStaleTests
+{
+    private static ListTree TreeWithEmoji(string emoji) =>
+        new()
+        {
+            Sections =
+            {
+                new UiSection
+                {
+                    Items = { new UiItem { Id = emoji, Title = emoji, Actions = { new UiAction { Id = "copy", Title = "Copy", Primary = true } } } },
+                },
+            },
+            EmptyView = new UiEmptyView { Title = "No matches" },
+        };
+
+    [Fact]
+    public void StaleResultIsDiscarded()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
+
+        var rows = state.ApplyResult("s1", TreeWithEmoji("old"), out var staleOld);
+        Assert.True(staleOld);
+        Assert.Empty(rows);
+        Assert.Empty(state.CurrentRows);
+    }
+
+    [Fact]
+    public void CurrentResultReplacesRows()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
+        state.ApplyResult("s1", TreeWithEmoji("old"), out _);
+
+        var rows = state.ApplyResult("s2", TreeWithEmoji("new"), out var stale);
+        Assert.False(stale);
+        Assert.Single(rows.OfType<ItemRow>());
+        Assert.Equal("new", rows.OfType<ItemRow>().First().Item.Id);
+        Assert.Equal("emoji", rows.OfType<ItemRow>().First().ExtensionId);
+        Assert.Equal(rows, state.CurrentRows);
+    }
+
+    [Fact]
+    public void PushedViewDiscardsStaleRootResponses()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "clipboard-history", "open");
+
+        state.ApplyResult("s1", TreeWithEmoji("late-root"), out var staleRoot);
+        Assert.True(staleRoot);
+
+        var rows = state.ApplyResult("s2", TreeWithEmoji("pushed"), out var stalePushed);
+        Assert.False(stalePushed);
+        Assert.Equal("pushed", rows.OfType<ItemRow>().Single().Item.Id);
+        Assert.Equal(2, state.Depth);
+    }
+
+    [Fact]
+    public void PopRestoresRootLevelAndDiscardsPushedResponses()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "clipboard-history", "open");
+        state.Pop();
+
+        state.ApplyResult("s2", TreeWithEmoji("dead-view"), out var stalePushed);
+        Assert.True(stalePushed);
+
+        var rows = state.ApplyResult("s1", TreeWithEmoji("root"), out var staleRoot);
+        Assert.False(staleRoot);
+        Assert.Equal(1, state.Depth);
+        Assert.Equal("root", rows.OfType<ItemRow>().Single().Item.Id);
+    }
+
+    [Fact]
+    public void ResetToRootAfterRestartPopsEverything()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.PushRequest("s2", "a", "open");
+        state.PushRequest("s3", "a", "open");
+        state.ResetToRoot();
+        Assert.Equal(1, state.Depth);
+        state.ApplyResult("s3", TreeWithEmoji("x"), out var stale);
+        Assert.True(stale);
+    }
+
+    [Fact]
+    public void MultiExtensionResultsMergeInReadyOrder()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
+        state.ApplyResult("s2", TreeWithEmoji("app"), out _);
+        var rows = state.ApplyResult("s1", TreeWithEmoji("emoji-first"), out _);
+
+        var items = rows.OfType<ItemRow>().ToList();
+        Assert.Equal(2, items.Count);
+        Assert.Equal("emoji-first", items[0].Item.Id);
+        Assert.Equal("emoji", items[0].ExtensionId);
+        Assert.Equal("app", items[1].Item.Id);
+        Assert.Equal("apps", items[1].ExtensionId);
+    }
+
+    [Fact]
+    public void TrackedActionRefreshReplacesExtensionRowsWithoutDuplicates()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1"), ("apps", "s2") });
+        state.ApplyResult("s1", TreeWithEmoji("old-emoji"), out _);
+        state.ApplyResult("s2", TreeWithEmoji("old-apps"), out _);
+
+        state.TrackAction("a1", "emoji");
+        var rows = state.ApplyResult("a1", TreeWithEmoji("new"), out var stale);
+
+        Assert.False(stale);
+        var itemIds = rows.OfType<ItemRow>().Select(r => r.Item.Id).ToList();
+        Assert.Equal(1, itemIds.Count(id => id == "new"));
+        Assert.DoesNotContain("old-emoji", itemIds);
+        Assert.Contains("old-apps", itemIds);
+        Assert.Equal(rows, state.CurrentRows);
+    }
+
+    [Fact]
+    public void TrackedActionRefreshIsDroppedAfterNewQuery()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.TrackAction("a1", "emoji");
+        state.BeginLevelQuery(new[] { ("emoji", "s2") });
+
+        state.ApplyResult("a1", TreeWithEmoji("late"), out var stale);
+        Assert.True(stale);
+    }
+
+    [Fact]
+    public void PopRestoresRootLevelQueryText()
+    {
+        var state = new SearchState();
+        state.BeginLevelQuery(new[] { ("emoji", "s1") });
+        state.Top!.Query = "clip";
+        state.PushRequest("s2", "clipboard-history", "open");
+        Assert.Equal("", state.CurrentQuery);
+
+        state.Top.Query = "typed in view";
+        Assert.True(state.Pop());
+        Assert.Equal("clip", state.CurrentQuery);
+    }
+}
+
+public class ProtocolVersionRefusalTests
+{
+    [Fact]
+    public void ReadyMessageWithWrongVersionIsDetectable()
+    {
+        var json = "{\"type\":\"ready\",\"protocolVersion\":999,\"extensions\":[]}";
+        var ready = JsonSerializer.Deserialize<ReadyMessage>(json, JsonOptions.Default)!;
+        Assert.NotEqual(ProtocolVersion.Current, ready.ProtocolVersion);
+    }
+
+    [Fact]
+    public void ReadyMessageWithCurrentVersionPasses()
+    {
+        var json = "{\"type\":\"ready\",\"protocolVersion\":1,\"extensions\":[{\"id\":\"emoji\",\"name\":\"Emoji\",\"version\":\"2.0.0\",\"commands\":[],\"nativeMethods\":[\"clipboard.write\"],\"httpHosts\":[]}]}";
+        var ready = JsonSerializer.Deserialize<ReadyMessage>(json, JsonOptions.Default)!;
+        Assert.Equal(ProtocolVersion.Current, ready.ProtocolVersion);
+        Assert.Equal("emoji", ready.Extensions[0].Id);
+    }
+}
