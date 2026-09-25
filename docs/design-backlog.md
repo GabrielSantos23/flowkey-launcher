@@ -78,3 +78,20 @@ opens launcher items, not external URLs. Needs its own design gate: a new
 native method (e.g. `shell.openUrl`) with an allowlist policy (https-only,
 no local/file schemes) declared per extension in the manifest like every other
 native capability.
+
+## First summon of the launcher renders a black window
+
+Pre-existing quirk (observed well before the HUD phase; reproduced on old
+builds): the FIRST time the launcher window is shown after boot it renders a
+solid black surface — the WPF window is composited by DWM (rounded corners
+visible) but never paints its content, while the UI thread keeps pumping.
+Pressing the summon hotkey again shows it correctly. The HUD window is
+unaffected because its first show happens with the render pipeline already
+warm.
+
+Suggested fix direction: pre-render the window hidden at boot (Show() with
+`Opacity = 0` / off-screen once during startup, or move to `Visibility =
+Hidden` instead of native `Hide()` after the first real show) so the first
+frame the user sees is already painted. Needs a careful pass over the
+hide/show race with the foreground hooks — design-gate it before touching
+MainWindow.
