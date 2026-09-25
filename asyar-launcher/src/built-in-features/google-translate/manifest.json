@@ -6,14 +6,14 @@
   "type": "extension",
   "searchable": true,
   "permissions": ["network"],
-  "icon": "icon:globe",
+  "icon": "icon:google-translate",
   "commands": [
     {
       "id": "translate",
       "name": "Translate",
       "description": "Simple translation via Google Translate",
       "trigger": "tr",
-      "icon": "icon:globe",
+      "icon": "icon:google-translate",
       "mode": "view",
       "component": "DefaultView",
       "searchBarPlaceholder": "Enter text to translate",

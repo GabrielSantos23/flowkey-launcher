@@ -41,7 +41,7 @@ const LIST_ALLOWED = ['layout', 'filter'];
 const LIST_SECTION_ALLOWED = ['title'];
 const LIST_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions', 'detail'];
 const LIST_ITEM_DETAIL_ALLOWED = ['preview', 'previewImageUri'];
-const DETAIL_ALLOWED = ['title', 'subtitle', 'imageUri', 'markdown', 'actions'];
+const DETAIL_ALLOWED = ['title', 'mediaKeys', 'subtitle', 'imageUri', 'markdown', 'actions'];
 const DETAIL_METADATA_ALLOWED: string[] = [];
 const DETAIL_FIELD_ALLOWED = ['label', 'value', 'valueIconUri'];
 const GRID_ALLOWED = ['columns', 'title'];
@@ -413,6 +413,7 @@ function serializeDetail(node: HostNode, state: SerializeState): DetailTree {
   if (subtitle !== undefined) tree.subtitle = subtitle;
   const imageUri = optionalString('detail', node.props, 'imageUri');
   if (imageUri !== undefined) tree.imageUri = imageUri;
+  if (typeof node.props['mediaKeys'] === 'boolean') tree.mediaKeys = node.props['mediaKeys'];
   const markdown = optionalString('detail', node.props, 'markdown');
   if (markdown !== undefined) tree.description = markdown;
   const actionsValue = node.props['actions'];

@@ -151,7 +151,7 @@ export class SpotifyClient {
     trackName: string,
     artistName: string,
     signal?: AbortSignal,
-  ): Promise<{ trackName: string; artistName: string; plainLyrics: string } | null> {
+  ): Promise<{ trackName: string; artistName: string; plainLyrics: string; syncedLyrics?: string | null } | null> {
     const url =
       `https://lrclib.net/api/search?track_name=${encodeURIComponent(trackName)}` +
       `&artist_name=${encodeURIComponent(artistName)}`;
@@ -174,23 +174,22 @@ export class SpotifyClient {
         throw normalizeNativeError(error);
       }
     }
-    const hits = parseBody<{ plainLyrics?: string | null; trackName?: string; artistName?: string }[]>(
-      result.status,
-      result.bodyText,
-      'lyrics service',
-    );
-    const hit = hits?.find((entry) => typeof entry.plainLyrics === 'string' && entry.plainLyrics);
+    const hits = parseBody<
+      { plainLyrics?: string | null; syncedLyrics?: string | null; trackName?: string; artistName?: string }[]
+    >(result.status, result.bodyText, 'lyrics service');
+    const hit =
+      hits?.find((entry) => typeof entry.syncedLyrics === 'string' && entry.syncedLyrics) ??
+      hits?.find((entry) => typeof entry.plainLyrics === 'string' && entry.plainLyrics);
     if (!hit) {
       return null;
     }
-    const plainLyrics = hit.plainLyrics;
-    if (typeof plainLyrics !== 'string') {
-      return null;
-    }
+    const plainLyrics = typeof hit.plainLyrics === 'string' ? hit.plainLyrics : '';
+    const syncedLyrics = typeof hit.syncedLyrics === 'string' ? hit.syncedLyrics : null;
     return {
       trackName: hit.trackName ?? trackName,
       artistName: hit.artistName ?? artistName,
       plainLyrics,
+      syncedLyrics,
     };
   }
 

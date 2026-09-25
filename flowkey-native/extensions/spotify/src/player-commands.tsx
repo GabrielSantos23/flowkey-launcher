@@ -21,6 +21,28 @@ export interface PlaybackContext {
   state: SpotifyPlaybackState;
 }
 
+interface MediaState {
+  playing: boolean;
+  title: string | null;
+  artist: string | null;
+  album: string | null;
+  positionMs: number;
+  durationMs: number;
+  updatedAtMs: number;
+}
+
+interface LyricLine {
+  timeMs: number;
+  text: string;
+}
+
+interface LyricsState {
+  synced: boolean;
+  lines: LyricLine[];
+  plain: string;
+  title: string;
+}
+
 type RunOutcome =
   | { kind: 'working' }
   | { kind: 'message'; title: string; description?: string }
@@ -840,24 +862,121 @@ export function RemoveFromPlaylistCommand(props: CommandProps): ReactNode {
   );
 }
 
+function parseLrc(source: string): LyricLine[] {
+  const lines: LyricLine[] = [];
+  for (const raw of source.split('\n')) {
+    const match = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
+    if (!match) continue;
+    const text = match[3].trim();
+    if (!text) continue;
+    lines.push({
+      timeMs: Math.round((parseInt(match[1], 10) * 60 + parseFloat(match[2])) * 1000),
+      text,
+    });
+  }
+  return lines;
+}
+
+function projectedPositionMs(media: MediaState): number {
+  if (!media.playing) return media.positionMs;
+  return media.positionMs + Math.max(0, Date.now() - media.updatedAtMs);
+}
+
+function activeLineIndex(lines: LyricLine[], positionMs: number): number {
+  let index = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].timeMs <= positionMs) {
+      index = i;
+    } else {
+      break;
+    }
+  }
+  return index;
+}
+
+function lyricsMarkdown(lyrics: LyricsState, media: MediaState | null, activeIndex: number): string {
+  const header: string[] = [];
+  if (media?.artist) header.push('**Artist:** ' + media.artist);
+  if (media?.album) header.push('**Album:** ' + media.album);
+  const body = lyrics.synced
+    ? lyrics.lines
+        .map((line, i) => {
+          if (i === activeIndex) return `**♪ ${line.text}**`;
+          if (activeIndex >= 0 && i < activeIndex) return `~~${line.text}~~`;
+          return ' ' + line.text;
+        })
+        .join('\n\n')
+    : lyrics.lines.map((line) => ' ' + line.text).join('\n\n');
+  return (header.length > 0 ? header.join('\n\n') + '\n\n---\n\n' : '') + body;
+}
+function sameMedia(a: MediaState | null, b: MediaState | null): boolean {
+  if (!a || !b) return false;
+  return (
+    a.playing === b.playing &&
+    a.title === b.title &&
+    a.artist === b.artist &&
+    Math.abs(projectedPositionMs(a) - projectedPositionMs(b)) < 900
+  );
+}
+
 export function FindLyricsCommand(props: CommandProps): ReactNode {
   const client = useMemo(() => new SpotifyClient(props.native.call), [props.native]);
-  const result = usePlaybackContext(client);
-  const [lyrics, setLyrics] = useState<{ title: string; text: string } | null>(null);
+  const [media, setMedia] = useState<MediaState | null>(null);
+  const [lyrics, setLyrics] = useState<LyricsState | null>(null);
   const [error, setError] = useState('');
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const mediaRef = useRef<MediaState | null>(null);
+  const lyricsRef = useRef<LyricsState | null>(null);
+  const fetchedFor = useRef('');
+
   useEffect(() => {
-    if (result.kind !== 'context') return;
     let alive = true;
-    const { track } = result.context;
+    const poll = async () => {
+      try {
+        const state = await props.native.call<MediaState | null>('media.current');
+        if (alive && !sameMedia(mediaRef.current, state)) {
+          mediaRef.current = state;
+          setMedia(state);
+        }
+      } catch {
+        /* polling resumes on the next tick */
+      }
+    };
+    void poll();
+    const timer = setInterval(poll, 1000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [props.native]);
+
+  useEffect(() => {
+    const title = media?.title?.trim();
+    if (!title) return;
+    const artist = media?.artist?.trim() ?? '';
+    const stamp = title + '|' + artist;
+    if (fetchedFor.current === stamp) return;
+    fetchedFor.current = stamp;
+    let alive = true;
+    setLyrics(null);
+    setError('');
     client
-      .findLyrics(track.name, track.artists[0]?.name ?? '')
+      .findLyrics(title, artist)
       .then((hit) => {
         if (!alive) return;
         if (!hit) {
           setError('No lyrics found for this track.');
-        } else {
-          setLyrics({ title: `${hit.trackName} — ${hit.artistName}`, text: hit.plainLyrics });
+          return;
         }
+        const lines = hit.syncedLyrics ? parseLrc(hit.syncedLyrics) : [];
+        const state: LyricsState = {
+          synced: lines.length > 1,
+          lines: lines.length > 1 ? lines : [{ timeMs: 0, text: hit.plainLyrics }],
+          plain: hit.plainLyrics,
+          title: hit.trackName,
+        };
+        lyricsRef.current = state;
+        setLyrics(state);
       })
       .catch((caught) => {
         if (alive && !isAborted(caught)) setError(describeError(caught));
@@ -865,26 +984,70 @@ export function FindLyricsCommand(props: CommandProps): ReactNode {
     return () => {
       alive = false;
     };
-  }, [client, result]);
+  }, [media, client]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const current = mediaRef.current;
+      const lines = lyricsRef.current;
+      if (!current || !lines?.synced) return;
+      const index = activeLineIndex(lines.lines, projectedPositionMs(current));
+      setActiveIndex((previous) => (previous === index ? previous : index));
+    }, 250);
+    return () => clearInterval(timer);
+  }, []);
+
+  if (error) {
+    return (
+      <List>
+        <List.EmptyView title={error} />
+      </List>
+    );
+  }
+  if (!media?.title) {
+    return (
+      <List>
+        <List.EmptyView
+          title="Nothing is playing right now"
+          description="Start playback on any media app and reopen Find Lyrics."
+        />
+      </List>
+    );
+  }
+  if (!lyrics) {
+    return (
+      <List>
+        <List.EmptyView title={`Searching lyrics for ${media.title}…`} />
+      </List>
+    );
+  }
   return (
-    <ContextGate result={result}>
-      {({ track }) => {
-        if (error) {
-          return (
-            <List>
-              <List.EmptyView title={error} />
-            </List>
-          );
-        }
-        if (!lyrics) {
-          return (
-            <List>
-              <List.EmptyView title={`Searching lyrics for ${track.name}…`} />
-            </List>
-          );
-        }
-        return <Detail title={lyrics.title} markdown={lyrics.text} />;
-      }}
-    </ContextGate>
+    <Detail
+      title={lyrics.title}
+      mediaKeys
+      markdown={lyricsMarkdown(lyrics, media, activeIndex)}
+      actions={
+        <ActionPanel>
+          <Action
+            title="Play / Pause"
+            onAction={async () => {
+              await props.native.call('media.control', { command: 'playPause' });
+            }}
+          />
+          <Action
+            title="Next Track"
+            onAction={async () => {
+              await props.native.call('media.control', { command: 'next' });
+            }}
+          />
+          <Action
+            title="Previous Track"
+            onAction={async () => {
+              await props.native.call('media.control', { command: 'previous' });
+            }}
+          />
+        </ActionPanel>
+      }
+    />
   );
 }

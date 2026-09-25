@@ -56,6 +56,7 @@ export interface EmptyViewProps {
 
 export interface DetailProps {
   title: string;
+  mediaKeys?: boolean;
   subtitle?: string;
   imageUri?: string;
   markdown?: string;

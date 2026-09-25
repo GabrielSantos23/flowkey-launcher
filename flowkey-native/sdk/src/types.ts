@@ -64,6 +64,7 @@ export interface UiField {
 export interface DetailTree {
   type: 'detail';
   title: string;
+  mediaKeys?: boolean;
   subtitle?: string;
   imageUri?: string;
   fields: UiField[];

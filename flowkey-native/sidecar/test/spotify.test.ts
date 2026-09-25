@@ -22,6 +22,22 @@ function harness(preferences: Record<string, unknown> = {}) {
   const messages: SidecarMessage[] = [];
   const emit = (message: SidecarMessage) => {
     messages.push(message);
+    if (message.type === 'nativeCall' && message.method === 'media.current') {
+      dispatcher.handleNativeResult({
+        type: 'nativeResult',
+        requestId: message.requestId,
+        ok: true,
+        result: {
+          playing: true,
+          title: 'One More Time',
+          artist: 'Daft Punk',
+          album: 'Discovery',
+          positionMs: 11000,
+          durationMs: 213000,
+          updatedAtMs: Date.now(),
+        },
+      });
+    }
     if (message.type === 'nativeCall' && message.method === 'hud.show') {
       dispatcher.handleNativeResult({
         type: 'nativeResult',
@@ -42,11 +58,21 @@ function harness(preferences: Record<string, unknown> = {}) {
     method: string,
     body: { result?: unknown; error?: { code: string; message: string } },
   ) => {
-    const call = calls().find(
+    let call = calls().find(
       (candidate) => candidate.method === method && !resolvedIds.has(candidate.requestId),
     );
+    for (let attempt = 0; !call && attempt < 20; attempt++) {
+      await sleep(100);
+      call = calls().find(
+        (candidate) => candidate.method === method && !resolvedIds.has(candidate.requestId),
+      );
+    }
     if (!call) {
-      throw new Error(`no pending nativeCall for ${method}`);
+      throw new Error(
+        `no pending nativeCall for ${method}; have: ${calls()
+          .map((c) => c.method + '#' + c.requestId)
+          .join(',')}, resolved: ${[...resolvedIds].join(',')}`,
+      );
     }
     resolvedIds.add(call.requestId);
     dispatcher.handleNativeResult({
@@ -713,8 +739,7 @@ describe('spotify player commands', () => {
   test('find-lyrics retries once when lrclib answers 503', async () => {
     const h = harness();
     await h.search('', 'pc-5', 'find-lyrics');
-    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
-    await sleep(400);
+    await sleep(300);
     await h.resolveLatest('http.fetch', {
       result: { status: 503, bodyText: 'Service Unavailable', headers: {}, truncated: false },
     });
@@ -743,11 +768,10 @@ describe('spotify player commands', () => {
     expect(detail.title).toContain('One More Time');
   });
 
-  test('find-lyrics queries lrclib without auth and renders the lyrics', async () => {
+  test('find-lyrics renders synced lyrics from the media session', async () => {
     const h = harness();
     await h.search('', 'pc-4', 'find-lyrics');
-    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
-    await sleep(400);
+    await sleep(300);
     await h.resolveLatest('http.fetch', {
       result: {
         status: 200,
@@ -756,6 +780,8 @@ describe('spotify player commands', () => {
             trackName: 'One More Time',
             artistName: 'Daft Punk',
             plainLyrics: 'One more time we are gonna celebrate\nOh yeah',
+            syncedLyrics:
+              '[00:01.00]One more time we are gonna celebrate\n[00:10.00]Music got me feeling so free',
           },
         ]),
         headers: {},
@@ -769,9 +795,23 @@ describe('spotify player commands', () => {
       .find((call) => String(call.params.url).includes('lrclib.net'));
     expect(lyricsCall).toBeTruthy();
     expect(lyricsCall!.params.auth).toBeUndefined();
-    const detail = h.lastPush() as unknown as { title?: string; description?: string };
+    const detail = h.lastPush() as unknown as {
+      title?: string;
+      description?: string;
+      mediaKeys?: boolean;
+      actions?: { title: string }[];
+    };
     expect(detail.title).toContain('One More Time');
+    expect(detail.mediaKeys).toBe(true);
+    expect(detail.actions?.map((action) => action.title)).toEqual([
+      'Play / Pause',
+      'Next Track',
+      'Previous Track',
+    ]);
     expect(detail.description).toContain('celebrate');
+    expect(detail.description).toContain('♪');
+    expect(detail.description).toContain('~~One more time');
+    expect(detail.description).toContain('Artist:');
   });
 
   test('devices lists devices and transfer issues PUT /me/player', async () => {
