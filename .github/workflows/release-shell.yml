@@ -76,8 +76,11 @@ jobs:
           -p:ReleaseVersion=${{ steps.version.outputs.version }}
           -o publish
 
+      # flowkey-native is its own pnpm workspace (sdk, sidecar, react-ui,
+      # extensions) — install there, not at the repo root.
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
+        working-directory: flowkey-native
 
       # The sidecar runs from source via bun and resolves workspace packages
       # (@flowkey/native-sdk, react-ui, the extensions) through relative pnpm
