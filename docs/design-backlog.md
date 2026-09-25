@@ -89,9 +89,13 @@ Pressing the summon hotkey again shows it correctly. The HUD window is
 unaffected because its first show happens with the render pipeline already
 warm.
 
-Suggested fix direction: pre-render the window hidden at boot (Show() with
-`Opacity = 0` / off-screen once during startup, or move to `Visibility =
-Hidden` instead of native `Hide()` after the first real show) so the first
-frame the user sees is already painted. Needs a careful pass over the
-hide/show race with the foreground hooks — design-gate it before touching
-MainWindow.
+FIXED: the root cause was the foreground-loss auto-hide racing the summon —
+the poller/hook could run `HideWindow()` in the same dispatcher window as
+`Summon()`'s `Show()`, and the interrupted show left the surface unpainted.
+`Summon()` now sets a short suppress window (`suppressAutoHideUntil`) that
+`CheckForeignForeground()` respects, the redundant `Visibility` assignments
+around `Show()`/`Hide()` were removed (the WPF methods already manage the
+property), and `ToggleVisibility()` keys off `IsVisible` instead of
+`Visibility`, which is `Visible` by default before the first show and made
+the first post-boot hotkey press a no-op. A click-away within the 400 ms
+suppress window is picked up by the next poll tick (250 ms).

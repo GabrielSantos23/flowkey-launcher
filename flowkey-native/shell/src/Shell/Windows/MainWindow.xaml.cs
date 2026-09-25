@@ -59,6 +59,7 @@ public partial class MainWindow : Window
     private int gridIndex;
     private List<GridCellVm> gridCells = new();
     private IntPtr previousForegroundWindow;
+    private long suppressAutoHideUntil;
     private bool allowClose;
     private bool suppressSearchDebounce;
     private HotkeyManager? hotkeyManager;
@@ -471,7 +472,7 @@ public partial class MainWindow : Window
 
     public void ToggleVisibility()
     {
-        if (Visibility == Visibility.Visible)
+        if (IsVisible)
         {
             HideWindow();
         }
@@ -484,7 +485,7 @@ public partial class MainWindow : Window
     public void Summon()
     {
         previousForegroundWindow = GetForegroundWindow();
-        Visibility = Visibility.Visible;
+        suppressAutoHideUntil = Environment.TickCount64 + 400;
         Show();
         ForceForeground();
         Activate();
@@ -519,7 +520,6 @@ public partial class MainWindow : Window
             actionPanel?.Close();
             var previous = previousForegroundWindow;
             Hide();
-            Visibility = Visibility.Hidden;
             if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
             {
                 SetForegroundWindow(previous);
@@ -545,7 +545,7 @@ public partial class MainWindow : Window
 
     private void CheckForeignForeground()
     {
-        if (!IsVisible)
+        if (!IsVisible || Environment.TickCount64 < suppressAutoHideUntil)
         {
             return;
         }
