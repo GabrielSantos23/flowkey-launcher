@@ -104,7 +104,7 @@
   <GridLength x:Key="SidebarWidth">230</GridLength>
   <sys:Double x:Key="SettingsWindowWidth">1080</sys:Double>
   <sys:Double x:Key="SettingsWindowHeight">700</sys:Double>
-  <Thickness x:Key="ChromeResizeBorderThickness">7</Thickness>
+  <sys:Double x:Key="ChromeResizeBorderThickness">7</sys:Double>
   <SolidColorBrush x:Key="ChromeDividerBrush" Color="#3F3F3F" />
   <SolidColorBrush x:Key="ChromeNavDisabledBrush" Color="#484848" />
   <sys:Double x:Key="ChromeWindowButtonWidth">46</sys:Double>
