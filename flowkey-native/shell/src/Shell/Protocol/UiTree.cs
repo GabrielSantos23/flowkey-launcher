@@ -32,6 +32,7 @@ public sealed class UiFilterOption
 public sealed class DetailTree : UiTree
 {
     public string Title { get; set; } = "";
+    public bool? MediaKeys { get; set; }
     public string? Subtitle { get; set; }
     public string? ImageUri { get; set; }
     public List<UiField> Fields { get; set; } = [];

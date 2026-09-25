@@ -4,6 +4,7 @@
         xmlns:ui="http://lepoco/wpfui"
         xmlns:uiD="clr-namespace:Wpf.Ui.Markup;assembly=Wpf.Ui"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:rendering="clr-namespace:FlowKey.Shell.Rendering"
         Title="FlowKey Settings"
         Width="{DynamicResource SettingsWindowWidth}" Height="{DynamicResource SettingsWindowHeight}"
         MinWidth="{DynamicResource SettingsWindowWidth}" MinHeight="{DynamicResource SettingsWindowHeight}"
@@ -303,7 +304,7 @@
           </Grid>
         </Border>
 
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" rendering:SmoothScroll.Enabled="True">
           <StackPanel x:Name="NavPanel" />
         </ScrollViewer>
       </DockPanel>
@@ -311,7 +312,7 @@
 
     <Border Grid.Row="2" Grid.Column="1" Background="{DynamicResource DividerBrush}" />
 
-    <ScrollViewer Grid.Row="2" Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="24,18,24,18">
+    <ScrollViewer Grid.Row="2" Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="24,18,24,18" rendering:SmoothScroll.Enabled="True">
       <ContentControl x:Name="PageHost" Focusable="False" />
     </ScrollViewer>
 

@@ -1,0 +1,123 @@
+name: Release Shell
+
+# The C# shell (flowkey-native/shell) has its own release line because the
+# Tauri launcher already owns `v*` tags. Tags prefixed `shell-v` produce a
+# Velopack release on GitHub Releases, which the shell's UpdateManager
+# (UpdateService.cs) checks against the same repository.
+
+on:
+  push:
+    tags:
+      - 'shell-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing shell-v* tag to (re-)release'
+        required: true
+
+concurrency:
+  group: release-shell-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+      - name: Run shell tests
+        run: dotnet test flowkey-native/shell/FlowKey.sln -c Release
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve version from tag
+        id: version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          $version = $tag -replace '^shell-v', ''
+          if ($version -notmatch '^\d+(\.\d+){0,3}$') {
+            Write-Error "Tag '$tag' does not carry a numeric version (expected shell-vX.Y.Z)"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Publish self-contained win-x64
+        run: dotnet publish flowkey-native/shell/src/Shell/Shell.csproj
+          -c Release -r win-x64 --self-contained true
+          -p:ReleaseVersion=${{ steps.version.outputs.version }}
+          -o publish
+
+      - name: Package portable zip
+        shell: pwsh
+        run: |
+          # Kept outside publish/ so vpk pack doesn't swallow the archive into
+          # the installer payload.
+          New-Item -ItemType Directory -Force -Path portable | Out-Null
+          Compress-Archive -Path "publish/*" -DestinationPath "portable/FlowKey_${{ steps.version.outputs.version }}_windows_x64_portable.zip" -Force
+
+      - name: Pack Velopack release
+        shell: pwsh
+        run: |
+          dotnet tool install -g vpk
+          vpk pack `
+            --packId FlowKey `
+            --packVersion ${{ steps.version.outputs.version }} `
+            --packDir publish `
+            --mainExe FlowKey.Shell.exe `
+            --packTitle FlowKey
+          # Unsigned artifacts: pair with `vpk sign` + repo secrets before
+          # distributing outside development. Velopack only enforces signature
+          # verification when the release metadata carries one.
+
+      - name: Upload Velopack release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: shell-release
+          if-no-files-found: error
+          path: |
+            Releases/*
+            portable/*.zip
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: shell-release
+          path: shell-release
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2.6.1
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          files: |
+            shell-release/**/*.nupkg
+            shell-release/**/Setup.exe
+            shell-release/*.zip
+          draft: false
+          prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
+          generate_release_notes: true

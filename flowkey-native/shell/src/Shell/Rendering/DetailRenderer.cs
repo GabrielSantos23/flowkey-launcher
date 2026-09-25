@@ -96,11 +96,56 @@ public static class DetailRenderer
         columns.Children.Add(left);
         columns.Children.Add(railBorder);
 
-        return new ScrollViewer
+        var scroller = new ScrollViewer
         {
             Content = columns,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
         };
+        SmoothScroll.SetEnabled(scroller, true);
+        var liveLine = FindLastBoldTextBlock(scroller);
+        if (liveLine is not null)
+        {
+            var target = liveLine;
+            scroller.Loaded += (_, _) => scroller.Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.Loaded,
+                () => CenterVertical(scroller, target));
+        }
+        return scroller;
+    }
+
+    private static TextBlock? FindLastBoldTextBlock(DependencyObject root)
+    {
+        TextBlock? last = null;
+        var queue = new System.Collections.Generic.Queue<DependencyObject>();
+        queue.Enqueue(root);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            var count = System.Windows.Media.VisualTreeHelper.GetChildrenCount(current);
+            for (var i = 0; i < count; i++)
+            {
+                var child = System.Windows.Media.VisualTreeHelper.GetChild(current, i);
+                if (child is TextBlock textBlock
+                    && textBlock.Inlines.OfType<System.Windows.Documents.Run>()
+                        .Any(run => run.FontWeight == FontWeights.Bold))
+                {
+                    last = textBlock;
+                }
+                queue.Enqueue(child);
+            }
+        }
+        return last;
+    }
+
+    private static void CenterVertical(ScrollViewer scroller, FrameworkElement target)
+    {
+        if (!target.IsLoaded)
+        {
+            return;
+        }
+        var topLeft = target.TransformToVisual(scroller).Transform(new System.Windows.Point(0, 0));
+        var offset = topLeft.Y + target.ActualHeight / 2 - scroller.ViewportHeight / 2;
+        scroller.ScrollToVerticalOffset(Math.Max(0, offset));
     }
 
     private static ImageSource? LoadBitmap(string path)
@@ -164,6 +209,14 @@ public static class DetailRenderer
                 codeText.FontSize = 12;
                 codeBorder.Child = codeText;
                 return codeBorder;
+            case Hr:
+                var divider = new Border
+                {
+                    Height = 1,
+                    Margin = new Thickness(0, 12, 0, 12),
+                };
+                divider.SetResourceReference(Border.BackgroundProperty, "DividerBrush");
+                return divider;
             case MdListItem list:
                 var bullet = SecondaryText(list.Number is null ? "•  " : list.Number + ".  ");
                 return new StackPanel
@@ -184,7 +237,9 @@ public static class DetailRenderer
             default:
             {
                 var paragraph = (MdParagraph)node;
-                return WrapInlines(paragraph.Inlines, onAction, 13, FontWeights.Normal, wrap: true);
+                var block = WrapInlines(paragraph.Inlines, onAction, 15, FontWeights.Normal, wrap: true);
+                block.Margin = new Thickness(0, 0, 0, 7);
+                return block;
             }
         }
     }
@@ -210,6 +265,10 @@ public static class DetailRenderer
                     break;
                 case MdInline.Italic i:
                     textBlock.Inlines.Add(new Run(i.Value) { FontStyle = FontStyles.Italic });
+                    break;
+                case MdInline.Dim d:
+                    var dimRun = new Run(d.Value) { Foreground = DimmedForeground() };
+                    textBlock.Inlines.Add(dimRun);
                     break;
                 case MdInline.Code c:
                     var codeRun = new Run(c.Value)
@@ -280,6 +339,11 @@ public static class DetailRenderer
                     italic.FontStyle = FontStyles.Italic;
                     panel.Children.Add(italic);
                     break;
+                case MdInline.Dim d:
+                    var dim = InlineText(d.Value);
+                    dim.Foreground = DimmedForeground();
+                    panel.Children.Add(dim);
+                    break;
                 case MdInline.Code c:
                     var code = InlineText(c.Value);
                     code.FontFamily = new FontFamily("Consolas");
@@ -292,6 +356,21 @@ public static class DetailRenderer
             }
         }
         return panel;
+    }
+
+    private static System.Windows.Media.Brush DimmedForeground()
+    {
+        if (System.Windows.Application.Current?.TryFindResource("TextPrimaryBrush") is System.Windows.Media.Brush baseBrush)
+        {
+            var clone = baseBrush.Clone();
+            clone.Opacity = 0.42;
+            if (clone.CanFreeze)
+            {
+                clone.Freeze();
+            }
+            return clone;
+        }
+        return new SolidColorBrush(System.Windows.Media.Color.FromArgb(107, 255, 255, 255));
     }
 
     private static TextBlock InlineText(string value) => PrimaryText(value);

@@ -2,6 +2,7 @@ using System.Windows;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using FlowKey.Shell.Windows;
+using FlowKey.Shell.Native;
 using Application = System.Windows.Application;
 
 namespace FlowKey.Shell;
@@ -15,6 +16,8 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        UpdateService.HookInstaller();
+
         singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var isFirstInstance);
         if (!isFirstInstance)
         {

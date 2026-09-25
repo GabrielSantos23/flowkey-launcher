@@ -32,6 +32,7 @@ public partial class SettingsWindow : Window
     private readonly PreferencesStore preferencesStore;
     private readonly IReadOnlyList<ReadyExtension> extensions;
     private readonly OAuthService oauthService;
+    private readonly UpdateService updateService;
     private readonly Action clearClipboardHistory;
     private readonly Action<string> showToast;
     private readonly Func<uint, uint, bool> applySummonHotkey;
@@ -118,6 +119,7 @@ public partial class SettingsWindow : Window
         PreferencesStore preferencesStore,
         IReadOnlyList<ReadyExtension> extensions,
         OAuthService oauthService,
+        UpdateService updateService,
         Action clearClipboardHistory,
         Action<string> showToast,
         Func<uint, uint, bool> applySummonHotkey)
@@ -128,6 +130,7 @@ public partial class SettingsWindow : Window
         this.preferencesStore = preferencesStore;
         this.extensions = extensions;
         this.oauthService = oauthService;
+        this.updateService = updateService;
         this.clearClipboardHistory = clearClipboardHistory;
         this.showToast = showToast;
         this.applySummonHotkey = applySummonHotkey;
@@ -339,6 +342,16 @@ public partial class SettingsWindow : Window
         clearButton.Click += OnClearClipboardHistory;
         page.Children.Add(SettingsRow("Clipboard History", "Erase every stored clipboard entry", clearButton));
 
+        var autoCheckToggle = new Wpf.Ui.Controls.ToggleSwitch
+        {
+            Background = FindResource("AccentBrush") as System.Windows.Media.Brush,
+            IsChecked = updateService.IsAutoCheckEnabled(),
+            Tag = string.Empty,
+        };
+        autoCheckToggle.Checked += (_, _) => updateService.SetAutoCheckEnabled(true, Dispatcher);
+        autoCheckToggle.Unchecked += (_, _) => updateService.SetAutoCheckEnabled(false, Dispatcher);
+        page.Children.Add(SettingsRow("Check for Updates Automatically", "Look for new versions every 6 hours", autoCheckToggle));
+
         return page;
     }
 
@@ -465,13 +478,78 @@ public partial class SettingsWindow : Window
         return page;
     }
 
+    private TextBlock updateStatusText = new();
+    private Button? checkForUpdatesButton;
+
     private FrameworkElement BuildAboutPage()
     {
         var page = new StackPanel();
-        page.Children.Add(SettingsRow("FlowKey", "Native Windows launcher", null));
+        page.Children.Add(SettingsRow("FlowKey", "Native Windows launcher · version " + UpdateService.CurrentVersion(), null));
         page.Children.Add(SettingsRow("Extensions loaded", extensions.Count.ToString(), null));
+
+        page.Children.Add(SectionTitle("Updates"));
+        updateStatusText = new TextBlock
+        {
+            Text = UpdateServiceStatusText(updateService.Status),
+            FontSize = 12,
+            Foreground = FindResource("TextSecondaryBrush") as Brush,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+        };
+        checkForUpdatesButton = new Button { Content = "Check for Updates" };
+        checkForUpdatesButton.Click += async (_, _) => await RunUpdateCheckAsync();
+        page.Children.Add(SettingsRow("Updates", "Check GitHub Releases for a newer version", checkForUpdatesButton));
+        page.Children.Add(updateStatusText);
         return page;
     }
+
+    private async Task RunUpdateCheckAsync()
+    {
+        if (checkForUpdatesButton is not null)
+        {
+            checkForUpdatesButton.IsEnabled = false;
+        }
+        updateService.StatusChanged -= OnSettingsUpdateStatus;
+        updateService.StatusChanged += OnSettingsUpdateStatus;
+        try
+        {
+            await updateService.CheckNowAsync();
+        }
+        finally
+        {
+            if (checkForUpdatesButton is not null)
+            {
+                checkForUpdatesButton.IsEnabled = true;
+            }
+        }
+        if (updateService.Status.Phase == UpdatePhase.Available)
+        {
+            await updateService.DownloadAndApplyAsync();
+        }
+    }
+
+    private void OnSettingsUpdateStatus(UpdateStatus status)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            updateStatusText.Text = UpdateServiceStatusText(status);
+        });
+    }
+
+    private static string UpdateServiceStatusText(UpdateStatus status) => status.Phase switch
+    {
+        UpdatePhase.Checking => "Checking for updates…",
+        UpdatePhase.UpToDate => "You're up to date",
+        UpdatePhase.Available => status.NewVersion is null
+            ? "A new version is available"
+            : $"Version {status.NewVersion} is available — downloading…",
+        UpdatePhase.Downloading => status.ProgressPercent is { } percent
+            ? $"Downloading {status.NewVersion}… {percent}%"
+            : "Downloading update…",
+        UpdatePhase.Ready => "Update ready — FlowKey will restart to install",
+        UpdatePhase.Error => "Update check failed: " + status.Message,
+        _ => "Last checked automatically every 6 hours",
+    };
 
     private FrameworkElement BuildExtensionDetailPage(string extensionId)
     {
@@ -595,6 +673,16 @@ public partial class SettingsWindow : Window
 
     private FrameworkElement BuildBrandMark(ReadyExtension extension, double size = 34)
     {
+        if (Rendering.BrandIcons.TryGetDrawing(extension.Id, out var brandDrawing))
+        {
+            return new System.Windows.Controls.Image
+            {
+                Source = brandDrawing,
+                Width = size,
+                Height = size,
+                Stretch = Stretch.Uniform,
+            };
+        }
         try
         {
             var geometry = Rendering.LucideIcon.Load("brand-" + extension.Id);

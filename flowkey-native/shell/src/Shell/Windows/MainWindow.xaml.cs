@@ -37,11 +37,13 @@ public partial class MainWindow : Window
 
     private readonly SidecarHost sidecar;
     private readonly NativeMethodTable nativeMethods = new();
+    private readonly MediaSessionService mediaSessions = new();
     private readonly SearchState searchState = new();
     private readonly DispatcherTimer searchDebounce;
     private readonly Queue<(string Message, DateTime At)> toastLog = new();
     private readonly AppLauncherService appLauncher;
     private readonly HttpFetchService httpFetch = new();
+    private readonly UpdateService updateService;
     private readonly ClipboardHistoryStore clipboardHistory = new(AppLauncherService.DataDirectory);
     private readonly PreferencesStore preferencesStore = new(AppLauncherService.DataDirectory);
     private readonly TokenVault tokenVault = new(AppLauncherService.DataDirectory);
@@ -195,6 +197,12 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.pasteEntry", p => ExecuteClipboardPasteEntry(p));
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
         nativeMethods.Register("hud.show", p => ExecuteHudShow(p));
+        nativeMethods.Register("media.current", _ => mediaSessions.CurrentOutcome());
+        nativeMethods.Register("media.control", ExecuteMediaControl);
+        _ = mediaSessions.InitializeAsync();
+        updateService = new UpdateService(AppLauncherService.DataDirectory);
+        updateService.StatusChanged += status => Dispatcher.BeginInvoke(() => ApplyUpdateStatus(status));
+        updateService.StartAutomaticChecks(Dispatcher);
         oauthService = new OAuthService(tokenVault, OAuthProviderRegistry.Load);
 
         var root = FindRepoRoot();
@@ -334,9 +342,42 @@ public partial class MainWindow : Window
         return ok;
     }
 
-    public void OpenSettings()
+    private void OnUpdateBannerClick(object sender, MouseButtonEventArgs e)
     {
-        try
+        if (updateService.Status.Phase == UpdatePhase.Available)
+        {
+            _ = updateService.DownloadAndApplyAsync();
+        }
+    }
+
+    private void ApplyUpdateStatus(UpdateStatus status)
+    {
+        UpdateBannerHost.Visibility = status.ShowBanner ? Visibility.Visible : Visibility.Collapsed;
+        switch (status.Phase)
+        {
+            case UpdatePhase.Available:
+                UpdateBannerTitle.Text = "New Update Available";
+                UpdateBannerDetail.Text = status.NewVersion is null ? null : $"Version {status.NewVersion} is ready to install";
+                UpdateBannerAction.Text = "Install Update";
+                break;
+            case UpdatePhase.Downloading:
+                UpdateBannerTitle.Text = "Downloading Update…";
+                UpdateBannerDetail.Text = status.NewVersion is null ? null : $"Version {status.NewVersion}";
+                UpdateBannerAction.Text = status.ProgressPercent is { } percent ? $"{percent}%" : "…";
+                break;
+            case UpdatePhase.Ready:
+                UpdateBannerTitle.Text = "Update Ready";
+                UpdateBannerDetail.Text = "FlowKey will restart to install the update";
+                UpdateBannerAction.Text = "Restart";
+                break;
+            case UpdatePhase.Error:
+                ShowToast("Update failed: " + status.Message);
+                break;
+        }
+    }
+
+    public void OpenSettings()
+    {        try
         {
             OpenSettingsCore();
         }
@@ -360,6 +401,7 @@ public partial class MainWindow : Window
             preferencesStore,
             readyExtensions,
             oauthService,
+            updateService,
             () => clipboardHistory.Clear(),
             ShowToast,
             ApplySummonHotkey);
@@ -884,6 +926,20 @@ public partial class MainWindow : Window
 
     private bool HandleDetailKeys(KeyEventArgs e)
     {
+        if (currentDetail?.MediaKeys == true)
+        {
+            switch (e.Key)
+            {
+                case Key.Up:
+                    ScrollDetail(-170);
+                    e.Handled = true;
+                    return true;
+                case Key.Down:
+                    ScrollDetail(170);
+                    e.Handled = true;
+                    return true;
+            }
+        }
         switch (e.Key)
         {
             case Key.Enter:
@@ -1403,7 +1459,11 @@ public partial class MainWindow : Window
         row.ExtensionId = cmd.ExtensionId;
         row.IsCommand = true;
         row.CommandId = cmd.Command.Id;
-        if (Rendering.BrandIcons.TryGet(cmd.ExtensionId, out var brandGeometry, out var brandBrush))
+        if (Rendering.BrandIcons.TryGetDrawing(cmd.ExtensionId, out var brandDrawing))
+        {
+            row.Bitmap = brandDrawing;
+        }
+        else if (Rendering.BrandIcons.TryGet(cmd.ExtensionId, out var brandGeometry, out var brandBrush))
         {
             row.VectorIcon = brandGeometry;
             row.VectorIconBrush = brandBrush;
@@ -2020,6 +2080,16 @@ public partial class MainWindow : Window
 
     private FrameworkElement CreateExtensionIcon(ReadyExtension? extension)
     {
+        if (extension is not null && Rendering.BrandIcons.TryGetDrawing(extension.Id, out var brandDrawing))
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = brandDrawing,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
         if (extension is not null && Rendering.BrandIcons.TryGet(extension.Id, out var geometry, out var brush))
         {
             var drawing = new System.Windows.Media.GeometryDrawing
@@ -2479,6 +2549,38 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(() => ShowToast($"Native method '{method}' failed", outcome.Error?.Message, true));
         }
         sidecar.SendNativeResult(requestId, outcome);
+    }
+
+    private void ScrollDetail(double delta)
+    {
+        if (DetailHost.Content is ScrollViewer scroller)
+        {
+            scroller.ScrollToVerticalOffset(scroller.VerticalOffset + delta);
+        }
+    }
+
+    private NativeCallOutcome ExecuteMediaControl(Dictionary<string, JsonElement>? parameters)
+    {
+        var command = parameters is not null
+            && parameters.TryGetValue("command", out var commandElement)
+            && commandElement.ValueKind == JsonValueKind.String
+                ? commandElement.GetString()
+                : null;
+        switch (command)
+        {
+            case "playPause":
+                mediaSessions.TogglePlayPause();
+                break;
+            case "next":
+                mediaSessions.Next();
+                break;
+            case "previous":
+                mediaSessions.Previous();
+                break;
+            default:
+                return NativeCallOutcome.Failure("invalidCommand", $"unknown media control command '{command ?? "<missing>"}'");
+        }
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
     }
 
     private NativeCallOutcome ExecuteHudShow(Dictionary<string, JsonElement>? parameters)

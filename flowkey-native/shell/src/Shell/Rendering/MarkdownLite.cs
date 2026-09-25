@@ -7,6 +7,7 @@ public abstract record MdNode;
 public sealed record MdHeading(int Level, MdInline[] Inlines) : MdNode;
 
 public sealed record MdParagraph(MdInline[] Inlines) : MdNode;
+public sealed record Hr : MdNode;
 
 public sealed record MdListItem(int? Number, MdInline[] Inlines) : MdNode;
 
@@ -19,6 +20,7 @@ public abstract record MdInline
     public record Text(string Value) : MdInline;
     public record Bold(string Value) : MdInline;
     public record Italic(string Value) : MdInline;
+    public record Dim(string Value) : MdInline;
     public record Code(string Value) : MdInline;
     public record Link(string Label, string Href) : MdInline;
 }
@@ -57,6 +59,12 @@ public static class MarkdownLite
             var line = lines[i].TrimEnd('\r');
             if (string.IsNullOrWhiteSpace(line))
             {
+                i++;
+                continue;
+            }
+            if (System.Text.RegularExpressions.Regex.IsMatch(line, "^-{3,}$"))
+            {
+                result.Nodes.Add(new Hr());
                 i++;
                 continue;
             }
@@ -168,6 +176,17 @@ public static class MarkdownLite
                 {
                     FlushPlain(plain, inlines);
                     inlines.Add(new MdInline.Bold(text[(i + 2)..close]));
+                    i = close + 2;
+                    continue;
+                }
+            }
+            if (c == '~' && i + 1 < text.Length && text[i + 1] == '~')
+            {
+                var close = text.IndexOf("~~", i + 2, StringComparison.Ordinal);
+                if (close > i + 2)
+                {
+                    FlushPlain(plain, inlines);
+                    inlines.Add(new MdInline.Dim(text[(i + 2)..close]));
                     i = close + 2;
                     continue;
                 }

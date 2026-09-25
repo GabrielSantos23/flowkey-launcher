@@ -39,7 +39,8 @@
       <RowDefinition Height="Auto" />
     </Grid.RowDefinitions>
 
-    <Border Grid.Row="0" Height="{DynamicResource SearchBarHeight}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
+    <StackPanel Grid.Row="0">
+      <Border Height="{DynamicResource SearchBarHeight}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
       <Grid>
         <Grid.ColumnDefinitions>
           <ColumnDefinition Width="Auto" />
@@ -169,7 +170,58 @@
           </Popup>
         </Grid>
       </Grid>
-    </Border>
+      </Border>
+      <Border x:Name="UpdateBannerHost"
+              Margin="{DynamicResource ListInset}"
+              Padding="14,10"
+              CornerRadius="{DynamicResource RowCornerRadius}"
+              Background="{DynamicResource RowSelectedBackgroundBrush}"
+              BorderBrush="{DynamicResource DividerBrush}"
+              BorderThickness="1"
+              Visibility="Collapsed"
+              Cursor="Hand"
+              MouseLeftButtonDown="OnUpdateBannerClick">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+          </Grid.ColumnDefinitions>
+          <Border Grid.Column="0"
+                  Width="30"
+                  Height="30"
+                  CornerRadius="7"
+                  Background="#E5484D"
+                  VerticalAlignment="Center">
+            <TextBlock Text="&#xE896;"
+                       FontFamily="{DynamicResource GlyphFontFamily}"
+                       FontSize="14"
+                       Foreground="White"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="11,0,0,0">
+            <TextBlock x:Name="UpdateBannerTitle"
+                       Text="New Update Available"
+                       FontSize="{DynamicResource TitleFontSize}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="UpdateBannerDetail"
+                       FontSize="{DynamicResource SecondaryFontSize}"
+                       Foreground="{DynamicResource TextSecondaryBrush}"
+                       Margin="0,1,0,0"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <TextBlock x:Name="UpdateBannerAction"
+                     Grid.Column="2"
+                     Text="Install Update"
+                     FontSize="{DynamicResource SecondaryFontSize}"
+                     FontWeight="SemiBold"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+    </StackPanel>
 
     <Grid Grid.Row="1">
       <Grid.ColumnDefinitions>
@@ -187,6 +239,7 @@
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
              ScrollViewer.VerticalScrollBarVisibility="Auto"
              ScrollViewer.CanContentScroll="True"
+             VirtualizingPanel.ScrollUnit="Pixel"
              VirtualizingPanel.IsVirtualizing="True"
              VirtualizingPanel.VirtualizationMode="Recycling"
              SelectionMode="Single"
@@ -453,6 +506,7 @@
              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
              ScrollViewer.VerticalScrollBarVisibility="Auto"
              ScrollViewer.CanContentScroll="True"
+             VirtualizingPanel.ScrollUnit="Pixel"
              VirtualizingPanel.IsVirtualizing="True"
              VirtualizingPanel.VirtualizationMode="Recycling">
         <ListBox.ItemContainerStyle>
