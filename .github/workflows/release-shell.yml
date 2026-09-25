@@ -87,22 +87,31 @@ jobs:
       # symlinks into flowkey-native/node_modules/.pnpm. Ship the trees with
       # symlinks preserved (tar, unlike Copy-Item/robocopy) and include the
       # ui-tree fixture so MainWindow.FindRepoRoot's walk-up finds the layout.
-      # The sidecar runs from source via bun and resolves workspace packages
-      # (@flowkey/native-sdk, react-ui, the extensions) through pnpm symlink
-      # links. Ship the trees recreating those links as junctions — bun fails
-      # to resolve through directory symlinks, and plain copies break pnpm's
-      # single-copy-react invariant. Includes the ui-tree fixture so
-      # MainWindow.FindRepoRoot's walk-up finds the layout.
+      # The sidecar is compiled to a single self-contained exe (bun bake in of
+      # the sidecar, all extensions, sdk and react-ui) because Velopack's zip
+      # packaging does not preserve pnpm's junction/symlink node_modules layout.
+      # Only plain-file trees ship: sidecar sources (the FindRepoRoot marker
+      # lives at sidecar/src/main.ts), the compiled exe, and extensions.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Compile sidecar
+        run: bun build --compile --target=bun-windows-x64 src/main.ts --outfile FlowKey.Sidecar.exe
+        working-directory: flowkey-native/sidecar
+
       - name: Bundle sidecar and extensions
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force publish/flowkey-native/contract | Out-Null
+          New-Item -ItemType Directory -Force publish/flowkey-native/sidecar, publish/flowkey-native/contract | Out-Null
+          Copy-Item flowkey-native/sidecar/FlowKey.Sidecar.exe publish/flowkey-native/sidecar/
+          Copy-Item flowkey-native/sidecar/src publish/flowkey-native/sidecar/src -Recurse
+          # Extensions are baked into the exe; only their plain files (manifest,
+          # assets) ship. node_modules is dev-only — exclude it (robocopy exit
+          # codes < 8 are success).
+          robocopy flowkey-native/extensions publish/flowkey-native/extensions /E /XD node_modules /NFL /NDL /NJH /NJS | Out-Null
+          if ($LASTEXITCODE -ge 8) { throw "robocopy failed with $LASTEXITCODE" }
           Copy-Item flowkey-native/contract/ui-tree.fixture.json publish/flowkey-native/contract/
-          foreach ($p in 'extensions', 'sdk', 'react-ui', 'node_modules', 'sidecar') {
-            & flowkey-native/shell/scripts/Copy-TreeWithJunctions.ps1 `
-              -Source "flowkey-native/$p" `
-              -Destination "publish/flowkey-native/$p"
-          }
 
       - name: Package portable zip
         shell: pwsh

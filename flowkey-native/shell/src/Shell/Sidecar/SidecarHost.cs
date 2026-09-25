@@ -78,18 +78,42 @@ public sealed class SidecarHost : IDisposable
 
     public void Start()
     {
-        var bun = ResolveBun();
-        if (bun is null)
+        // Release builds ship a bun-compiled sidecar exe beside main.ts's
+        // directory — it bakes every workspace import into one binary, so no
+        // node_modules needs to travel with the package (junctions don't
+        // survive packaging).
+        var scriptDir = Path.GetDirectoryName(scriptPath)!;
+        var sidecarDir = Path.GetDirectoryName(scriptDir) ?? scriptDir;
+        var compiledSidecar = Path.Combine(sidecarDir, "FlowKey.Sidecar.exe");
+        var useCompiled = File.Exists(compiledSidecar);
+
+        string fileName;
+        string arguments;
+        string workingDirectory;
+        if (useCompiled)
         {
-            RaiseFatal("bun was not found on PATH or at %USERPROFILE%\\.bun\\bin\\bun.exe. Install bun to run extensions.");
-            return;
+            fileName = compiledSidecar;
+            arguments = "";
+            workingDirectory = sidecarDir;
+        }
+        else
+        {
+            var bun = ResolveBun();
+            if (bun is null)
+            {
+                RaiseFatal("bun was not found on PATH or at %USERPROFILE%\\.bun\\bin\\bun.exe. Install bun to run extensions.");
+                return;
+            }
+            fileName = bun;
+            arguments = $"\"{scriptPath}\"";
+            workingDirectory = Path.GetDirectoryName(scriptPath)!;
         }
 
         var psi = new ProcessStartInfo
         {
-            FileName = bun,
-            Arguments = $"\"{scriptPath}\"",
-            WorkingDirectory = Path.GetDirectoryName(scriptPath)!,
+            FileName = fileName,
+            Arguments = arguments,
+            WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardInput = true,
