@@ -119,10 +119,12 @@ jobs:
         uses: softprops/action-gh-release@v2.6.1
         with:
           tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          # vpk names the setup bundle `FlowKey-win-Setup.exe` (not Setup.exe)
+          # and the portable zip lands in its own artifact subfolder, so the
+          # globs must cover prefixes and subdirectories.
           files: |
-            shell-release/**/*.nupkg
-            shell-release/**/Setup.exe
-            shell-release/*.zip
+            shell-release/Releases/*
+            shell-release/portable/*.zip
           draft: false
           prerelease: ${{ contains(github.event.inputs.tag || github.ref_name, '-') }}
           generate_release_notes: true
