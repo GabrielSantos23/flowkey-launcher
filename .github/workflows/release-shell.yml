@@ -44,7 +44,7 @@ jobs:
   build:
     needs: test
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
         with:
@@ -52,6 +52,12 @@ jobs:
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10.26.0
 
       - name: Resolve version from tag
         id: version
@@ -69,6 +75,31 @@ jobs:
           -c Release -r win-x64 --self-contained true
           -p:ReleaseVersion=${{ steps.version.outputs.version }}
           -o publish
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The sidecar runs from source via bun and resolves workspace packages
+      # (@flowkey/native-sdk, react-ui, the extensions) through relative pnpm
+      # symlinks into flowkey-native/node_modules/.pnpm. Ship the trees with
+      # symlinks preserved (tar, unlike Copy-Item/robocopy) and include the
+      # ui-tree fixture so MainWindow.FindRepoRoot's walk-up finds the layout.
+      # The sidecar runs from source via bun and resolves workspace packages
+      # (@flowkey/native-sdk, react-ui, the extensions) through pnpm symlink
+      # links. Ship the trees recreating those links as junctions — bun fails
+      # to resolve through directory symlinks, and plain copies break pnpm's
+      # single-copy-react invariant. Includes the ui-tree fixture so
+      # MainWindow.FindRepoRoot's walk-up finds the layout.
+      - name: Bundle sidecar and extensions
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force publish/flowkey-native/contract | Out-Null
+          Copy-Item flowkey-native/contract/ui-tree.fixture.json publish/flowkey-native/contract/
+          foreach ($p in 'extensions', 'sdk', 'react-ui', 'node_modules', 'sidecar') {
+            & flowkey-native/shell/scripts/Copy-TreeWithJunctions.ps1 `
+              -Source "flowkey-native/$p" `
+              -Destination "publish/flowkey-native/$p"
+          }
 
       - name: Package portable zip
         shell: pwsh
