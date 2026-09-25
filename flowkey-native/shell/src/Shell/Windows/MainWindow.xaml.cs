@@ -65,6 +65,7 @@ public partial class MainWindow : Window
     private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
     private SettingsWindow? settingsWindow;
     private ActionPanel? actionPanel;
+    private HudWindow? hudWindow;
     private const int CommandHotkeyBase = 0x4B00;
     private readonly Dictionary<int, (string ExtensionId, string CommandId)> commandHotkeyIds = new();
     private bool commandHotkeysRegistered;
@@ -192,6 +193,7 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.copyEntry", p => ExecuteClipboardCopyEntry(p));
         nativeMethods.Register("clipboard.pasteEntry", p => ExecuteClipboardPasteEntry(p));
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
+        nativeMethods.Register("hud.show", p => ExecuteHudShow(p));
         oauthService = new OAuthService(tokenVault, OAuthProviderRegistry.Load);
 
         var root = FindRepoRoot();
@@ -2462,6 +2464,21 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(() => ShowToast($"Native method '{method}' failed", outcome.Error?.Message, true));
         }
         sidecar.SendNativeResult(requestId, outcome);
+    }
+
+    private NativeCallOutcome ExecuteHudShow(Dictionary<string, JsonElement>? parameters)
+    {
+        if (!HudService.TryParseRequest(parameters, out var request, out var error))
+        {
+            return NativeCallOutcome.Failure("invalidParams", error ?? "invalid hud.show parameters");
+        }
+        if (IsVisible)
+        {
+            HideWindow();
+        }
+        hudWindow ??= new HudWindow();
+        hudWindow.ShowHud(request!);
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
     }
 
     public void ShowToast(string message) => ShowToast(message, null, false);

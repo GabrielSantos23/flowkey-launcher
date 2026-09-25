@@ -7,6 +7,7 @@ import type {
   InitMessage,
   Preferences,
   UiTree,
+  HudOptions,
 } from '@flowkey/native-sdk';
 import type { ReactExtensionModule } from '@flowkey/react-ui';
 import { ReactRoot } from '@flowkey/react-ui';
@@ -352,6 +353,7 @@ export class Dispatcher {
         native: {
           call: (method, params, options) =>
             this.bridge.call(ext.manifest.id, method, params, options),
+          showHud: (options) => this.bridge.call(ext.manifest.id, 'hud.show', { ...options }),
         },
         signal: new AbortController().signal,
       });
@@ -384,6 +386,8 @@ export class Dispatcher {
           params?: Record<string, unknown>,
           options?: { signal?: AbortSignal; timeoutMs?: number },
         ) => this.bridge.call<T>(ext.manifest.id, method, params, options),
+        showHud: (options: HudOptions) =>
+          this.bridge.call<void>(ext.manifest.id, 'hud.show', { ...options }),
       },
     };
   }

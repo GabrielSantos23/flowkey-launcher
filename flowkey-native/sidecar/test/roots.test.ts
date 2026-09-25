@@ -177,6 +177,34 @@ describe('ManagedRoot abort and drop-after-destroy', () => {
     expect(rejection?.code).toBe('aborted');
     expect(messages.filter((m) => m.type === 'nativeCall')).toHaveLength(0);
   });
+
+  test('showHud dispatches a nativeCall for hud.show with the given options', async () => {
+    let lastNative: CommandProps['native'] | null = null;
+    const component = (props: CommandProps) => {
+      useEffect(() => {
+        void props.native.showHud({ title: 'Playing next track', duration: 5 });
+      }, []);
+      lastNative = props.native;
+      return createElement('list', null, createElement('list-item', { id: 'x', title: 't' }));
+    };
+    const messages: SidecarMessage[] = [];
+    const nativeCalls: Array<{ method: string; params: unknown }> = [];
+    const manager = new RootManager((message) => messages.push(message), (async (
+      _extensionId: string,
+      method: string,
+      params?: Record<string, unknown>,
+    ) => {
+      nativeCalls.push({ method, params });
+      return undefined;
+    }) as never);
+    const root = manager.ensure('test-ext', 'open', { manifest, component });
+    root.updateProps({ query: '', preferences: {} });
+    await sleep(30);
+    expect(nativeCalls).toEqual([
+      { method: 'hud.show', params: { title: 'Playing next track', duration: 5 } },
+    ]);
+    root.destroy();
+  });
 });
 
 function makeDispatcherHarness(component: ComponentType<CommandProps>) {

@@ -10,6 +10,7 @@ function baseProps(overrides: Partial<CommandProps> = {}): CommandProps {
     preferences: {},
     native: {
       call: <T>() => Promise.resolve(undefined as T),
+      showHud: () => Promise.resolve(),
     },
     signal: new AbortController().signal,
     ...overrides,
@@ -492,23 +493,30 @@ describe('serializer validation', () => {
 describe('push actions', () => {
   function renderAlbum(): { generations: CommittedGeneration[]; root: ReactRoot } {
     const generations: CommittedGeneration[] = [];
-    const root = new ReactRoot(() =>
-      createElement(
-        List,
-        null,
-        createElement(List.Item, {
-          id: 'x',
-          title: 'Album',
-          actions: createElement(
-            ActionPanel,
-            null,
-            createElement(Action, { title: 'Songs', push: 'album-songs:al1', onAction: () => {} }),
-          ),
-        }),
-      ), {
-      onCommit: (tree, json, registry) => generations.push({ tree, json, registry }),
-      onError: () => {},
-    });
+    const root = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          null,
+          createElement(List.Item, {
+            id: 'x',
+            title: 'Album',
+            actions: createElement(
+              ActionPanel,
+              null,
+              createElement(Action, {
+                title: 'Songs',
+                push: 'album-songs:al1',
+                onAction: () => {},
+              }),
+            ),
+          }),
+        ),
+      {
+        onCommit: (tree, json, registry) => generations.push({ tree, json, registry }),
+        onError: () => {},
+      },
+    );
     return { root, generations };
   }
 
@@ -528,16 +536,23 @@ describe('push actions', () => {
   });
 
   test('empty push keys are rejected', () => {
-    const root = new ReactRoot(() =>
-      createElement(
-        List,
-        null,
-        createElement(List.Item, {
-          id: 'x',
-          title: 'Album',
-          actions: createElement(ActionPanel, null, createElement(Action, { title: 'Songs', push: '', onAction: () => {} })),
-        }),
-      ), { onCommit: () => {}, onError: () => {} });
+    const root = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          null,
+          createElement(List.Item, {
+            id: 'x',
+            title: 'Album',
+            actions: createElement(
+              ActionPanel,
+              null,
+              createElement(Action, { title: 'Songs', push: '', onAction: () => {} }),
+            ),
+          }),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    );
     expect(() => root.update(props)).toThrow(/non-empty sub-view key/);
   });
 });

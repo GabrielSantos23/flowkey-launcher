@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { ExtensionManifest, Preferences } from '@flowkey/native-sdk';
+import type { ExtensionManifest, HudOptions, Preferences } from '@flowkey/native-sdk';
 
 export interface ReactNativeContext {
   call<T = unknown>(
@@ -7,6 +7,7 @@ export interface ReactNativeContext {
     params?: Record<string, unknown>,
     options?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<T>;
+  showHud(options: HudOptions): Promise<void>;
 }
 
 export interface CommandProps {

@@ -128,6 +128,16 @@
   <CornerRadius x:Key="SettingsSearchCornerRadius">4</CornerRadius>
   <SolidColorBrush x:Key="SettingsNavTileStrokeBrush" Color="#686868" />
 
+  <!-- HUD pill (measured against the reference: 46px tall, #1F1F1F fill, 1px #464646 border) -->
+  <sys:Double x:Key="HudHeight">46</sys:Double>
+  <sys:Double x:Key="HudFontSize">14</sys:Double>
+  <sys:Double x:Key="HudIconSize">22</sys:Double>
+  <CornerRadius x:Key="HudCornerRadius">8</CornerRadius>
+  <Thickness x:Key="HudPadding">15,0,16,0</Thickness>
+  <SolidColorBrush x:Key="HudBackgroundBrush" Color="#1F1F1F" />
+  <SolidColorBrush x:Key="HudBorderBrush" Color="#464646" />
+  <SolidColorBrush x:Key="HudTextBrush" Color="#E8EAE9" />
+
   <LinearGradientBrush x:Key="FooterToastErrorBrush" StartPoint="0,0" EndPoint="1,0">
     <GradientStop Color="#96462323" Offset="0" />
     <GradientStop Color="#59462323" Offset="0.45" />

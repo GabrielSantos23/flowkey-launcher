@@ -1,0 +1,34 @@
+<Window x:Class="FlowKey.Shell.Windows.HudWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="FlowKey HUD"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        ShowActivated="False"
+        Focusable="False"
+        Topmost="True"
+        Height="{DynamicResource HudHeight}"
+        SizeToContent="Width"
+        Background="{DynamicResource HudBackgroundBrush}"
+        FontFamily="{DynamicResource AppFontFamily}">
+  <Border Background="{DynamicResource HudBackgroundBrush}"
+          BorderBrush="{DynamicResource HudBorderBrush}"
+          BorderThickness="1"
+          CornerRadius="{DynamicResource HudCornerRadius}">
+    <StackPanel Orientation="Horizontal" Margin="{DynamicResource HudPadding}">
+      <Border x:Name="IconHost"
+              Width="{DynamicResource HudIconSize}"
+              Height="{DynamicResource HudIconSize}"
+              VerticalAlignment="Center"
+              Visibility="Collapsed" />
+      <TextBlock x:Name="TitleText"
+                 FontSize="{DynamicResource HudFontSize}"
+                 FontWeight="Medium"
+                 Foreground="{DynamicResource HudTextBrush}"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis"
+                 MaxWidth="440" />
+    </StackPanel>
+  </Border>
+</Window>

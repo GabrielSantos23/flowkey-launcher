@@ -74,6 +74,22 @@ export class ManagedRoot {
               signal: anySignal([this.controller.signal, options?.signal]),
             });
           },
+          showHud: (options) => {
+            if (this.destroyed) {
+              return Promise.reject({
+                code: 'aborted',
+                message: 'native method hud.show aborted',
+              });
+            }
+            return this.nativeCall(
+              this.extensionId,
+              'hud.show',
+              { ...options },
+              {
+                signal: this.controller.signal,
+              },
+            );
+          },
         },
         signal: this.controller.signal,
       });

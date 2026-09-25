@@ -102,6 +102,12 @@ export interface ExtensionManifest {
 
 export type Preferences = Record<string, unknown>;
 
+export interface HudOptions {
+  title: string;
+  icon?: string;
+  duration?: number;
+}
+
 export interface ExtensionContext {
   preferences: Preferences;
   commandId?: string;
@@ -112,6 +118,7 @@ export interface ExtensionContext {
       params?: Record<string, unknown>,
       options?: { signal?: AbortSignal; timeoutMs?: number },
     ): Promise<T>;
+    showHud(options: HudOptions): Promise<void>;
   };
 }
 
