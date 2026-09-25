@@ -107,11 +107,8 @@ jobs:
           Copy-Item flowkey-native/sidecar/FlowKey.Sidecar.exe publish/flowkey-native/sidecar/
           Copy-Item flowkey-native/sidecar/src publish/flowkey-native/sidecar/src -Recurse
           # Extensions are baked into the exe; only their plain files (manifest,
-          # assets) ship. node_modules is dev-only — exclude it. robocopy needs
-          # backslash paths (forward slashes get parsed as switches) and exit
-          # codes < 8 are success.
-          robocopy "flowkey-native\extensions" "publish\flowkey-native\extensions" /E /XD node_modules /NFL /NDL /NJH /NJS
-          if ($LASTEXITCODE -ge 8) { throw "robocopy failed with $LASTEXITCODE" }
+          # assets) ship. node_modules is dev-only — exclude it.
+          tar -cf - --exclude '*node_modules*' -C flowkey-native extensions | tar -xf - -C publish/flowkey-native
           Copy-Item flowkey-native/contract/ui-tree.fixture.json publish/flowkey-native/contract/
 
       - name: Package portable zip
