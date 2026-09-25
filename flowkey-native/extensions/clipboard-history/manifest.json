@@ -38,7 +38,8 @@
     "clipboard.deleteEntry",
     "clipboard.copyEntry",
     "clipboard.pasteEntry",
-    "clipboard.editEntry"
+    "clipboard.editEntry",
+    "hud.show"
   ],
   "httpHosts": [],
   "preferences": [

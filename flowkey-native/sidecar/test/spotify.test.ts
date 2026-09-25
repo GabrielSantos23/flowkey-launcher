@@ -20,7 +20,17 @@ const okJson = (body: unknown) => ({
 
 function harness(preferences: Record<string, unknown> = {}) {
   const messages: SidecarMessage[] = [];
-  const emit = (message: SidecarMessage) => messages.push(message);
+  const emit = (message: SidecarMessage) => {
+    messages.push(message);
+    if (message.type === 'nativeCall' && message.method === 'hud.show') {
+      dispatcher.handleNativeResult({
+        type: 'nativeResult',
+        requestId: message.requestId,
+        ok: true,
+        result: { ok: true },
+      });
+    }
+  };
   const dispatcher = new Dispatcher([{ ...spotify, preferences }] as never, emit);
   const calls = () =>
     (messages.filter((m) => m.type === 'nativeCall') as unknown as RecordedCall[]).map((call) => ({
@@ -606,7 +616,9 @@ describe('spotify now-playing', () => {
     expect(pauseAction).toBeTruthy();
     const pending = h.act(pauseAction!, 'a-pause', 'now-playing', detail.title);
     await sleep(60);
-    await h.resolveLatest('http.fetch', { result: { status: 204, bodyText: '', headers: {}, truncated: false } });
+    await h.resolveLatest('http.fetch', {
+      result: { status: 204, bodyText: '', headers: {}, truncated: false },
+    });
     await pending;
     await sleep(400);
     await h.resolveLatest('http.fetch', okJson(playbackFixture));
@@ -635,7 +647,9 @@ describe('spotify player commands', () => {
     await h.search('', 'pc-1', 'volume-50');
     await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
     await sleep(400);
-    await h.resolveLatest('http.fetch', { result: { status: 204, bodyText: '', headers: {}, truncated: false } });
+    await h.resolveLatest('http.fetch', {
+      result: { status: 204, bodyText: '', headers: {}, truncated: false },
+    });
     await sleep(400);
     const volumeCall = h
       .calls()
@@ -652,7 +666,9 @@ describe('spotify player commands', () => {
     await h.search('', 'pc-2', 'skip-15');
     await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
     await sleep(400);
-    await h.resolveLatest('http.fetch', { result: { status: 204, bodyText: '', headers: {}, truncated: false } });
+    await h.resolveLatest('http.fetch', {
+      result: { status: 204, bodyText: '', headers: {}, truncated: false },
+    });
     await sleep(400);
     const seekCall = h
       .calls()
@@ -661,18 +677,70 @@ describe('spotify player commands', () => {
     expect(String(seekCall!.params.url)).toContain('position_ms=60000');
   });
 
+  test('next tolerates a non-json 200 response', async () => {
+    const h = harness();
+    await h.search('', 'pc-8', 'next');
+    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
+    await sleep(400);
+    await h.resolveLatest('http.fetch', {
+      result: { status: 200, bodyText: '<html>gateway blip</html>', headers: {}, truncated: false },
+    });
+    await sleep(400);
+    const hudCall = h.calls().find((call) => call.method === 'hud.show');
+    expect(hudCall).toBeTruthy();
+    expect(String(hudCall!.params.title)).toContain('Skipped');
+  });
+
   test('toggle-play-pause pauses when playing', async () => {
     const h = harness();
     await h.search('', 'pc-3', 'toggle-play-pause');
     await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
     await sleep(400);
-    await h.resolveLatest('http.fetch', { result: { status: 204, bodyText: '', headers: {}, truncated: false } });
+    await h.resolveLatest('http.fetch', {
+      result: { status: 204, bodyText: '', headers: {}, truncated: false },
+    });
     await sleep(400);
     const pauseCall = h
       .calls()
       .filter((call) => call.method === 'http.fetch')
       .find((call) => String(call.params.url).includes('/me/player/pause'));
     expect(pauseCall).toBeTruthy();
+    const hudCall = h.calls().find((call) => call.method === 'hud.show');
+    expect(hudCall).toBeTruthy();
+    expect(String(hudCall!.params.title)).toContain('Paused');
+  });
+
+  test('find-lyrics retries once when lrclib answers 503', async () => {
+    const h = harness();
+    await h.search('', 'pc-5', 'find-lyrics');
+    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
+    await sleep(400);
+    await h.resolveLatest('http.fetch', {
+      result: { status: 503, bodyText: 'Service Unavailable', headers: {}, truncated: false },
+    });
+    await sleep(300);
+    await h.resolveLatest('http.fetch', {
+      result: {
+        status: 200,
+        bodyText: JSON.stringify([
+          {
+            trackName: 'One More Time',
+            artistName: 'Daft Punk',
+            plainLyrics: 'One more time we are gonna celebrate',
+          },
+        ]),
+        headers: {},
+        truncated: false,
+      },
+    });
+    await sleep(400);
+    const lrclibCalls = h
+      .calls()
+      .filter((call) => call.method === 'http.fetch')
+      .filter((call) => String(call.params.url).includes('lrclib.net'));
+    expect(lrclibCalls).toHaveLength(2);
+    const detail = h.lastPush() as unknown as { title?: string; description?: string };
+    expect(detail.title).toContain('One More Time');
   });
 
   test('find-lyrics queries lrclib without auth and renders the lyrics', async () => {
@@ -719,13 +787,17 @@ describe('spotify player commands', () => {
     expect(transferAction).toBeTruthy();
     const pending = h.act(transferAction!, 'a-transfer', item.id, item.title);
     await sleep(60);
-    await h.resolveLatest('http.fetch', { result: { status: 204, bodyText: '', headers: {}, truncated: false } });
+    await h.resolveLatest('http.fetch', {
+      result: { status: 204, bodyText: '', headers: {}, truncated: false },
+    });
     await pending;
     await sleep(400);
     const transferCall = h
       .calls()
       .filter((call) => call.method === 'http.fetch')
-      .find((call) => String(call.params.url).endsWith('/me/player') && call.params.method === 'PUT');
+      .find(
+        (call) => String(call.params.url).endsWith('/me/player') && call.params.method === 'PUT',
+      );
     expect(transferCall).toBeTruthy();
     expect(String(transferCall!.params.body)).toContain('d1');
   });

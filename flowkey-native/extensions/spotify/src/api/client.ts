@@ -79,6 +79,25 @@ export class SpotifyClient {
     path: string,
     init?: { method?: string; body?: unknown; signal?: AbortSignal },
   ): Promise<T> {
+    const result = await this.request(path, init);
+    return parseBody<T>(result.status, result.bodyText);
+  }
+
+  private async apiVoid(
+    path: string,
+    init?: { method?: string; body?: unknown; signal?: AbortSignal },
+  ): Promise<void> {
+    const result = await this.request(path, init);
+    if (result.status >= 200 && result.status < 300) {
+      return;
+    }
+    parseBody<void>(result.status, result.bodyText);
+  }
+
+  private async request(
+    path: string,
+    init?: { method?: string; body?: unknown; signal?: AbortSignal },
+  ): Promise<FetchResult> {
     const params: Record<string, unknown> = {
       url: API_BASE + path,
       method: init?.method ?? 'GET',
@@ -89,16 +108,14 @@ export class SpotifyClient {
       params.body = JSON.stringify(init.body);
       params.headers = { 'Content-Type': 'application/json' };
     }
-    let result: FetchResult;
     try {
-      result = await this.call<FetchResult>('http.fetch', params, {
+      return await this.call<FetchResult>('http.fetch', params, {
         signal: init?.signal,
         timeoutMs: API_CALL_TIMEOUT_MS,
       });
     } catch (error) {
       throw normalizeNativeError(error);
     }
-    return parseBody<T>(result.status, result.bodyText);
   }
 
   me(): Promise<SpotifyProfile> {
@@ -138,14 +155,29 @@ export class SpotifyClient {
     const url =
       `https://lrclib.net/api/search?track_name=${encodeURIComponent(trackName)}` +
       `&artist_name=${encodeURIComponent(artistName)}`;
-    const result = await this.call<FetchResult>(
-      'http.fetch',
-      { url, method: 'GET', timeoutMs: 15_000 },
-      { signal, timeoutMs: API_CALL_TIMEOUT_MS },
-    );
+    const call = () =>
+      this.call<FetchResult>(
+        'http.fetch',
+        { url, method: 'GET', timeoutMs: 15_000 },
+        { signal, timeoutMs: API_CALL_TIMEOUT_MS },
+      );
+    let result: FetchResult;
+    try {
+      result = await call();
+    } catch (error) {
+      throw normalizeNativeError(error);
+    }
+    if (result.status === 503) {
+      try {
+        result = await call();
+      } catch (error) {
+        throw normalizeNativeError(error);
+      }
+    }
     const hits = parseBody<{ plainLyrics?: string | null; trackName?: string; artistName?: string }[]>(
       result.status,
       result.bodyText,
+      'lyrics service',
     );
     const hit = hits?.find((entry) => typeof entry.plainLyrics === 'string' && entry.plainLyrics);
     if (!hit) {
@@ -167,16 +199,16 @@ export class SpotifyClient {
   }
 
   transferPlayback(deviceId: string, play?: boolean): Promise<void> {
-    return this.api('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play } });
+    return this.apiVoid('/me/player', { method: 'PUT', body: { device_ids: [deviceId], play } });
   }
 
   async play(body: Record<string, unknown>, deviceId?: string): Promise<void> {
     if (deviceId) {
-      await this.api(`/me/player/play?device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT', body });
+      await this.apiVoid(`/me/player/play?device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT', body });
       return;
     }
     try {
-      await this.api('/me/player/play', { method: 'PUT', body });
+      await this.apiVoid('/me/player/play', { method: 'PUT', body });
       return;
     } catch (error) {
       const device = await this.fallbackPlaybackDevice();
@@ -184,7 +216,7 @@ export class SpotifyClient {
         throw error;
       }
       await this.transferPlayback(device.id, true);
-      await this.api(`/me/player/play?device_id=${encodeURIComponent(device.id)}`, {
+      await this.apiVoid(`/me/player/play?device_id=${encodeURIComponent(device.id)}`, {
         method: 'PUT',
         body,
       });
@@ -210,34 +242,34 @@ export class SpotifyClient {
   }
 
   pause(): Promise<void> {
-    return this.api('/me/player/pause', { method: 'PUT' });
+    return this.apiVoid('/me/player/pause', { method: 'PUT' });
   }
 
   next(): Promise<void> {
-    return this.api('/me/player/next', { method: 'POST' });
+    return this.apiVoid('/me/player/next', { method: 'POST' });
   }
 
   previous(): Promise<void> {
-    return this.api('/me/player/previous', { method: 'POST' });
+    return this.apiVoid('/me/player/previous', { method: 'POST' });
   }
 
   seek(positionMs: number): Promise<void> {
-    return this.api(`/me/player/seek?position_ms=${Math.max(0, Math.round(positionMs))}`, {
+    return this.apiVoid(`/me/player/seek?position_ms=${Math.max(0, Math.round(positionMs))}`, {
       method: 'PUT',
     });
   }
 
   setVolume(percent: number): Promise<void> {
     const clamped = Math.min(100, Math.max(0, Math.round(percent)));
-    return this.api(`/me/player/volume?volume_percent=${clamped}`, { method: 'PUT' });
+    return this.apiVoid(`/me/player/volume?volume_percent=${clamped}`, { method: 'PUT' });
   }
 
   setShuffle(state: boolean): Promise<void> {
-    return this.api(`/me/player/shuffle?state=${state}`, { method: 'PUT' });
+    return this.apiVoid(`/me/player/shuffle?state=${state}`, { method: 'PUT' });
   }
 
   setRepeat(state: 'off' | 'track' | 'context'): Promise<void> {
-    return this.api(`/me/player/repeat?state=${state}`, { method: 'PUT' });
+    return this.apiVoid(`/me/player/repeat?state=${state}`, { method: 'PUT' });
   }
 
   queue(): Promise<SpotifyQueue> {
@@ -245,7 +277,7 @@ export class SpotifyClient {
   }
 
   addToQueue(uri: string): Promise<void> {
-    return this.api(`/me/player/queue?uri=${encodeURIComponent(uri)}`, { method: 'POST' });
+    return this.apiVoid(`/me/player/queue?uri=${encodeURIComponent(uri)}`, { method: 'POST' });
   }
 
   async savedTracks(limit = 50, signal?: AbortSignal): Promise<Paged<{ track: SpotifyTrack }>> {
@@ -269,11 +301,11 @@ export class SpotifyClient {
   }
 
   addToSavedTracks(ids: string[]): Promise<void> {
-    return this.api(`/me/tracks?ids=${ids.join(',')}`, { method: 'PUT' });
+    return this.apiVoid(`/me/tracks?ids=${ids.join(',')}`, { method: 'PUT' });
   }
 
   removeFromSavedTracks(ids: string[]): Promise<void> {
-    return this.api(`/me/tracks?ids=${ids.join(',')}`, { method: 'DELETE' });
+    return this.apiVoid(`/me/tracks?ids=${ids.join(',')}`, { method: 'DELETE' });
   }
 
   containsSavedAlbums(ids: string[]): Promise<boolean[]> {
@@ -281,11 +313,11 @@ export class SpotifyClient {
   }
 
   addToSavedAlbums(ids: string[]): Promise<void> {
-    return this.api(`/me/albums?ids=${ids.join(',')}`, { method: 'PUT' });
+    return this.apiVoid(`/me/albums?ids=${ids.join(',')}`, { method: 'PUT' });
   }
 
   removeFromSavedAlbums(ids: string[]): Promise<void> {
-    return this.api(`/me/albums?ids=${ids.join(',')}`, { method: 'DELETE' });
+    return this.apiVoid(`/me/albums?ids=${ids.join(',')}`, { method: 'DELETE' });
   }
 
   followedArtists(limit = 50): Promise<{ artists: { items: SpotifyArtist[]; next: string | null } }> {
@@ -349,11 +381,11 @@ export class SpotifyClient {
   }
 
   addToPlaylist(playlistId: string, uris: string[]): Promise<void> {
-    return this.api(`/playlists/${playlistId}/tracks`, { method: 'POST', body: { uris } });
+    return this.apiVoid(`/playlists/${playlistId}/tracks`, { method: 'POST', body: { uris } });
   }
 
   removeFromPlaylist(playlistId: string, uri: string): Promise<void> {
-    return this.api(`/playlists/${playlistId}/tracks`, {
+    return this.apiVoid(`/playlists/${playlistId}/tracks`, {
       method: 'DELETE',
       body: { tracks: [{ uri }] },
     });
@@ -380,7 +412,7 @@ export class SpotifyClient {
   }
 }
 
-function parseBody<T>(status: number, bodyText: string): T {
+function parseBody<T>(status: number, bodyText: string, service = 'spotify'): T {
   if (status === 204 || bodyText.length === 0) {
     return null as T;
   }
@@ -388,13 +420,13 @@ function parseBody<T>(status: number, bodyText: string): T {
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    throw new SpotifyApiError('invalidResponse', `spotify returned malformed json (${status})`, status);
+    throw new SpotifyApiError('invalidResponse', `${service} returned malformed json (${status}): ${JSON.stringify(bodyText.slice(0, 60))}`, status);
   }
   if (status < 200 || status >= 300) {
     const error = parsed as { error?: { message?: string; reason?: string } };
     throw new SpotifyApiError(
       error?.error?.reason ?? 'apiError',
-      error?.error?.message ?? `spotify returned ${status}`,
+      error?.error?.message ?? `${service} returned ${status}`,
       status,
     );
   }

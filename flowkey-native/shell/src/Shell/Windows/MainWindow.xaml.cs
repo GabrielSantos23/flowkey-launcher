@@ -387,6 +387,19 @@ public partial class MainWindow : Window
                 && settings.Modifier == modifier && settings.VirtualKey == virtualKey;
         };
         settingsWindow.RefreshCommandShortcuts = () => { };
+        settingsWindow.SuspendGlobalHotkeys = () =>
+        {
+            hotkeyManager?.Unregister(SummonHotkeyId);
+            UnregisterCommandHotkeys();
+            DebugLog.Write("global hotkeys suspended");
+        };
+        settingsWindow.RestoreGlobalHotkeys = () =>
+        {
+            var settings = hotkeySettings.Load();
+            hotkeyManager?.Register(SummonHotkeyId, settings.Modifier, settings.VirtualKey);
+            RegisterCommandHotkeys();
+            DebugLog.Write("global hotkeys restored");
+        };
         settingsWindow.Closed += (_, _) =>
         {
             DebugLog.Write("settings window closed");
@@ -591,6 +604,7 @@ public partial class MainWindow : Window
 
     private void DispatchGlobalHotkey(int id)
     {
+        DebugLog.Write("WM_HOTKEY id=0x" + id.ToString("X"));
         if (id == SummonHotkeyId)
         {
             Dispatcher.BeginInvoke(() => ToggleVisibility());
@@ -1136,6 +1150,7 @@ public partial class MainWindow : Window
                 if (hotkeyManager.Register(id, modifier, virtualKey))
                 {
                     commandHotkeyIds[id] = (extension.Id, command.Id);
+                    DebugLog.Write($"registered command hotkey id=0x{CommandHotkeyBase + index:X} {commandKey}={combo}");
                 }
                 else if (false)
                 {

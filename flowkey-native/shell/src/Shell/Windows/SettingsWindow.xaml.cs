@@ -1029,7 +1029,13 @@ public partial class SettingsWindow : Window
             PreviewKeyDown -= OnRecorderPreviewKeyDown;
             PreviewKeyUp -= OnRecorderPreviewKeyUp;
             PreviewMouseDown -= OnRecorderPreviewMouseDown;
+            Deactivated -= OnRecorderWindowDeactivated;
+            if (recorderPopup is null)
+            {
+                return;
+            }
             recorderPopup = null;
+            RestoreGlobalHotkeys?.Invoke();
         }
 
         void Close()
@@ -1075,6 +1081,15 @@ public partial class SettingsWindow : Window
                 hint.Text = "Conflicts with the summon hotkey";
                 return;
             }
+            var duplicate = hotkeySettings
+                .Load()
+                .CommandShortcuts
+                .FirstOrDefault(kv => kv.Value.Equals(combo, StringComparison.OrdinalIgnoreCase) && kv.Key != key);
+            if (duplicate.Key is not null)
+            {
+                hint.Text = "Already used by another command";
+                return;
+            }
             CommandShortcutChanged?.Invoke(key, combo);
             Close();
             committed(combo);
@@ -1100,8 +1115,27 @@ public partial class SettingsWindow : Window
         PreviewKeyDown += OnRecorderPreviewKeyDown;
         PreviewKeyUp += OnRecorderPreviewKeyUp;
         PreviewMouseDown += OnRecorderPreviewMouseDown;
+        Deactivated += OnRecorderWindowDeactivated;
+        SuspendGlobalHotkeys?.Invoke();
         popup.IsOpen = true;
         DebugLog.Write("recorder opened key=" + key);
+    }
+
+    private void OnRecorderWindowDeactivated(object? sender, EventArgs e)
+    {
+        if (recorderPopup is { IsOpen: true })
+        {
+            recorderPopup.IsOpen = false;
+        }
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        if (recorderPopup is { IsOpen: true })
+        {
+            recorderPopup.IsOpen = false;
+        }
+        base.OnClosing(e);
     }
 
     private void OnRecorderPreviewKeyDown(object sender, KeyEventArgs e)
@@ -1664,6 +1698,8 @@ public partial class SettingsWindow : Window
     public Func<string, string>? DescribeCommandShortcut { get; set; }
     public Action? RefreshCommandShortcuts { get; set; }
     public Func<string, bool>? ShortcutConflict { get; set; }
+    public Action? SuspendGlobalHotkeys { get; set; }
+    public Action? RestoreGlobalHotkeys { get; set; }
 
     private void OnHotkeyGotFocus(object sender, KeyboardFocusChangedEventArgs e)
     {

@@ -72,6 +72,7 @@ export default defineExtension({
     async command(commandId, ctx) {
       if (commandId === 'clear') {
         await ctx.native.call('clipboard.clearHistory', {});
+        await ctx.native.showHud({ title: 'Clipboard history cleared' });
       }
     },
     async search(query, ctx) {

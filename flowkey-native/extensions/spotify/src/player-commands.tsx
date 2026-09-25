@@ -28,12 +28,23 @@ type RunOutcome =
   | { kind: 'noDevice' }
   | { kind: 'noTrack' };
 
+async function playbackStateWithRetry(client: SpotifyClient): Promise<SpotifyPlaybackState | null> {
+  try {
+    return await client.playbackState();
+  } catch (caught) {
+    if (caught instanceof SpotifyApiError && caught.code === 'invalidResponse') {
+      return await client.playbackState();
+    }
+    throw caught;
+  }
+}
+
 async function withContext(
   client: SpotifyClient,
   action: (context: PlaybackContext) => Promise<string>,
 ): Promise<RunOutcome> {
   try {
-    const state = await client.playbackState();
+    const state = await playbackStateWithRetry(client);
     if (!state || !state.device) {
       return { kind: 'noDevice' };
     }
@@ -115,6 +126,22 @@ function usePlayerCommand(
   return outcome;
 }
 
+function outcomeHudTitle(outcome: RunOutcome): string | null {
+  if (outcome.kind === 'message') {
+    return outcome.title;
+  }
+  if (outcome.kind === 'authRequired') {
+    return 'Spotify not connected';
+  }
+  if (outcome.kind === 'noDevice') {
+    return 'No active Spotify device';
+  }
+  if (outcome.kind === 'noTrack') {
+    return 'No track playing';
+  }
+  return null;
+}
+
 function SimplePlayerCommand({
   native,
   workingTitle,
@@ -125,6 +152,12 @@ function SimplePlayerCommand({
 }): ReactNode {
   const client = useMemo(() => new SpotifyClient(native.call), [native]);
   const outcome = usePlayerCommand(client, (context) => action(context, client));
+  useEffect(() => {
+    const title = outcomeHudTitle(outcome);
+    if (title) {
+      void native.showHud({ title });
+    }
+  }, [outcome, native]);
   return <OutcomeView outcome={outcome} workingTitle={workingTitle} />;
 }
 

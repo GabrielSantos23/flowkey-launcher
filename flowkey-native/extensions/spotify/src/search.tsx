@@ -906,7 +906,8 @@ export function isAborted(error: unknown): boolean {
 
 export function describeError(error: unknown): string {
   if (error instanceof SpotifyApiError) {
-    return `${error.message}${error.status ? ` (${error.status})` : ''}`;
+    const suffix = error.status ? ` (${error.status})` : '';
+    return suffix && error.message.endsWith(suffix) ? error.message : `${error.message}${suffix}`;
   }
   const candidate = error as { message?: string };
   return candidate?.message ?? 'Something went wrong';

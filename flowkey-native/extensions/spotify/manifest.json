@@ -327,7 +327,8 @@
     "secrets.get",
     "secrets.set",
     "secrets.delete",
-    "image.fetch"
+    "image.fetch",
+    "hud.show"
   ],
   "httpHosts": [
     "api.spotify.com",
