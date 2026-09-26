@@ -69,10 +69,11 @@ export function loadExtensions(): LoadedModule[] {
  */
 export async function loadInstalledExtensions(
   extensionsDir: string,
+  reservedIds: ReadonlySet<string> = new Set(),
 ): Promise<{ modules: LoadedModule[]; failures: ReadyFailure[] }> {
   const modules: LoadedModule[] = [];
   const failures: ReadyFailure[] = [];
-  const seenIds = new Set<string>();
+  const seenIds = new Set<string>(reservedIds);
 
   const dirEntries = await readdir(extensionsDir, { withFileTypes: true }).catch(() => null);
   if (dirEntries === null) {
@@ -94,10 +95,14 @@ export async function loadInstalledExtensions(
       }
       const manifest = parsed as ExtensionManifest;
       if (seenIds.has(manifest.id)) {
-        failures.push({
-          id: dirEntry.name,
-          message: `duplicate extension id '${manifest.id}' (already loaded from another directory)`,
-        });
+        // An installed package whose id matches an already-loaded
+        // (first-party or earlier) extension is skipped, never duplicated.
+        if (!reservedIds.has(manifest.id)) {
+          failures.push({
+            id: dirEntry.name,
+            message: `duplicate extension id '${manifest.id}' (already loaded from another directory)`,
+          });
+        }
         continue;
       }
       seenIds.add(manifest.id);

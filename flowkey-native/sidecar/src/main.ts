@@ -73,7 +73,12 @@ process.stdin.on('end', () => process.exit(0));
 async function handleInit(message: Extract<HostMessage, { type: 'init' }>): Promise<void> {
   dispatcher.dispose();
   const disabled = new Set(message.disabledExtensions ?? []);
-  const { modules: installed, failures } = await loadInstalledExtensions(message.extensionsDir);
+  // First-party extensions win: an installed package with the same id is skipped.
+  const reservedIds = new Set(staticModules.map((m) => m.manifest.id));
+  const { modules: installed, failures } = await loadInstalledExtensions(
+    message.extensionsDir,
+    reservedIds,
+  );
   const modules: LoadedModule[] = [
     ...staticModules,
     ...installed.filter((m) => !disabled.has(m.manifest.id)),

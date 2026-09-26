@@ -24,6 +24,7 @@
   ],
   "nativeMethods": [
     "fs.*",
+    "storage.*",
     "clipboard.write",
     "clipboard.paste",
     "shell.openUrl",
