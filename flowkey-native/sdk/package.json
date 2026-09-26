@@ -1,6 +1,6 @@
 {
   "name": "@flowkey-cli/native-sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "TypeScript SDK for FlowKey extensions (types, manifest validation, typed capabilities).",
   "type": "module",
   "main": "src/index.ts",
@@ -26,5 +26,9 @@
   "devDependencies": {
     "@types/bun": "^1.2.0",
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://github.com/GabrielSantos23/flowkey-launcher#readme",
+  "bugs": {
+    "url": "https://github.com/GabrielSantos23/flowkey-launcher/issues"
   }
 }

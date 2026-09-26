@@ -1,6 +1,6 @@
 {
   "name": "@flowkey-cli/cli",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Build, validate, package and install FlowKey extensions.",
   "type": "module",
   "bin": {
@@ -37,5 +37,9 @@
     "@types/bun": "^1.2.0",
     "@types/node": "^22.10.0",
     "typescript": "^5.6.0"
+  },
+  "homepage": "https://github.com/GabrielSantos23/flowkey-launcher#readme",
+  "bugs": {
+    "url": "https://github.com/GabrielSantos23/flowkey-launcher/issues"
   }
 }
