@@ -56,6 +56,7 @@ public partial class MainWindow : Window
     private readonly ImageFetchService imageFetch = new();
     private readonly InstalledExtensionsStore installedExtensionsStore = new(AppLauncherService.DataDirectory);
     private readonly ExtensionStorageStore extensionStorageStore = new(AppLauncherService.DataDirectory);
+    private readonly ExtensionFsService extensionFsService = new();
     private readonly ExtensionPackageManager extensionManager;
     private readonly ExtensionPolicy extensionPolicy;
     private readonly string? repoRoot;
@@ -204,7 +205,6 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.paste", ExecuteClipboardPaste);
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
         nativeMethods.Register("hud.show", p => ExecuteHudShow(p));
-        nativeMethods.Register("shell.openUrl", ExecuteShellOpenUrl);
         nativeMethods.Register("media.current", _ => mediaSessions.CurrentOutcome());
         nativeMethods.Register("media.control", ExecuteMediaControl);
         _ = mediaSessions.InitializeAsync();
@@ -2718,6 +2718,32 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (method.StartsWith("fs.", StringComparison.Ordinal) || method is "shell.openPath" or "shell.revealPath")
+        {
+            var scopes = FsPolicy.InterpolateAll(
+                declarations?.FsPaths ?? (IReadOnlyList<string>)Array.Empty<string>(),
+                PreferenceStringsFor(extensionId));
+            if (method.StartsWith("fs.", StringComparison.Ordinal))
+            {
+                var outcome = extensionFsService.Handle(extensionId, method, parameters, scopes);
+                CompleteNativeCall(requestId, method, outcome);
+                return;
+            }
+            if (method == "shell.openPath")
+            {
+                CompleteNativeCall(requestId, method, ExecuteShellPath(parameters, scopes, reveal: false));
+                return;
+            }
+            CompleteNativeCall(requestId, method, ExecuteShellPath(parameters, scopes, reveal: true));
+            return;
+        }
+
+        if (method == "shell.openUrl")
+        {
+            CompleteNativeCall(requestId, method, ExecuteShellOpenUrl(parameters, declarations?.UriSchemes));
+            return;
+        }
+
         _ = Dispatcher.InvokeAsync(() =>
         {
             var outcome = nativeMethods.Execute(method, declared, parameters);
@@ -2796,17 +2822,24 @@ public partial class MainWindow : Window
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
     }
 
-    private static NativeCallOutcome ExecuteShellOpenUrl(Dictionary<string, JsonElement>? parameters)
+    private NativeCallOutcome ExecuteShellOpenUrl(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> uriSchemes)
     {
         if (parameters is null || !parameters.TryGetValue("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
         {
             return NativeCallOutcome.Failure("invalidParams", "shell.openUrl requires a string 'url' parameter");
         }
         var url = urlElement.GetString() ?? "";
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
-            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.HostNameType == UriHostNameType.Basic)
         {
-            return NativeCallOutcome.Failure("invalidParams", "shell.openUrl only accepts absolute http(s) URLs");
+            return NativeCallOutcome.Failure("invalidParams", "shell.openUrl requires an absolute URI");
+        }
+        var schemeAllowed = uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps
+            || uriSchemes.Contains(uri.Scheme, StringComparer.OrdinalIgnoreCase);
+        if (!schemeAllowed)
+        {
+            return NativeCallOutcome.Failure(
+                "schemeNotDeclared",
+                $"extension did not declare the URI scheme '{uri.Scheme}' in its manifest");
         }
         try
         {
@@ -2817,6 +2850,58 @@ public partial class MainWindow : Window
         {
             return NativeCallOutcome.Failure("openFailed", ex.Message);
         }
+    }
+
+    /// <summary>Opens or reveals a file/folder — the path must match the extension's fs scopes.</summary>
+    private static NativeCallOutcome ExecuteShellPath(
+        Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes, bool reveal)
+    {
+        if (parameters is null || !parameters.TryGetValue("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "shell path methods require a string 'path' parameter");
+        }
+        var path = pathElement.GetString() ?? "";
+        if (!FsPolicy.IsAllowed(path, scopes))
+        {
+            return NativeCallOutcome.Failure(
+                "pathNotInScope",
+                $"path '{path}' is outside the filesystem scopes declared by this extension");
+        }
+        if (!File.Exists(path) && !Directory.Exists(path))
+        {
+            return NativeCallOutcome.Failure("pathNotFound", $"path '{path}' does not exist");
+        }
+        try
+        {
+            if (reveal)
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select, \"{path}\"") { UseShellExecute = true });
+            }
+            else
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(path) { UseShellExecute = true });
+            }
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("openFailed", ex.Message);
+        }
+    }
+
+    /// <summary>The extension's preference values as strings, for fs scope interpolation.</summary>
+    private IReadOnlyDictionary<string, string> PreferenceStringsFor(string extensionId)
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (!preferencesStore.AllSlices().TryGetValue(extensionId, out var slice))
+        {
+            return result;
+        }
+        foreach (var (key, value) in slice)
+        {
+            result[key] = value.ValueKind == JsonValueKind.String ? value.GetString() ?? "" : value.GetRawText();
+        }
+        return result;
     }
 
     public void ShowToast(string message) => ShowToast(message, null, false);

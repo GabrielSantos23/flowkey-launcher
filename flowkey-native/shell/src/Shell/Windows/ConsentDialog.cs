@@ -23,6 +23,8 @@ public sealed class ConsentDialog : Window
         IReadOnlyList<string> nativeMethods,
         IReadOnlyList<string> httpHosts,
         IReadOnlyList<string> oauthProviders,
+        IReadOnlyList<string> fsPaths,
+        IReadOnlyList<string> uriSchemes,
         bool isReconsent)
     {
         Title = isReconsent ? "Review extension permissions" : "Install extension";
@@ -66,6 +68,8 @@ public sealed class ConsentDialog : Window
         AddCapabilitySection(root, "Native methods", nativeMethods, "none");
         AddCapabilitySection(root, "Network hosts", httpHosts, "none");
         AddCapabilitySection(root, "Connected accounts (OAuth)", oauthProviders, "none");
+        AddCapabilitySection(root, "Filesystem access ({{name}} uses your settings)", fsPaths, "none");
+        AddCapabilitySection(root, "Link schemes", uriSchemes, "none");
 
         var buttons = new StackPanel
         {
@@ -96,9 +100,9 @@ public sealed class ConsentDialog : Window
     /// <summary>Shows the dialog modally; returns true when the user accepted.</summary>
     public static bool Confirm(Window? owner, string extensionName, string version, string? description,
         IReadOnlyList<string> nativeMethods, IReadOnlyList<string> httpHosts, IReadOnlyList<string> oauthProviders,
-        bool isReconsent = false)
+        IReadOnlyList<string> fsPaths, IReadOnlyList<string> uriSchemes, bool isReconsent = false)
     {
-        var dialog = new ConsentDialog(extensionName, version, description, nativeMethods, httpHosts, oauthProviders, isReconsent);
+        var dialog = new ConsentDialog(extensionName, version, description, nativeMethods, httpHosts, oauthProviders, fsPaths, uriSchemes, isReconsent);
         if (owner is not null)
         {
             dialog.Owner = owner;

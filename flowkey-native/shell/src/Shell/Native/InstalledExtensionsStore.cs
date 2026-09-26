@@ -7,7 +7,9 @@ namespace FlowKey.Shell.Native;
 public sealed record ExtensionConsent(
     IReadOnlyList<string> NativeMethods,
     IReadOnlyList<string> HttpHosts,
-    IReadOnlyList<string> OAuth);
+    IReadOnlyList<string> OAuth,
+    IReadOnlyList<string> FsPaths,
+    IReadOnlyList<string> UriSchemes);
 
 public sealed record InstalledExtension(
     string Id,

@@ -149,6 +149,12 @@ public sealed class ExtensionPolicy
             OAuth = manifest.OAuth
                 .Where(p => record.Consent.OAuth.Contains(p, StringComparer.Ordinal))
                 .ToList(),
+            FsPaths = manifest.FsPaths
+                .Where(f => record.Consent.FsPaths.Contains(f, StringComparer.Ordinal))
+                .ToList(),
+            UriSchemes = manifest.UriSchemes
+                .Where(p => record.Consent.UriSchemes.Contains(p, StringComparer.Ordinal))
+                .ToList(),
         };
     }
 
@@ -183,6 +189,8 @@ public sealed class ExtensionPolicy
                 NativeMethods = ReadStringArray(root, "nativeMethods"),
                 HttpHosts = ReadStringArray(root, "httpHosts"),
                 OAuth = root.TryGetProperty("oauth", out _) ? ReadStringArray(root, "oauth") : [],
+                FsPaths = root.TryGetProperty("fsPaths", out _) ? ReadStringArray(root, "fsPaths") : [],
+                UriSchemes = root.TryGetProperty("uriSchemes", out _) ? ReadStringArray(root, "uriSchemes") : [],
             };
             manifestCache[record.Id] = (stamp, declarations);
             return declarations;

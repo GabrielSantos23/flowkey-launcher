@@ -270,6 +270,54 @@ public static class ExtensionManifestValidator
             }
         }
 
+        // fsPaths — absolute path globs with optional {{preference}} placeholders
+        if (root.TryGetProperty("fsPaths", out var fsPaths))
+        {
+            if (fsPaths.ValueKind != JsonValueKind.Array)
+            {
+                Add(errors, "fsPaths", "format", "fsPaths must be an array of absolute path globs");
+            }
+            else
+            {
+                if (fsPaths.GetArrayLength() > 16)
+                {
+                    Add(errors, "fsPaths", "tooMany", "at most 16 fs scopes are allowed");
+                }
+                var index = 0;
+                foreach (var scope in fsPaths.EnumerateArray())
+                {
+                    if (scope.ValueKind != JsonValueKind.String || !IsValidFsScope(scope.GetString() ?? ""))
+                    {
+                        Add(errors, $"fsPaths[{index}]", "format",
+                            "fs scope must be an absolute path glob (drive-letter, UNC or POSIX root) without traversal");
+                    }
+                    index++;
+                }
+            }
+        }
+
+        // uriSchemes — additional schemes shell.openUrl may open
+        if (root.TryGetProperty("uriSchemes", out var uriSchemes))
+        {
+            if (uriSchemes.ValueKind != JsonValueKind.Array)
+            {
+                Add(errors, "uriSchemes", "format", "uriSchemes must be an array of scheme names");
+            }
+            else
+            {
+                var index = 0;
+                foreach (var scheme in uriSchemes.EnumerateArray())
+                {
+                    if (scheme.ValueKind != JsonValueKind.String
+                        || !System.Text.RegularExpressions.Regex.IsMatch(scheme.GetString() ?? "", "^[a-z0-9-]+$"))
+                    {
+                        Add(errors, $"uriSchemes[{index}]", "format", "uri scheme must be a lowercase name like 'obsidian'");
+                    }
+                    index++;
+                }
+            }
+        }
+
         // preferences
         if (root.TryGetProperty("preferences", out var preferences))
         {
@@ -384,6 +432,38 @@ public static class ExtensionManifestValidator
             return true;
         }
         return !value.Contains('\\') && !value.Contains("..") && !value.StartsWith('/') && !value.Contains(':');
+    }
+
+    /// <summary>
+    /// Filesystem scopes are absolute path globs. {{name}} placeholders may
+    /// appear anywhere (they interpolate preference values at call time) and
+    /// the rest must be a plausible absolute glob without traversal.
+    /// </summary>
+    public static bool IsValidFsScope(string value)
+    {
+        if (value.Length == 0 || value.Length > 512)
+        {
+            return false;
+        }
+        if (value.StartsWith("{{"))
+        {
+            var closing = value.IndexOf("}}", StringComparison.Ordinal);
+            if (closing < 0 || !System.Text.RegularExpressions.Regex.IsMatch(
+                    value, @"^\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}"))
+            {
+                return false;
+            }
+            var rest = value[(closing + 2)..];
+            return !rest.Contains("..") && !rest.Contains('\n') && !rest.Contains('\\');
+        }
+        var withoutPlaceholders = System.Text.RegularExpressions.Regex.Replace(
+            value, @"\{\{\s*[a-zA-Z_][a-zA-Z0-9_]*\s*\}", "x");
+        if (withoutPlaceholders.Contains("..") || withoutPlaceholders.Contains('\n'))
+        {
+            return false;
+        }
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            withoutPlaceholders, @"^(?:[A-Za-z]:[\\/]|\\\\|/)(?:[^*?\n]|\*\*?|\?)*(?:\\.*)?$");
     }
 
     public static bool IsValidHttpHost(string value)

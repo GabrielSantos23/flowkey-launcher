@@ -120,6 +120,20 @@ export interface ExtensionManifest {
   nativeMethods: string[];
   httpHosts: string[];
   oauth?: string[];
+  /**
+   * Filesystem scopes granted to the extension, as absolute path globs —
+   * e.g. a Windows vault path with a recursive wildcard and an `.md`
+   * extension filter, or the same shape with a `{{vaultPath}}` placeholder
+   * that interpolates the user's preference value at call time. Required
+   * for every `fs.*` native method and for `shell.openPath` /
+   * `shell.revealPath`.
+   */
+  fsPaths?: string[];
+  /**
+   * Additional URI schemes `shell.openUrl` may open (http and https are
+   * always allowed) — e.g. `["obsidian"]` for `obsidian://` links.
+   */
+  uriSchemes?: string[];
   preferences?: PreferenceSchema[];
 }
 
@@ -192,6 +206,8 @@ export interface ReadyExtension {
   nativeMethods: string[];
   httpHosts: string[];
   oauth?: string[];
+  fsPaths?: string[];
+  uriSchemes?: string[];
 }
 
 export interface InitMessage {

@@ -58,6 +58,33 @@ export function isValidIconValue(value: string): boolean {
   );
 }
 
+const MAX_FS_PATHS = 16;
+const FS_SCOPE_PATTERN = /^(?:[A-Za-z]:[\\/]|\\\\|\/)(?:[^*?\n]|\*\*?|\?)*(?:\*.*)?$/;
+
+/**
+ * Filesystem scopes are absolute path globs — or a glob that STARTS with a
+ * `{{name}}` preference placeholder (the placeholder supplies the root, e.g.
+ * a user-configured vault path). No traversal, no newlines.
+ */
+export function isValidFsScope(value: string): boolean {
+  if (value.length === 0 || value.length > 512) {
+    return false;
+  }
+  if (value.startsWith('{{')) {
+    const closing = value.indexOf('}}');
+    if (closing < 0 || !/\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}/.test(value)) {
+      return false;
+    }
+    const rest = value.slice(closing + 2);
+    return !rest.includes('..') && !rest.includes('\n') && !rest.includes('\\');
+  }
+  const withoutPlaceholders = value.replace(/\{\{[a-zA-Z_][a-zA-Z0-9_]*\}\}/g, 'x');
+  if (withoutPlaceholders.includes('..') || withoutPlaceholders.includes('\n')) {
+    return false;
+  }
+  return FS_SCOPE_PATTERN.test(withoutPlaceholders);
+}
+
 export function resolveEntry(manifest: ExtensionManifest): string {
   return manifest.entry ?? DEFAULT_ENTRY;
 }
@@ -259,6 +286,44 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
       m.oauth.forEach((provider: unknown, i: number) => {
         if (typeof provider !== 'string' || !OAUTH_PROVIDER_PATTERN.test(provider)) {
           error(`oauth[${i}]`, 'format', "oauth provider must be a lowercase id like 'spotify'");
+        }
+      });
+    }
+  }
+
+  // fsPaths — absolute path globs granting filesystem access; {{name}}
+  // interpolates a preference value at call time.
+  if (m.fsPaths !== undefined) {
+    if (!Array.isArray(m.fsPaths)) {
+      error('fsPaths', 'format', 'fsPaths must be an array of absolute path globs');
+    } else {
+      if (m.fsPaths.length > MAX_FS_PATHS) {
+        error('fsPaths', 'tooMany', `at most ${MAX_FS_PATHS} fs scopes are allowed`);
+      }
+      m.fsPaths.forEach((scope: unknown, i: number) => {
+        if (typeof scope !== 'string' || !isValidFsScope(scope)) {
+          error(
+            `fsPaths[${i}]`,
+            'format',
+            `fs scope '${String(scope)}' must be an absolute path glob (e.g. 'C:\vault\**\*.md' or '{{vaultPath}}/**/*.md') without traversal`,
+          );
+        }
+      });
+    }
+  }
+
+  // uriSchemes — additional schemes shell.openUrl may open
+  if (m.uriSchemes !== undefined) {
+    if (!Array.isArray(m.uriSchemes)) {
+      error('uriSchemes', 'format', 'uriSchemes must be an array of scheme names');
+    } else {
+      m.uriSchemes.forEach((scheme: unknown, i: number) => {
+        if (typeof scheme !== 'string' || !OAUTH_PROVIDER_PATTERN.test(scheme)) {
+          error(
+            `uriSchemes[${i}]`,
+            'format',
+            "uri scheme must be a lowercase name like 'obsidian'",
+          );
         }
       });
     }

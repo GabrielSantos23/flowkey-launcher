@@ -41,6 +41,16 @@ export interface HistoryEntry {
   text: string;
 }
 
+export interface FsEntry {
+  /** Absolute path of the file. */
+  path: string;
+  name: string;
+  sizeBytes: number;
+  /** Unix epoch milliseconds. */
+  createdAtMs: number;
+  modifiedAtMs: number;
+}
+
 /**
  * Typed capability groups over the raw native-call transport. Built once per
  * extension by the sidecar and injected into every context and component's
@@ -74,6 +84,24 @@ export interface FlowKeyCapabilities {
   };
   shell: {
     openUrl(url: string): Promise<void>;
+    /** Opens a file or folder with the system default handler (gated by manifest fsPaths). */
+    openPath(path: string): Promise<void>;
+    /** Reveals a file or folder in the system file manager (gated by manifest fsPaths). */
+    revealPath(path: string): Promise<void>;
+  };
+  /**
+   * Scoped filesystem access: every path must match a glob declared in the
+   * manifest `fsPaths` (with `{{preference}}` placeholders interpolated from
+   * the user's settings), and the user consents to those scopes at install.
+   */
+  fs: {
+    readText(path: string): Promise<string>;
+    /** Writes (or appends to) a text file, creating it if missing. */
+    writeText(path: string, content: string, options?: { append?: boolean }): Promise<void>;
+    delete(path: string): Promise<void>;
+    /** Expands a glob (relative to a scope root, or absolute) into file entries with metadata. */
+    glob(pattern: string, options?: { limit?: number }): Promise<FsEntry[]>;
+    stat(path: string): Promise<FsEntry>;
   };
   apps: {
     list(query?: string): Promise<AppEntry[]>;
@@ -165,6 +193,37 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
     shell: {
       async openUrl(url) {
         await call('shell.openUrl', { url });
+      },
+      async openPath(path) {
+        await call('shell.openPath', { path });
+      },
+      async revealPath(path) {
+        await call('shell.revealPath', { path });
+      },
+    },
+    fs: {
+      async readText(path) {
+        const result = await call<{ ok?: boolean; content?: string }>('fs.readText', { path });
+        unwrapOk(result, 'fs.readText');
+        return result.content ?? '';
+      },
+      async writeText(path, content, options) {
+        await call('fs.writeText', { path, content, append: options?.append === true });
+      },
+      async delete(path) {
+        await call('fs.delete', { path });
+      },
+      async glob(pattern, options) {
+        const result = await call<{ ok?: boolean; entries?: FsEntry[] }>('fs.glob', {
+          pattern,
+          limit: options?.limit,
+        });
+        unwrapOk(result, 'fs.glob');
+        return result.entries ?? [];
+      },
+      async stat(path) {
+        const result = await call<FsEntry>('fs.stat', { path });
+        return result;
       },
     },
     apps: {

@@ -88,7 +88,7 @@ public class ExtensionPackageInstallerTests : IDisposable
         Assert.Equal("api.example.com", Assert.Single(plan.HttpHosts));
         Assert.Contains("storage.*", plan.NativeMethods);
 
-        var consent = new ExtensionConsent(plan.NativeMethods, plan.HttpHosts, plan.OAuth);
+        var consent = new ExtensionConsent(plan.NativeMethods, plan.HttpHosts, plan.OAuth, [], []);
         var outcome = fixture.Installer.Install(plan, package, consent);
         Assert.True(outcome.Ok, outcome.ErrorMessage);
         Assert.NotNull(outcome.Installed);
@@ -109,7 +109,7 @@ public class ExtensionPackageInstallerTests : IDisposable
         var plan = fixture.Installer.Inspect(package, out _);
         Assert.NotNull(plan);
         var outcome = fixture.Installer.Install(plan!, package,
-            new ExtensionConsent(plan!.NativeMethods, plan.HttpHosts, plan.OAuth));
+            new ExtensionConsent(plan!.NativeMethods, plan.HttpHosts, plan.OAuth, [], []));
         Assert.True(outcome.Ok);
 
         var same = fixture.Installer.Inspect(fixture.BuildPackage(ExtensionSubsystemFixture.ValidManifest(version: "1.2.0")), out var sameError);
@@ -180,7 +180,7 @@ public class ExtensionPolicyTests : IDisposable
 
         fixture.Store.Upsert(new InstalledExtension(
             "demo-ext", "Demo Extension", "1.0.0", installPath, Enabled: true, DateTimeOffset.UtcNow,
-            new ExtensionConsent(["clipboard.write"], ["api.example.com"], [])));
+            new ExtensionConsent(["clipboard.write"], ["api.example.com"], [], [], [])));
 
         var policy = new ExtensionPolicy(() => Array.Empty<Protocol.ReadyExtension>(), fixture.Store);
         var declarations = policy.DeclarationsFor("demo-ext");
@@ -200,7 +200,7 @@ public class ExtensionPolicyTests : IDisposable
 
         fixture.Store.Upsert(new InstalledExtension(
             "demo-ext", "Demo Extension", "1.0.0", installPath, Enabled: true, DateTimeOffset.UtcNow,
-            new ExtensionConsent(["storage.*", "clipboard.*"], ["api.example.com"], [])));
+            new ExtensionConsent(["storage.*", "clipboard.*"], ["api.example.com"], [], [], [])));
 
         var policy = new ExtensionPolicy(() => Array.Empty<Protocol.ReadyExtension>(), fixture.Store);
         var declarations = policy.DeclarationsFor("demo-ext");

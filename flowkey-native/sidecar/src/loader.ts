@@ -163,6 +163,8 @@ export function toReadyExtensions(modules: LoadedModule[]): ReadyExtension[] {
     nativeMethods: m.manifest.nativeMethods,
     httpHosts: m.manifest.httpHosts,
     oauth: (m.manifest as { oauth?: string[] }).oauth ?? [],
+    fsPaths: (m.manifest as { fsPaths?: string[] }).fsPaths ?? [],
+    uriSchemes: (m.manifest as { uriSchemes?: string[] }).uriSchemes ?? [],
   }));
 }
 

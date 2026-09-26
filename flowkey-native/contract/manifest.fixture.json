@@ -48,7 +48,10 @@
           "storage.*",
           "clipboard.write",
           "shell.openUrl",
-          "secrets.get"
+          "secrets.get",
+          "fs.readText",
+          "fs.glob",
+          "shell.openPath"
         ],
         "httpHosts": ["api.example.com", ".cdn.example.com", "lrclib.net:8443"],
         "oauth": ["spotify"],
@@ -87,7 +90,9 @@
             "title": "Greeting",
             "default": "Hello"
           }
-        ]
+        ],
+        "fsPaths": ["{{vaultPath}}/**/*.md", "C:/shared/notes/**"],
+        "uriSchemes": ["obsidian"]
       }
     },
     {
@@ -348,6 +353,63 @@
         "httpHosts": []
       },
       "expectedField": "icon",
+      "expectedCode": "format"
+    },
+    {
+      "name": "fs-path-relative",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": ["fs.readText"],
+        "httpHosts": [],
+        "fsPaths": ["vault/**/*.md"]
+      },
+      "expectedField": "fsPaths[0]",
+      "expectedCode": "format"
+    },
+    {
+      "name": "fs-path-traversal",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": ["fs.readText"],
+        "httpHosts": [],
+        "fsPaths": ["C:/vault/../**"]
+      },
+      "expectedField": "fsPaths[0]",
+      "expectedCode": "format"
+    },
+    {
+      "name": "uri-scheme-uppercase",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": [],
+        "uriSchemes": ["Obsidian"]
+      },
+      "expectedField": "uriSchemes[0]",
       "expectedCode": "format"
     }
   ]

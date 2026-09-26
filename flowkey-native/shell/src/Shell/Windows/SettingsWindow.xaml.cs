@@ -578,14 +578,14 @@ public partial class SettingsWindow : Window
         }
         var accepted = ConsentDialog.Confirm(
             this, plan.Name, plan.Version, plan.Description,
-            plan.NativeMethods, plan.HttpHosts, plan.OAuth, isReconsent: false);
+            plan.NativeMethods, plan.HttpHosts, plan.OAuth, plan.FsPaths, plan.UriSchemes, isReconsent: false);
         if (!accepted)
         {
             return;
         }
         var outcome = extensionManager.Install(
             plan, dialog.FileName,
-            new ExtensionConsent(plan.NativeMethods, plan.HttpHosts, plan.OAuth));
+            new ExtensionConsent(plan.NativeMethods, plan.HttpHosts, plan.OAuth, plan.FsPaths, plan.UriSchemes));
         if (!outcome.Ok)
         {
             showToast("Install failed: " + (outcome.ErrorMessage ?? "unknown error"));
@@ -773,6 +773,7 @@ public partial class SettingsWindow : Window
             var accepted = ConsentDialog.Confirm(
                 this, extension.Name, record.Version, extension.Description,
                 extension.NativeMethods, extension.HttpHosts, extension.OAuth ?? new List<string>(),
+                extension.FsPaths ?? new List<string>(), extension.UriSchemes ?? new List<string>(),
                 isReconsent: true);
             if (!accepted)
             {
@@ -780,7 +781,9 @@ public partial class SettingsWindow : Window
             }
             extensionManager.UpdateConsent(
                 record.Id,
-                new ExtensionConsent(extension.NativeMethods, extension.HttpHosts, extension.OAuth ?? new List<string>()));
+                new ExtensionConsent(
+                    extension.NativeMethods, extension.HttpHosts, extension.OAuth ?? new List<string>(),
+                    extension.FsPaths ?? new List<string>(), extension.UriSchemes ?? new List<string>()));
             showToast("Permissions updated");
         };
         controls.Children.Add(reviewButton);

@@ -36,6 +36,8 @@ public sealed class ExtensionPackageInstaller
         IReadOnlyList<string> NativeMethods,
         IReadOnlyList<string> HttpHosts,
         IReadOnlyList<string> OAuth,
+        IReadOnlyList<string> FsPaths,
+        IReadOnlyList<string> UriSchemes,
         IReadOnlyList<string> ManifestWarnings);
 
     public sealed record InstallOutcome(bool Ok, string? ErrorCode, string? ErrorMessage, InstalledExtension? Installed)
@@ -121,6 +123,12 @@ public sealed class ExtensionPackageInstaller
                     ReadStringArray(root, "httpHosts"),
                     root.TryGetProperty("oauth", out var oauth) && oauth.ValueKind == JsonValueKind.Array
                         ? ReadStringArray(root, "oauth")
+                        : Array.Empty<string>(),
+                    root.TryGetProperty("fsPaths", out var fsPaths) && fsPaths.ValueKind == JsonValueKind.Array
+                        ? ReadStringArray(root, "fsPaths")
+                        : Array.Empty<string>(),
+                    root.TryGetProperty("uriSchemes", out var uriSchemes) && uriSchemes.ValueKind == JsonValueKind.Array
+                        ? ReadStringArray(root, "uriSchemes")
                         : Array.Empty<string>(),
                     validation.Warnings.Select(w => $"{w.Field}: {w.Message}").ToList());
             }
