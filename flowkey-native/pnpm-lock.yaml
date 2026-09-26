@@ -139,9 +139,6 @@ importers:
 
   react-ui:
     dependencies:
-      '@types/react-reconciler':
-        specifier: ^0.31.0
-        version: 0.31.0(@types/react@19.3.0)
       react-reconciler:
         specifier: 0.33.0
         version: 0.33.0(react@19.3.0)
@@ -377,11 +374,6 @@ packages:
 
   '@types/node@26.6.2':
     resolution: {integrity: sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==}
-
-  '@types/react-reconciler@0.31.0':
-    resolution: {integrity: sha512-wa1KtV3SHKnWeLHfZFg/7nrPSe/Ejdn+qbanNX4V6i9I7C3ECKPfBnC1KM3ef58KFWEohLmTvoTH5XuEIKGX2g==}
-    peerDependencies:
-      '@types/react': '*'
 
   '@types/react@19.3.0':
     resolution: {integrity: sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==}
@@ -644,10 +636,6 @@ snapshots:
   '@types/node@26.6.2':
     dependencies:
       undici-types: 8.9.0
-
-  '@types/react-reconciler@0.31.0(@types/react@19.3.0)':
-    dependencies:
-      '@types/react': 19.3.0
 
   '@types/react@19.3.0':
     dependencies:

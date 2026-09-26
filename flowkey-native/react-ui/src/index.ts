@@ -1,3 +1,4 @@
+/// <reference path="./react-reconciler.d.ts" />
 export { ActionPanel, Action, Detail, Grid, List } from './components';
 export type {
   ActionPanelProps,
