@@ -8,61 +8,42 @@
     {
       "id": "search",
       "title": "Spotify Search",
-      "keywords": [
-        "music",
-        "song",
-        "artist",
-        "album"
-      ],
+      "keywords": ["music", "song", "artist", "album"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "your-library",
       "title": "Your Library",
-      "keywords": [
-        "spotify",
-        "saved"
-      ],
+      "keywords": ["spotify", "saved"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "now-playing",
       "title": "Now Playing",
-      "keywords": [
-        "spotify",
-        "player"
-      ],
+      "keywords": ["spotify", "player"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "queue",
       "title": "Spotify Queue",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "devices",
       "title": "Spotify Devices",
-      "keywords": [
-        "spotify",
-        "connect"
-      ],
+      "keywords": ["spotify", "connect"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "just-play",
       "title": "Just Play",
-      "keywords": [
-        "spotify",
-        "play"
-      ],
+      "keywords": ["spotify", "play"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -70,9 +51,7 @@
     {
       "id": "toggle-play-pause",
       "title": "Toggle Play/Pause",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -80,10 +59,7 @@
     {
       "id": "next",
       "title": "Next Track",
-      "keywords": [
-        "spotify",
-        "skip"
-      ],
+      "keywords": ["spotify", "skip"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -91,9 +67,7 @@
     {
       "id": "previous",
       "title": "Previous Track",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -101,10 +75,7 @@
     {
       "id": "like",
       "title": "Like Current Track",
-      "keywords": [
-        "spotify",
-        "heart"
-      ],
+      "keywords": ["spotify", "heart"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -112,9 +83,7 @@
     {
       "id": "dislike",
       "title": "Dislike Current Track",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -122,9 +91,7 @@
     {
       "id": "toggle-shuffle",
       "title": "Toggle Shuffle",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -132,9 +99,7 @@
     {
       "id": "cycle-repeat",
       "title": "Cycle Repeat",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -142,9 +107,7 @@
     {
       "id": "replay",
       "title": "Replay Track",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -152,10 +115,7 @@
     {
       "id": "volume-0",
       "title": "Volume 0%",
-      "keywords": [
-        "spotify",
-        "mute"
-      ],
+      "keywords": ["spotify", "mute"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -163,9 +123,7 @@
     {
       "id": "volume-25",
       "title": "Volume 25%",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -173,9 +131,7 @@
     {
       "id": "volume-50",
       "title": "Volume 50%",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -183,9 +139,7 @@
     {
       "id": "volume-75",
       "title": "Volume 75%",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -193,9 +147,7 @@
     {
       "id": "volume-100",
       "title": "Volume 100%",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -203,9 +155,7 @@
     {
       "id": "volume-up",
       "title": "Volume Up",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -213,9 +163,7 @@
     {
       "id": "volume-down",
       "title": "Volume Down",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -223,9 +171,7 @@
     {
       "id": "start-radio",
       "title": "Start Radio",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -233,18 +179,14 @@
     {
       "id": "current-track",
       "title": "Current Track",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "copy-url",
       "title": "Copy Track URL",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -252,9 +194,7 @@
     {
       "id": "copy-artist-and-title",
       "title": "Copy Artist and Title",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -262,9 +202,7 @@
     {
       "id": "copy-embed",
       "title": "Copy Embed Code",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -272,9 +210,7 @@
     {
       "id": "skip-15",
       "title": "Skip 15 Seconds",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -282,9 +218,7 @@
     {
       "id": "back-15",
       "title": "Back 15 Seconds",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954",
       "mode": "background"
@@ -292,28 +226,21 @@
     {
       "id": "add-playing-to-playlist",
       "title": "Add Playing Song to Playlist",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "remove-playing-from-playlist",
       "title": "Remove Playing Song from Playlist",
-      "keywords": [
-        "spotify"
-      ],
+      "keywords": ["spotify"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     },
     {
       "id": "find-lyrics",
       "title": "Find Lyrics",
-      "keywords": [
-        "spotify",
-        "lyrics"
-      ],
+      "keywords": ["spotify", "lyrics"],
       "icon": "spotify",
       "iconColor": "#1DB954"
     }
@@ -330,7 +257,8 @@
     "image.fetch",
     "hud.show",
     "media.current",
-    "media.control"
+    "media.control",
+    "storage.*"
   ],
   "httpHosts": [
     "api.spotify.com",
@@ -341,9 +269,7 @@
     "lrclib.net",
     ".spotifycdn.com"
   ],
-  "oauth": [
-    "spotify"
-  ],
+  "oauth": ["spotify"],
   "preferences": [
     {
       "name": "clientId",
