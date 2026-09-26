@@ -10,6 +10,7 @@
     <RootNamespace>FlowKey.Shell</RootNamespace>
     <AssemblyName>FlowKey.Shell</AssemblyName>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
     <Version Condition="'$(ReleaseVersion)' != ''">$(ReleaseVersion)</Version>
     <Version Condition="'$(ReleaseVersion)' == ''">0.1.0</Version>
     <AssemblyVersion>$(Version)</AssemblyVersion>
@@ -20,6 +21,7 @@
     <Resource Include="Assets\Fonts\Inter-Regular.ttf" />
     <Resource Include="Assets\Fonts\Inter-Medium.ttf" />
     <Resource Include="Assets\Fonts\Inter-SemiBold.ttf" />
+    <Resource Include="Assets\AppIcon.ico" />
     <Resource Include="Assets\Icons\*.svg" />
     <Resource Include="Assets\Icons\*.png" />
   </ItemGroup>

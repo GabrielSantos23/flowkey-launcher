@@ -61,7 +61,7 @@ public partial class App : Application
 
         trayIcon = new System.Windows.Forms.NotifyIcon
         {
-            Icon = System.Drawing.SystemIcons.Application,
+            Icon = LoadAppIcon(),
             Visible = true,
             Text = "FlowKey",
         };
@@ -77,6 +77,26 @@ public partial class App : Application
             }
         };
         trayIcon.DoubleClick += (_, _) => mainWindow.Summon();
+    }
+
+    private static System.Drawing.Icon LoadAppIcon()
+    {
+        try
+        {
+            var resource = GetResourceStream(new Uri("pack://application:,,,/Assets/AppIcon.ico"));
+            using (resource.Stream)
+            {
+                // The tray renders the 16px entry; the exe's ApplicationIcon
+                // (same .ico) covers the taskbar, alt-tab and title bar.
+                return new System.Drawing.Icon(resource.Stream, 16, 16);
+            }
+        }
+        catch (Exception exception)
+        {
+            DebugLog.Write("tray icon load failed, falling back to system icon: "
+                + exception.GetType().Name + ": " + exception.Message);
+            return System.Drawing.SystemIcons.Application;
+        }
     }
 
     private void ShowTrayMenu()
