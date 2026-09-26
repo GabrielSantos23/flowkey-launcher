@@ -7,6 +7,7 @@ export type {
   FilterOptionSpec,
   GridItemProps,
   GridProps,
+  GridSectionProps,
   IconSpec,
   ListItemDetailProps,
   ListItemProps,

@@ -1,7 +1,12 @@
+import { readdir, readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type {
   ExtensionModule,
+  ExtensionManifest,
   PreferenceSchema,
   ReadyExtension,
+  ReadyFailure,
   HostMessage,
   SidecarMessage,
   InitMessage,
@@ -9,6 +14,7 @@ import type {
   UiTree,
   HudOptions,
 } from '@flowkey/native-sdk';
+import { resolveEntry, validateManifest, createCapabilities } from '@flowkey/native-sdk';
 import type { ReactExtensionModule } from '@flowkey/react-ui';
 import { ReactRoot } from '@flowkey/react-ui';
 import { NativeBridge } from './bridge';
@@ -19,10 +25,11 @@ import apps from '@flowkey/extension-apps';
 import clipboardHistory from '@flowkey/extension-clipboard-history';
 import spotify from '@flowkey/extension-spotify';
 import reactDemo from '@flowkey/extension-react-demo';
+import lucideIcons from '@flowkey/extension-lucide-icons';
 
 type LoadedFunctional = ExtensionModule & { preferences: Preferences };
 type LoadedReact = ReactExtensionModule & { preferences: Preferences };
-type LoadedModule = LoadedFunctional | LoadedReact;
+export type LoadedModule = LoadedFunctional | LoadedReact;
 
 function isReactModule(module: LoadedModule): module is LoadedReact {
   return 'component' in module;
@@ -35,18 +42,112 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   googleTranslate,
   reactDemo,
   spotify,
+  lucideIcons,
 ];
 
 export function loadExtensions(): LoadedModule[] {
   return REGISTRY.filter((m) => {
     const reserved = m.manifest.commands.some((c) => c.id === '__open__');
     if (reserved) {
-      process.stderr.write(`extension ${m.manifest.id} declares reserved action id __open__; skipped
-`);
+      process.stderr.write(
+        `extension ${m.manifest.id} declares reserved action id __open__; skipped\n`,
+      );
       return false;
     }
     return true;
   }) as LoadedModule[];
+}
+
+/**
+ * Discovers installed third-party extensions under `extensionsDir` (one
+ * directory per extension, each with a manifest.json and a bundled .js entry).
+ * The on-disk manifest is the authoritative policy source — the bundle's own
+ * embedded manifest, if any, is ignored. A broken extension is reported as a
+ * failure and never prevents the others from loading.
+ */
+export async function loadInstalledExtensions(
+  extensionsDir: string,
+): Promise<{ modules: LoadedModule[]; failures: ReadyFailure[] }> {
+  const modules: LoadedModule[] = [];
+  const failures: ReadyFailure[] = [];
+  const seenIds = new Set<string>();
+
+  const dirEntries = await readdir(extensionsDir, { withFileTypes: true }).catch(() => null);
+  if (dirEntries === null) {
+    // No installed extensions directory (or unreadable) — nothing to load.
+    return { modules, failures };
+  }
+
+  for (const dirEntry of dirEntries) {
+    if (!dirEntry.isDirectory() || dirEntry.name.startsWith('.')) continue;
+    const extensionDir = join(extensionsDir, dirEntry.name);
+    try {
+      const raw = await readFile(join(extensionDir, 'manifest.json'), 'utf8');
+      const parsed: unknown = JSON.parse(raw);
+      const validation = validateManifest(parsed);
+      if (validation.errors.length > 0) {
+        const first = validation.errors[0];
+        failures.push({ id: dirEntry.name, message: `invalid manifest: ${first.message}` });
+        continue;
+      }
+      const manifest = parsed as ExtensionManifest;
+      if (seenIds.has(manifest.id)) {
+        failures.push({
+          id: dirEntry.name,
+          message: `duplicate extension id '${manifest.id}' (already loaded from another directory)`,
+        });
+        continue;
+      }
+      seenIds.add(manifest.id);
+
+      const entryPath = join(extensionDir, resolveEntry(manifest));
+      const imported = (await import(pathToFileURL(entryPath).href)) as {
+        default?: unknown;
+      } & Record<string, unknown>;
+      const exposed = (imported.default ?? imported) as {
+        component?: unknown;
+        handlers?: unknown;
+      };
+      const loaded = toLoadedModule(manifest, exposed);
+      if (!loaded) {
+        failures.push({
+          id: manifest.id,
+          message: 'entry bundle must export a component or handlers object as its default export',
+        });
+        continue;
+      }
+      modules.push(loaded);
+    } catch (error) {
+      failures.push({ id: dirEntry.name, message: `failed to load: ${describeError(error)}` });
+    }
+  }
+
+  return { modules, failures };
+}
+
+function toLoadedModule(
+  manifest: ExtensionManifest,
+  exposed: { component?: unknown; handlers?: unknown },
+): LoadedModule | null {
+  if (typeof exposed.component === 'function') {
+    return {
+      manifest,
+      preferences: {},
+      component: exposed.component as ReactExtensionModule['component'],
+    } as LoadedReact;
+  }
+  if (typeof exposed.handlers === 'object' && exposed.handlers !== null) {
+    return {
+      manifest,
+      preferences: {},
+      handlers: exposed.handlers as ExtensionModule['handlers'],
+    } as LoadedFunctional;
+  }
+  return null;
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export function toReadyExtensions(modules: LoadedModule[]): ReadyExtension[] {
@@ -346,15 +447,21 @@ export class Dispatcher {
       onError: () => {},
     });
     try {
+      const native = {
+        call: <T = unknown>(
+          method: string,
+          params?: Record<string, unknown>,
+          options?: { signal?: AbortSignal; timeoutMs?: number },
+        ) => this.bridge.call<T>(ext.manifest.id, method, params, options),
+        showHud: (options: HudOptions) =>
+          this.bridge.call<void>(ext.manifest.id, 'hud.show', { ...options }),
+      };
       const generation = root.update({
         query: props.query,
         filterValue: props.filterValue,
         preferences: ext.preferences,
-        native: {
-          call: (method, params, options) =>
-            this.bridge.call(ext.manifest.id, method, params, options),
-          showHud: (options) => this.bridge.call(ext.manifest.id, 'hud.show', { ...options }),
-        },
+        native,
+        capabilities: createCapabilities(native.call),
         signal: new AbortController().signal,
       });
       if (!generation) {
@@ -376,19 +483,21 @@ export class Dispatcher {
   }
 
   private context(ext: LoadedFunctional, commandId?: string, filterValue?: string) {
+    const native = {
+      call: <T = unknown>(
+        method: string,
+        params?: Record<string, unknown>,
+        options?: { signal?: AbortSignal; timeoutMs?: number },
+      ) => this.bridge.call<T>(ext.manifest.id, method, params, options),
+      showHud: (options: HudOptions) =>
+        this.bridge.call<void>(ext.manifest.id, 'hud.show', { ...options }),
+    };
     return {
       preferences: ext.preferences,
       commandId,
       filterValue,
-      native: {
-        call: <T = unknown>(
-          method: string,
-          params?: Record<string, unknown>,
-          options?: { signal?: AbortSignal; timeoutMs?: number },
-        ) => this.bridge.call<T>(ext.manifest.id, method, params, options),
-        showHud: (options: HudOptions) =>
-          this.bridge.call<void>(ext.manifest.id, 'hud.show', { ...options }),
-      },
+      native,
+      capabilities: createCapabilities(native.call),
     };
   }
 }

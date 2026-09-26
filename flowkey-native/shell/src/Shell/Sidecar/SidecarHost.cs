@@ -166,8 +166,25 @@ public sealed class SidecarHost : IDisposable
             ProtocolVersion = Protocol.ProtocolVersion.Current,
             ExtensionsDir = extensionsDir,
             Preferences = preferences,
+            DisabledExtensions = DisabledExtensionIds.ToList(),
         };
         Send(init);
+    }
+
+    /// <summary>Installed extension ids the sidecar must not load; reset on each init.</summary>
+    public IReadOnlyList<string> DisabledExtensionIds { get; set; } = Array.Empty<string>();
+
+    /// <summary>
+    /// Stops and relaunches the sidecar (after extensions are installed,
+    /// uninstalled, enabled or disabled). Resetting <c>disposed</c> is what
+    /// distinguishes this from a plain Stop+Start.
+    /// </summary>
+    public void Restart()
+    {
+        Stop();
+        disposed = false;
+        restartAttempts = 0;
+        Start();
     }
 
     public void SendPreferences(string extensionId, Dictionary<string, System.Text.Json.JsonElement> values)

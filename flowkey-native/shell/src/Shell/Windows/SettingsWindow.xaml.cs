@@ -31,6 +31,10 @@ public partial class SettingsWindow : Window
     private readonly HotkeySettingsStore hotkeySettings;
     private readonly PreferencesStore preferencesStore;
     private readonly IReadOnlyList<ReadyExtension> extensions;
+    private readonly ExtensionPackageManager extensionManager;
+    private readonly IReadOnlyList<ReadyFailure> loadFailures;
+    private readonly Action requestExtensionsRefresh;
+    private readonly Func<string, string?> assetsDirResolver;
     private readonly OAuthService oauthService;
     private readonly UpdateService updateService;
     private readonly Action clearClipboardHistory;
@@ -118,6 +122,10 @@ public partial class SettingsWindow : Window
         HotkeySettingsStore hotkeySettings,
         PreferencesStore preferencesStore,
         IReadOnlyList<ReadyExtension> extensions,
+        ExtensionPackageManager extensionManager,
+        IReadOnlyList<ReadyFailure> loadFailures,
+        Action requestExtensionsRefresh,
+        Func<string, string?> assetsDirResolver,
         OAuthService oauthService,
         UpdateService updateService,
         Action clearClipboardHistory,
@@ -129,6 +137,10 @@ public partial class SettingsWindow : Window
         this.hotkeySettings = hotkeySettings;
         this.preferencesStore = preferencesStore;
         this.extensions = extensions;
+        this.extensionManager = extensionManager;
+        this.loadFailures = loadFailures;
+        this.requestExtensionsRefresh = requestExtensionsRefresh;
+        this.assetsDirResolver = assetsDirResolver;
         this.oauthService = oauthService;
         this.updateService = updateService;
         this.clearClipboardHistory = clearClipboardHistory;
@@ -476,8 +488,129 @@ public partial class SettingsWindow : Window
             Foreground = FindResource("TextSecondaryBrush") as Brush,
             Margin = new Thickness(0, 0, 0, 10),
         });
+
+        page.Children.Add(SectionTitle("Add extensions"));
+        var installButton = new Button { Content = "Install from file…" };
+        installButton.Click += (_, _) => InstallFromFileDialog();
+        page.Children.Add(SettingsRow(
+            "Install from file",
+            "Add a .flowkey extension package built with the FlowKey SDK",
+            installButton));
+
+        if (loadFailures.Count > 0)
+        {
+            page.Children.Add(SectionTitle("Failed to load"));
+            foreach (var failure in loadFailures)
+            {
+                page.Children.Add(new TextBlock
+                {
+                    Text = failure.Id + " — " + failure.Message,
+                    FontSize = 12,
+                    Foreground = FindResource("TextSecondaryBrush") as Brush,
+                    Margin = new Thickness(0, 2, 0, 2),
+                    TextWrapping = TextWrapping.Wrap,
+                });
+            }
+        }
+
+        var installed = extensionManager.Installed;
+        if (installed.Count > 0)
+        {
+            page.Children.Add(SectionTitle("Installed packages"));
+            var rows = new StackPanel();
+            foreach (var record in installed)
+            {
+                rows.Children.Add(BuildInstalledRow(record));
+            }
+            page.Children.Add(rows);
+        }
+
         BuildExtensionForms(page);
         return page;
+    }
+
+    private FrameworkElement BuildInstalledRow(InstalledExtension record)
+    {
+        var controls = new StackPanel { Orientation = Orientation.Horizontal };
+        var toggle = new Wpf.Ui.Controls.ToggleSwitch
+        {
+            IsChecked = record.Enabled,
+            Background = FindResource("AccentBrush") as System.Windows.Media.Brush,
+            ToolTip = record.Enabled ? "Disable extension" : "Enable extension",
+        };
+        toggle.Click += (_, _) =>
+        {
+            extensionManager.SetEnabled(record.Id, toggle.IsChecked == true);
+            requestExtensionsRefresh();
+        };
+        controls.Children.Add(toggle);
+        var uninstallButton = new Button
+        {
+            Content = "Uninstall",
+            Margin = new Thickness(8, 0, 0, 0),
+            ToolTip = "Remove the extension and its data",
+        };
+        uninstallButton.Click += (_, _) => UninstallInstalled(record);
+        controls.Children.Add(uninstallButton);
+
+        return SettingsRow(
+            record.Name,
+            $"v{record.Version} · id {record.Id} · " + (record.Enabled ? "enabled" : "disabled"),
+            controls);
+    }
+
+    private void InstallFromFileDialog()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Install extension package",
+            Filter = "FlowKey extension (*.flowkey;*.zip)|*.flowkey;*.zip",
+        };
+        if (dialog.ShowDialog(this) != true)
+        {
+            return;
+        }
+        var plan = extensionManager.Inspect(dialog.FileName, out var inspectError);
+        if (plan is null)
+        {
+            showToast("Install failed: " + inspectError);
+            return;
+        }
+        var accepted = ConsentDialog.Confirm(
+            this, plan.Name, plan.Version, plan.Description,
+            plan.NativeMethods, plan.HttpHosts, plan.OAuth, isReconsent: false);
+        if (!accepted)
+        {
+            return;
+        }
+        var outcome = extensionManager.Install(
+            plan, dialog.FileName,
+            new ExtensionConsent(plan.NativeMethods, plan.HttpHosts, plan.OAuth));
+        if (!outcome.Ok)
+        {
+            showToast("Install failed: " + (outcome.ErrorMessage ?? "unknown error"));
+            return;
+        }
+        showToast($"{plan.Name} v{plan.Version} installed");
+        requestExtensionsRefresh();
+    }
+
+    private void UninstallInstalled(InstalledExtension record)
+    {
+        var confirmation = System.Windows.MessageBox.Show(
+            this,
+            $"Uninstall “{record.Name}” and delete its data (storage, secrets and connected accounts)?",
+            "Uninstall extension",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+        extensionManager.Uninstall(record.Id);
+        showToast($"{record.Name} uninstalled");
+        requestExtensionsRefresh();
     }
 
     private FrameworkElement BuildAboutPage()
@@ -568,6 +701,12 @@ public partial class SettingsWindow : Window
 
         page.Children.Add(BuildExtensionHeader(extension));
 
+        var installedRecord = extensionManager.GetInstalled(extensionId);
+        if (installedRecord is not null)
+        {
+            page.Children.Add(BuildInstalledManagementSection(extension, installedRecord));
+        }
+
         foreach (var provider in extension.OAuth ?? new List<string>())
         {
             page.Children.Add(BuildOAuthRow(extension, provider));
@@ -603,6 +742,55 @@ public partial class SettingsWindow : Window
         }
 
         return page;
+    }
+
+    /// <summary>
+    /// Management section shown on the detail page of zip-installed
+    /// extensions: enable/disable, review permissions, uninstall.
+    /// </summary>
+    private FrameworkElement BuildInstalledManagementSection(ReadyExtension extension, InstalledExtension record)
+    {
+        var section = new StackPanel();
+        section.Children.Add(SectionTitle("Installed package"));
+
+        var controls = new StackPanel { Orientation = Orientation.Horizontal };
+        var toggle = new Wpf.Ui.Controls.ToggleSwitch
+        {
+            IsChecked = record.Enabled,
+            Background = FindResource("AccentBrush") as System.Windows.Media.Brush,
+            ToolTip = record.Enabled ? "Disable extension" : "Enable extension",
+        };
+        toggle.Click += (_, _) =>
+        {
+            extensionManager.SetEnabled(record.Id, toggle.IsChecked == true);
+            requestExtensionsRefresh();
+        };
+        controls.Children.Add(toggle);
+
+        var reviewButton = new Button { Content = "Review permissions", Margin = new Thickness(8, 0, 0, 0) };
+        reviewButton.Click += (_, _) =>
+        {
+            var accepted = ConsentDialog.Confirm(
+                this, extension.Name, record.Version, extension.Description,
+                extension.NativeMethods, extension.HttpHosts, extension.OAuth ?? new List<string>(),
+                isReconsent: true);
+            if (!accepted)
+            {
+                return;
+            }
+            extensionManager.UpdateConsent(
+                record.Id,
+                new ExtensionConsent(extension.NativeMethods, extension.HttpHosts, extension.OAuth ?? new List<string>()));
+            showToast("Permissions updated");
+        };
+        controls.Children.Add(reviewButton);
+
+        var uninstallButton = new Button { Content = "Uninstall", Margin = new Thickness(8, 0, 0, 0) };
+        uninstallButton.Click += (_, _) => UninstallInstalled(record);
+        controls.Children.Add(uninstallButton);
+
+        section.Children.Add(SettingsRow("Manage", $"v{record.Version} · installed {record.InstalledAt:yyyy-MM-dd}", controls));
+        return section;
     }
 
     private FrameworkElement BuildExtensionHeader(ReadyExtension extension)
@@ -684,6 +872,17 @@ public partial class SettingsWindow : Window
             return new System.Windows.Controls.Image
             {
                 Source = brandDrawing,
+                Width = size,
+                Height = size,
+                Stretch = Stretch.Uniform,
+            };
+        }
+        if (assetsDirResolver(extension.Id) is { } assetsDir
+            && Native.ExtensionAssets.LoadIcon(assetsDir, extension.Icon) is { } extensionImage)
+        {
+            return new System.Windows.Controls.Image
+            {
+                Source = extensionImage,
                 Width = size,
                 Height = size,
                 Stretch = Stretch.Uniform,

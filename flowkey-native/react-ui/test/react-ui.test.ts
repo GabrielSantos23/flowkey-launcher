@@ -1,17 +1,25 @@
 import { describe, expect, test } from 'bun:test';
 import { createElement, useState, useEffect, type ReactElement } from 'react';
-import type { DetailTree, GridTree, ListTree, UiTree } from '@flowkey/native-sdk';
+import {
+  createCapabilities,
+  type DetailTree,
+  type GridTree,
+  type ListTree,
+  type UiTree,
+} from '@flowkey/native-sdk';
 import { Action, ActionPanel, Detail, Grid, List, ReactRoot, ReactUiError } from '../src';
 import type { CommittedGeneration, CommandProps, ListItemProps, ListProps } from '../src';
 
 function baseProps(overrides: Partial<CommandProps> = {}): CommandProps {
+  const native = {
+    call: <T>() => Promise.resolve(undefined as T),
+    showHud: () => Promise.resolve(),
+  };
   return {
     query: '',
     preferences: {},
-    native: {
-      call: <T>() => Promise.resolve(undefined as T),
-      showHud: () => Promise.resolve(),
-    },
+    native,
+    capabilities: createCapabilities(native.call),
     signal: new AbortController().signal,
     ...overrides,
   };

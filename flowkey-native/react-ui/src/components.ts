@@ -5,6 +5,7 @@ import type {
   EmptyViewProps,
   GridItemProps,
   GridProps,
+  GridSectionProps,
   ListItemDetailProps,
   ListItemProps,
   ListProps,
@@ -33,6 +34,7 @@ export const Detail = Object.assign(intrinsic<DetailProps>('detail'), {
 });
 
 export const Grid = Object.assign(intrinsic<GridProps>('grid'), {
+  Section: intrinsic<GridSectionProps>('grid-section'),
   Item: intrinsic<GridItemProps>('grid-item'),
   EmptyView: intrinsic<EmptyViewProps>('empty-view'),
 });

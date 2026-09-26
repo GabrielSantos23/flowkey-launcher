@@ -73,19 +73,29 @@ describe('ui-tree contract fixture', () => {
     expect(detail.imageUri).toBe('file:///icon-cache/test.png');
   });
 
-  test('grid item iconUri parses into the UiItem type', () => {
-    const grid = asGrid(uiFixture.grid);
-    expect(typeof grid.items[0].iconUri).toBe('string');
-    expect(grid.items[0].iconUri?.startsWith('data:image/png;base64,')).toBe(true);
-  });
-
-  test('grid tree has columns, items and empty view', () => {
+  test('grid tree has sections, filter, vector icons and empty view', () => {
     const grid = asGrid(uiFixture.grid);
     expect(grid.type).toBe('grid');
     expect(grid.title).toBe('Results');
     expect(grid.columns).toBeGreaterThan(0);
-    expect(grid.items.length).toBeGreaterThan(0);
+    expect(grid.items).toEqual([]);
+    expect(grid.sections?.length).toBe(2);
+    expect(grid.sections?.[0].title).toBe('Smileys');
+    expect(grid.sections?.[0].subtitle).toBe('2');
+    expect(grid.sections?.[0].items.length).toBeGreaterThan(0);
+    expect(grid.filter?.options.map((o) => o.value)).toEqual(['primary', 'red']);
     expect(grid.emptyView?.title).toBeTruthy();
+  });
+
+  test('grid items carry vector icon variants (iconName and iconSvg)', () => {
+    const grid = asGrid(uiFixture.grid);
+    const lucide = grid.sections?.[1].items.find((i) => i.id === 'lucide-activity');
+    expect(lucide?.iconName).toBe('activity');
+    expect(lucide?.iconColor).toBe('#EF4444');
+    const svg = grid.sections?.[1].items.find((i) => i.id === 'svg-heart');
+    expect(svg?.iconSvg).toContain('<svg');
+    expect(svg?.iconSvg).toContain('viewBox="0 0 24 24"');
+    expect(svg?.iconColor).toBe('#EC4899');
   });
 
   test('list items may carry an optional kind label', () => {
@@ -193,6 +203,16 @@ describe('protocol contract fixture', () => {
     expect(err.code).toBeTruthy();
     expect(err.message).toBeTruthy();
     expect(protocolFixture.sidecarToHost.nativeCallDenied.method).toBeTruthy();
+  });
+
+  test('storage and shell.openUrl native calls follow the wire shape', () => {
+    const storageCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallStorage;
+    expect(storageCall.extensionId).toBe('demo-ext');
+    expect(storageCall.method).toBe('storage.get');
+    expect(storageCall.params?.key).toBe('last-sync');
+    const openUrlCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallOpenUrl;
+    expect(openUrlCall.method).toBe('shell.openUrl');
+    expect(openUrlCall.params?.url).toBe('https://example.com/release');
   });
 
   test('uiPush carries extension, command, view state and a tree without a requestId', () => {

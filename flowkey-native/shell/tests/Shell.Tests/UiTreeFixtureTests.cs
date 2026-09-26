@@ -13,6 +13,8 @@ public static class ContractPaths
 
     public static string ProtocolFixture => Path.Combine(ContractDir, "protocol.fixture.json");
 
+    public static string ManifestFixture => Path.Combine(ContractDir, "manifest.fixture.json");
+
     private static string FindContractDir()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
@@ -96,8 +98,35 @@ public class UiTreeFixtureTests
         var grid = Assert.IsType<GridTree>(tree);
         Assert.Equal("Results", grid.Title);
         Assert.Equal(8, grid.Columns);
-        Assert.NotEmpty(grid.Items);
+        Assert.NotNull(grid.Sections);
+        Assert.Equal(2, grid.Sections!.Count);
+        Assert.Equal("Smileys", grid.Sections[0].Title);
+        Assert.Equal("2", grid.Sections[0].Subtitle);
+        Assert.NotEmpty(grid.Sections[0].Items);
+        Assert.Null(grid.Sections[0].Items[0].IconSvg);
+        var lucide = grid.Sections[1].Items.Single(i => i.Id == "lucide-activity");
+        Assert.Equal("activity", lucide.IconName);
+        Assert.Equal("#EF4444", lucide.IconColor);
+        var svg = grid.Sections[1].Items.Single(i => i.Id == "svg-heart");
+        Assert.Contains("<svg", svg.IconSvg);
+        Assert.NotNull(grid.Filter);
+        Assert.Equal(2, grid.Filter!.Options.Count);
         Assert.Equal("Nothing here", grid.EmptyView!.Title);
+    }
+
+    [Fact]
+    public void GridSvgIconParsesIntoGeometry()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("grid").GetRawText(), JsonOptions.Default);
+        var grid = Assert.IsType<GridTree>(tree);
+        var svg = grid.Sections![1].Items.Single(i => i.Id == "svg-heart");
+        var geometry = Rendering.SvgIcon.FromContent(svg.IconSvg);
+        Assert.NotNull(geometry);
+        Assert.True(geometry!.Bounds.Width > 0);
+        Assert.Null(Rendering.SvgIcon.FromContent(null));
+        Assert.Null(Rendering.SvgIcon.FromContent(""));
+        Assert.Null(Rendering.SvgIcon.FromContent("not svg at all"));
     }
 
     [Fact]

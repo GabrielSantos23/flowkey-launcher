@@ -45,12 +45,16 @@ public sealed class GridTree : UiTree
     public string? Title { get; set; }
     public int Columns { get; set; }
     public List<UiItem> Items { get; set; } = [];
+    /// <summary>Grouped items with optional headers; when present, Items is ignored.</summary>
+    public List<UiSection>? Sections { get; set; }
+    public UiFilter? Filter { get; set; }
     public UiEmptyView? EmptyView { get; set; }
 }
 
 public sealed class UiSection
 {
     public string? Title { get; set; }
+    public string? Subtitle { get; set; }
     public List<UiItem> Items { get; set; } = [];
 }
 
@@ -64,6 +68,7 @@ public sealed class UiItem
     public string? IconName { get; set; }
     public string? IconColor { get; set; }
     public string? IconUri { get; set; }
+    public string? IconSvg { get; set; }
     public UiPane? Pane { get; set; }
     public List<UiAction>? Actions { get; set; } = [];
 }

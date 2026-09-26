@@ -125,6 +125,27 @@ public sealed class GridCellVm : DependencyObject
         set => SetValue(BitmapFallbackProperty, value);
     }
 
+    public static readonly DependencyProperty VectorIconProperty = DependencyProperty.Register(
+        nameof(VectorIcon), typeof(Geometry), typeof(GridCellVm), new PropertyMetadata(null));
+
+    /// <summary>Vector geometry parsed from UiItem.IconSvg or the built-in Lucide set (UiItem.IconName).</summary>
+    public Geometry? VectorIcon
+    {
+        get => (Geometry?)GetValue(VectorIconProperty);
+        set => SetValue(VectorIconProperty, value);
+    }
+
+    public static readonly DependencyProperty VectorIconBrushProperty = DependencyProperty.Register(
+        nameof(VectorIconBrush), typeof(Brush), typeof(GridCellVm), new PropertyMetadata(null));
+
+    public Brush? VectorIconBrush
+    {
+        get => (Brush?)GetValue(VectorIconBrushProperty);
+        set => SetValue(VectorIconBrushProperty, value);
+    }
+
+    public bool VectorIconFilled { get; set; }
+
     private static void OnSelectedChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var cell = (GridCellVm)d;
@@ -153,4 +174,11 @@ public sealed class GridCellVm : DependencyObject
 public sealed class GridRowVm
 {
     public List<GridCellVm> Cells { get; init; } = new();
+}
+
+/// <summary>A section header row rendered above groups of grid cells.</summary>
+public sealed class GridHeaderRowVm
+{
+    public string Title { get; init; } = "";
+    public string Subtitle { get; init; } = "";
 }

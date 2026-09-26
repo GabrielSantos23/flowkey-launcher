@@ -8,6 +8,8 @@ public sealed class InitMessage
     public int ProtocolVersion { get; set; }
     public string ExtensionsDir { get; set; } = "";
     public Dictionary<string, Dictionary<string, JsonElement>> Preferences { get; set; } = [];
+    /// <summary>Installed extension ids the shell has disabled; the sidecar must not load them.</summary>
+    public List<string> DisabledExtensions { get; set; } = [];
 }
 
 public sealed class SearchMessage
@@ -36,11 +38,19 @@ public sealed class PreferencesMessage
     public Dictionary<string, JsonElement> Values { get; set; } = [];
 }
 
+public sealed class ReadyFailure
+{
+    public string Id { get; set; } = "";
+    public string Message { get; set; } = "";
+}
+
 public sealed class ReadyMessage
 {
     public string Type { get; set; } = "ready";
     public int ProtocolVersion { get; set; }
     public List<ReadyExtension> Extensions { get; set; } = [];
+    /// <summary>Installed extensions that were discovered but failed to load.</summary>
+    public List<ReadyFailure> Failures { get; set; } = [];
 }
 
 public sealed class PreferenceSchema

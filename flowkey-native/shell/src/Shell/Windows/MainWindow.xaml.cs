@@ -54,6 +54,12 @@ public partial class MainWindow : Window
     private readonly SecretsStore secretsStore = new(AppLauncherService.DataDirectory);
     private readonly OAuthService oauthService;
     private readonly ImageFetchService imageFetch = new();
+    private readonly InstalledExtensionsStore installedExtensionsStore = new(AppLauncherService.DataDirectory);
+    private readonly ExtensionStorageStore extensionStorageStore = new(AppLauncherService.DataDirectory);
+    private readonly ExtensionPackageManager extensionManager;
+    private readonly ExtensionPolicy extensionPolicy;
+    private readonly string? repoRoot;
+    private IReadOnlyList<Protocol.ReadyFailure> readyFailures = Array.Empty<Protocol.ReadyFailure>();
     private List<UiItem> gridItems = new();
     private DetailTree? currentDetail;
     private string? currentDetailExtensionId;
@@ -195,8 +201,10 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.deleteEntry", p => ExecuteClipboardDelete(p));
         nativeMethods.Register("clipboard.copyEntry", p => ExecuteClipboardCopyEntry(p));
         nativeMethods.Register("clipboard.pasteEntry", p => ExecuteClipboardPasteEntry(p));
+        nativeMethods.Register("clipboard.paste", ExecuteClipboardPaste);
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
         nativeMethods.Register("hud.show", p => ExecuteHudShow(p));
+        nativeMethods.Register("shell.openUrl", ExecuteShellOpenUrl);
         nativeMethods.Register("media.current", _ => mediaSessions.CurrentOutcome());
         nativeMethods.Register("media.control", ExecuteMediaControl);
         _ = mediaSessions.InitializeAsync();
@@ -205,11 +213,30 @@ public partial class MainWindow : Window
         updateService.StartAutomaticChecks(Dispatcher);
         oauthService = new OAuthService(tokenVault, OAuthProviderRegistry.Load);
 
+        // Installed third-party extensions always live in the app-data
+        // directory (never beside the repo/install tree); FLOWKEY_EXTENSIONS_DIR
+        // overrides it for tests and CI.
+        var extensionsRoot = Environment.GetEnvironmentVariable("FLOWKEY_EXTENSIONS_DIR")
+            ?? Path.Combine(AppLauncherService.DataDirectory, "extensions");
+        Directory.CreateDirectory(extensionsRoot);
+        extensionManager = new ExtensionPackageManager(
+            extensionsRoot,
+            installedExtensionsStore,
+            secretsStore,
+            tokenVault,
+            extensionStorageStore,
+            Path.Combine(AppLauncherService.DataDirectory, "icon-cache", "images"));
+        extensionPolicy = new ExtensionPolicy(() => readyExtensions, installedExtensionsStore);
+
         var root = FindRepoRoot();
+        repoRoot = root;
         var sidecarScript = root is null ? "sidecar/src/main.ts" : Path.Combine(root, "sidecar", "src", "main.ts");
-        var extensionsDir = root is null ? "extensions" : Path.Combine(root, "extensions");
-        DebugLog.Write($"shell start; repoRoot={root ?? "<null>"}");
-        sidecar = new SidecarHost(sidecarScript, extensionsDir, message => Dispatcher.BeginInvoke(() => SetStatusBar(message)));
+        DebugLog.Write($"shell start; repoRoot={root ?? "<null>"}; extensionsRoot={extensionsRoot}");
+        sidecar = new SidecarHost(sidecarScript, extensionsRoot, message => Dispatcher.BeginInvoke(() => SetStatusBar(message)));
+        sidecar.DisabledExtensionIds = installedExtensionsStore.GetAll()
+            .Where(record => !record.Enabled)
+            .Select(record => record.Id)
+            .ToList();
 
         sidecar.Ready += OnSidecarReady;
         sidecar.Ui += OnSidecarUi;
@@ -400,6 +427,10 @@ public partial class MainWindow : Window
             hotkeySettings,
             preferencesStore,
             readyExtensions,
+            extensionManager,
+            readyFailures,
+            RequestExtensionsRefresh,
+            AssetsDirResolver,
             oauthService,
             updateService,
             () => clipboardHistory.Clear(),
@@ -451,6 +482,24 @@ public partial class MainWindow : Window
         DebugLog.Write("settings shown, visibility=" + settingsWindow.Visibility + " loaded=" + settingsWindow.IsLoaded);
         settingsWindow.Activate();
         DebugLog.Write("settings activated");
+    }
+
+    /// <summary>
+    /// Applies an extensions-store change: restarts the sidecar so the new
+    /// set of extensions loads, then reopens settings so the lists refresh.
+    /// </summary>
+    private void RequestExtensionsRefresh()
+    {
+        sidecar.DisabledExtensionIds = installedExtensionsStore.GetAll()
+            .Where(record => !record.Enabled)
+            .Select(record => record.Id)
+            .ToList();
+        Dispatcher.BeginInvoke(() =>
+        {
+            settingsWindow?.Close();
+            sidecar.Restart();
+            OpenSettings();
+        });
     }
 
     protected override void OnDeactivated(EventArgs e)
@@ -1473,6 +1522,10 @@ public partial class MainWindow : Window
         {
             row.Bitmap = brandBitmap;
         }
+        else if (LoadExtensionImageIcon(cmd.ExtensionId, cmd.Command.Icon, cmd.Extension.Icon) is { } extensionImage)
+        {
+            row.Bitmap = extensionImage;
+        }
         else if (cmd.Command.Icon is not null)
         {
             row.VectorIcon = Rendering.LucideIcon.Load(cmd.Command.Icon);
@@ -1512,6 +1565,7 @@ public partial class MainWindow : Window
     private void OnSidecarReady(ReadyMessage ready)
     {
         readyExtensions = ready.Extensions;
+        readyFailures = ready.Failures ?? [];
         var restarted = searchState.Depth > 1;
         if (restarted)
         {
@@ -1635,6 +1689,32 @@ public partial class MainWindow : Window
         });
     }
 
+    /// <summary>
+    /// The search-bar dropdown belongs to an extension command's view (list or
+    /// grid), not to the root aggregate view (extensions each ship their own
+    /// filter; the last root result would otherwise decide the dropdown): show
+    /// it only past the root depth.
+    /// </summary>
+    private void UpdateFilterDropdown(UiFilter? filter)
+    {
+        if (filter is null || searchState.Depth <= 1)
+        {
+            FilterDropdown.Visibility = Visibility.Collapsed;
+            FilterPopup.IsOpen = false;
+            return;
+        }
+        FilterDropdown.Visibility = Visibility.Visible;
+        FilterList.ItemsSource = filter.Options.ToList();
+        var current = filter.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
+            ?? filter.Options.FirstOrDefault();
+        FilterLabel.Text = current?.Label ?? "";
+        if (searchState.Top is { } top)
+        {
+            top.FilterValue = current?.Value;
+            top.Query = SearchBox.Text;
+        }
+    }
+
     private void ApplyListLayout(ListTree list, bool allowSidePane)
     {
         DebugLog.Write($"ListLayout layout={list.Layout} allow={allowSidePane} depth={searchState.Depth}");
@@ -1653,28 +1733,7 @@ public partial class MainWindow : Window
             PaneHost.Visibility = Visibility.Collapsed;
         }
 
-        // The language/filter dropdown belongs to an extension command's search bar,
-        // not to the root aggregate view (extensions each ship their own filter; the
-        // last root result would otherwise decide the dropdown) nor to the side pane
-        // rendering: show it only past the root depth.
-        if (list.Filter is null || searchState.Depth <= 1)
-        {
-            FilterDropdown.Visibility = Visibility.Collapsed;
-            FilterPopup.IsOpen = false;
-        }
-        else
-        {
-            FilterDropdown.Visibility = Visibility.Visible;
-            FilterList.ItemsSource = list.Filter.Options.ToList();
-            var current = list.Filter.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
-                ?? list.Filter.Options.FirstOrDefault();
-            FilterLabel.Text = current?.Label ?? "";
-            if (searchState.Top is { } top)
-            {
-                top.FilterValue = current?.Value;
-                top.Query = SearchBox.Text;
-            }
-        }
+        UpdateFilterDropdown(list.Filter);
     }
 
     private const double SidePaneListWidth = 300;
@@ -1825,42 +1884,64 @@ public partial class MainWindow : Window
 
     private void ShowGrid(GridTree tree)
     {
-        gridItems = tree.Items.Select(i => i).ToList();
+        gridItems = (tree.Sections is { Count: > 0 }
+            ? tree.Sections.SelectMany(s => s.Items)
+            : tree.Items).ToList();
         gridColumns = Math.Max(1, tree.Columns);
         gridIndex = gridItems.Count > 0 ? 0 : -1;
         var cellSize = Math.Clamp(
             Math.Floor((ContentWidth - (gridColumns - 1) * CellGap) / gridColumns),
             MinCellSize, MaxCellSize);
-        var rows = new List<GridRowVm>();
+        var rows = new List<object>();
         gridCells = new List<GridCellVm>();
-        for (var i = 0; i < gridItems.Count; i++)
+        var groups = tree.Sections is { Count: > 0 }
+            ? tree.Sections.Select(s => (Header: s.Title ?? "", Subtitle: s.Subtitle ?? "", Items: (IReadOnlyList<UiItem>)s.Items))
+                .ToList()
+            : new List<(string, string, IReadOnlyList<UiItem>)> { ("", "", gridItems) };
+        foreach (var (header, headerSubtitle, items) in groups)
         {
-            var cell = new GridCellVm
+            if (items.Count == 0)
             {
-                Item = gridItems[i],
-                FlatIndex = i,
-                CellSize = cellSize,
-                GlyphSize = Math.Floor(cellSize * 0.42),
-                IconSize = Math.Floor(cellSize * 0.45),
-                CellBackground = (System.Windows.Media.Brush)FindResource("CellBackgroundBrush"),
-                Title = gridItems[i].Title,
-                Subtitle = gridItems[i].Subtitle ?? "",
-                ImageDisplaySize = string.IsNullOrEmpty(gridItems[i].IconUri)
-                    ? Math.Floor(cellSize * 0.55)
-                    : cellSize,
-            };
-            gridCells.Add(cell);
-            if (i % gridColumns == 0)
-            {
-                rows.Add(new GridRowVm());
+                continue;
             }
-            rows[^1].Cells.Add(cell);
+            if (header.Length > 0 || headerSubtitle.Length > 0)
+            {
+                rows.Add(new GridHeaderRowVm { Title = header, Subtitle = headerSubtitle });
+            }
+            GridRowVm? currentRow = null;
+            foreach (var item in items)
+            {
+                var cell = new GridCellVm
+                {
+                    Item = item,
+                    FlatIndex = gridCells.Count,
+                    CellSize = cellSize,
+                    GlyphSize = Math.Floor(cellSize * 0.42),
+                    IconSize = Math.Floor(cellSize * 0.45),
+                    CellBackground = (System.Windows.Media.Brush)FindResource("CellBackgroundBrush"),
+                    Title = item.Title,
+                    Subtitle = item.Subtitle ?? "",
+                    ImageDisplaySize = string.IsNullOrEmpty(item.IconUri)
+                        ? Math.Floor(cellSize * 0.55)
+                        : cellSize,
+                    VectorIconFilled = false,
+                };
+                ApplyVectorIcon(cell, item);
+                gridCells.Add(cell);
+                if (currentRow is null || currentRow.Cells.Count >= gridColumns)
+                {
+                    currentRow = new GridRowVm();
+                    rows.Add(currentRow);
+                }
+                currentRow.Cells.Add(cell);
+            }
         }
         if (gridCells.Count > 0)
         {
             gridCells[0].Selected = true;
         }
         GridHost.ItemsSource = rows;
+        UpdateFilterDropdown(tree.Filter);
         GridTitleText.Text = tree.Title ?? "";
         GridTitleText.Visibility = string.IsNullOrEmpty(tree.Title) ? Visibility.Collapsed : Visibility.Visible;
         LoadGridBitmaps();
@@ -1905,6 +1986,59 @@ public partial class MainWindow : Window
     private const double CellGap = 2;
     private const double MinCellSize = 48;
     private const double MaxCellSize = 160;
+
+    /// <summary>
+    /// The directory an extension's manifest-referenced files live in — the
+    /// installed package directory, or the first-party extensions folder.
+    /// </summary>
+    private string? AssetsDirFor(string extensionId) =>
+        ExtensionAssets.AssetsDirFor(extensionId, repoRoot, id => installedExtensionsStore.Get(id)?.InstallPath);
+
+    /// <summary>
+    /// Loads an extension-shipped image icon (manifest `icon: "command-icon.png"`),
+    /// falling back to the extension icon when the command declares none.
+    /// </summary>
+    private System.Windows.Media.Imaging.BitmapImage? LoadExtensionImageIcon(string extensionId, string? commandIcon, string? extensionIcon)
+    {
+        var assetsDir = AssetsDirFor(extensionId);
+        if (assetsDir is null)
+        {
+            return null;
+        }
+        return ExtensionAssets.LoadIcon(assetsDir, commandIcon)
+            ?? ExtensionAssets.LoadIcon(assetsDir, extensionIcon);
+    }
+
+    /// <summary>
+    /// The directory an extension's manifest-referenced files live in — the
+    /// installed package directory, or the first-party extensions folder.
+    /// Exposed for settings, which renders the same brand marks.
+    /// </summary>
+    public Func<string, string?> AssetsDirResolver => AssetsDirFor;
+
+    /// <summary>
+    /// Resolves a grid cell's vector icon from the generic icon fields:
+    /// IconSvg (arbitrary SVG content, tinted) or IconName (the built-in
+    /// Lucide set), falling back to the primary text color.
+    /// </summary>
+    private void ApplyVectorIcon(GridCellVm cell, UiItem item)
+    {
+        if (item.IconSvg is not null)
+        {
+            cell.VectorIcon = Rendering.SvgIcon.FromContent(item.IconSvg);
+            cell.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                item.IconColor,
+                (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+            return;
+        }
+        if (item.IconName is not null)
+        {
+            cell.VectorIcon = Rendering.LucideIcon.Load(item.IconName);
+            cell.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                item.IconColor,
+                (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+        }
+    }
 
     private void LoadGridBitmaps()
     {
@@ -2111,6 +2245,33 @@ public partial class MainWindow : Window
             var image = new System.Windows.Controls.Image
             {
                 Source = brandBitmap,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
+        if (extension is not null
+            && LoadExtensionImageIcon(extension.Id, extension.Icon, extension.Icon) is { } extensionImage)
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = extensionImage,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
+        if (extension is not null && extension.Icon is not null
+            && Rendering.LucideIcon.Load(extension.Icon) is { } lucideGeometry)
+        {
+            var drawing = new System.Windows.Media.GeometryDrawing
+            {
+                Geometry = lucideGeometry,
+                Brush = FindResource("TextSecondaryBrush") as System.Windows.Media.Brush,
+            };
+            var image = new System.Windows.Controls.Image
+            {
+                Source = new System.Windows.Media.DrawingImage { Drawing = drawing },
                 VerticalAlignment = VerticalAlignment.Center,
             };
             image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
@@ -2431,6 +2592,34 @@ public partial class MainWindow : Window
             : NativeCallOutcome.Failure("entryNotFound", "no clipboard history entry matches the given id");
     }
 
+    /// <summary>
+    /// Writes arbitrary text to the clipboard and pastes it into the
+    /// foreground application (the generic form of clipboard.pasteEntry).
+    /// </summary>
+    private NativeCallOutcome ExecuteClipboardPaste(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("text", out var text) || text.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.paste requires a string 'text' parameter");
+        }
+        try
+        {
+            ClipboardService.WriteText(text.GetString()!);
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
+        }
+        Dispatcher.BeginInvoke(() =>
+        {
+            HideWindow();
+            var thread = new Thread(PasteKeystrokeToForeground);
+            thread.IsBackground = true;
+            thread.Start();
+        });
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
     private NativeCallOutcome ExecuteAppsLaunch(Dictionary<string, JsonElement>? parameters)
     {
         if (parameters is null || !parameters.TryGetValue("id", out var id) || id.ValueKind != JsonValueKind.String)
@@ -2456,9 +2645,11 @@ public partial class MainWindow : Window
     {
         DebugLog.Write($"NativeCall req={requestId} ext={extensionId} method={method}");
         BeginOperation();
-        var extension = readyExtensions.FirstOrDefault(e => e.Id == extensionId);
-        var declared = extension?.NativeMethods ?? (IReadOnlyList<string>)Array.Empty<string>();
-        if (!declared.Contains(method, StringComparer.Ordinal))
+        // Effective declarations: ready-reported for first-party extensions,
+        // on-disk manifest ∩ user consent for installed ones.
+        var declarations = extensionPolicy.DeclarationsFor(extensionId);
+        var declared = declarations?.NativeMethods ?? (IReadOnlyList<string>)Array.Empty<string>();
+        if (!NativeMethodPolicy.IsDeclared(declared, method))
         {
             CompleteNativeCall(requestId, method, NativeCallOutcome.Failure(
                 "methodNotDeclared",
@@ -2468,7 +2659,7 @@ public partial class MainWindow : Window
 
         if (method == "http.fetch")
         {
-            var hosts = extension?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var hosts = declarations?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
             string? authProvider = parameters is not null
                 && parameters.TryGetValue("auth", out var authElement)
                 && authElement.ValueKind == JsonValueKind.String
@@ -2476,7 +2667,7 @@ public partial class MainWindow : Window
                     : null;
             if (authProvider is not null)
             {
-                var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+                var declaredOauth = declarations?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
                 if (!declaredOauth.Contains(authProvider, StringComparer.Ordinal))
                 {
                     CompleteNativeCall(requestId, method, NativeCallOutcome.Failure(
@@ -2495,8 +2686,8 @@ public partial class MainWindow : Window
 
         if (method is "oauth.authorize" or "oauth.status" or "image.fetch")
         {
-            var hosts = extension?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
-            var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var hosts = declarations?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var declaredOauth = declarations?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
             _ = Task.Run(async () =>
             {
                 var outcome = method switch
@@ -2512,10 +2703,17 @@ public partial class MainWindow : Window
 
         if (method.StartsWith("secrets.", StringComparison.Ordinal) || method == "oauth.disconnect")
         {
-            var declaredOauth = extension?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
+            var declaredOauth = declarations?.OAuth ?? (IReadOnlyList<string>)Array.Empty<string>();
             var outcome = method == "oauth.disconnect"
                 ? oauthService.Disconnect(extensionId, parameters, declaredOauth)
                 : secretsStore.Handle(extensionId, method, parameters);
+            CompleteNativeCall(requestId, method, outcome);
+            return;
+        }
+
+        if (method.StartsWith("storage.", StringComparison.Ordinal))
+        {
+            var outcome = extensionStorageStore.Handle(extensionId, method, parameters);
             CompleteNativeCall(requestId, method, outcome);
             return;
         }
@@ -2596,6 +2794,29 @@ public partial class MainWindow : Window
         hudWindow ??= new HudWindow();
         hudWindow.ShowHud(request!);
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
+    private static NativeCallOutcome ExecuteShellOpenUrl(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "shell.openUrl requires a string 'url' parameter");
+        }
+        var url = urlElement.GetString() ?? "";
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            return NativeCallOutcome.Failure("invalidParams", "shell.openUrl only accepts absolute http(s) URLs");
+        }
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(uri.ToString()) { UseShellExecute = true });
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("openFailed", ex.Message);
+        }
     }
 
     public void ShowToast(string message) => ShowToast(message, null, false);

@@ -9,7 +9,8 @@
         "emoji": {
           "skinTone": "none"
         }
-      }
+      },
+      "disabledExtensions": []
     },
     "search": {
       "type": "search",
@@ -64,19 +65,13 @@
             {
               "id": "open",
               "title": "Emoji & Symbols",
-              "keywords": [
-                "emoji",
-                "symbol",
-                "kaomoji"
-              ],
+              "keywords": ["emoji", "symbol", "kaomoji"],
               "mode": "view",
               "icon": "smile",
               "iconColor": "#4F8CFF"
             }
           ],
-          "nativeMethods": [
-            "clipboard.write"
-          ],
+          "nativeMethods": ["clipboard.write"],
           "httpHosts": [],
           "oauth": [],
           "icon": "😀",
@@ -99,6 +94,18 @@
             }
           ],
           "description": "Fixture extension description."
+        }
+      ],
+      "failures": []
+    },
+    "readyWithFailures": {
+      "type": "ready",
+      "protocolVersion": 1,
+      "extensions": [],
+      "failures": [
+        {
+          "id": "weather-pro",
+          "message": "failed to load: SyntaxError: Unexpected token 'export'"
         }
       ]
     },
@@ -189,6 +196,24 @@
       "method": "http.fetch",
       "params": {
         "url": "https://evil.example.com/api"
+      }
+    },
+    "nativeCallStorage": {
+      "type": "nativeCall",
+      "requestId": "n-3",
+      "extensionId": "demo-ext",
+      "method": "storage.get",
+      "params": {
+        "key": "last-sync"
+      }
+    },
+    "nativeCallOpenUrl": {
+      "type": "nativeCall",
+      "requestId": "n-4",
+      "extensionId": "demo-ext",
+      "method": "shell.openUrl",
+      "params": {
+        "url": "https://example.com/release"
       }
     },
     "log": {

@@ -529,8 +529,14 @@
             <VirtualizingStackPanel />
           </ItemsPanelTemplate>
         </ListBox.ItemsPanel>
-        <ListBox.ItemTemplate>
-          <DataTemplate>
+        <ListBox.Resources>
+          <DataTemplate DataType="{x:Type rendering:GridHeaderRowVm}">
+            <StackPanel Orientation="Horizontal" Margin="4,10,0,6">
+              <TextBlock Text="{Binding Title}" FontSize="14" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <TextBlock Text="{Binding Subtitle}" FontSize="12" Foreground="{DynamicResource TextTertiaryBrush}" Margin="8,2,0,0" />
+            </StackPanel>
+          </DataTemplate>
+          <DataTemplate DataType="{x:Type rendering:GridRowVm}">
             <ItemsControl ItemsSource="{Binding Cells}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate>
@@ -543,9 +549,36 @@
                             Tag="{Binding FlatIndex}"
                             MouseLeftButtonDown="OnGridCellClick">
                       <Grid>
-                        <Image Source="{Binding Bitmap}" Width="{Binding ImageDisplaySize}" Height="{Binding ImageDisplaySize}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Image Source="{Binding Bitmap}" Width="{Binding ImageDisplaySize}" Height="{Binding ImageDisplaySize}" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <Image.Style>
+                            <Style TargetType="Image">
+                              <Setter Property="Visibility" Value="Visible" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding Bitmap}" Value="{x:Null}">
+                                  <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </Image.Style>
+                        </Image>
                         <TextBlock Text="{Binding Item.Icon}" FontSize="{Binding GlyphSize}" HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Visibility="{Binding BitmapFallback}" />
+                        <Path Data="{Binding VectorIcon}"
+                              Width="{Binding IconSize}"
+                              Height="{Binding IconSize}"
+                              Stretch="Uniform"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                          <Path.Style>
+                            <Style TargetType="Path">
+                              <Setter Property="Stroke" Value="{Binding VectorIconBrush}" />
+                              <Setter Property="Fill" Value="Transparent" />
+                              <Setter Property="StrokeThickness" Value="2" />
+                              <Setter Property="StrokeStartLineCap" Value="Round" />
+                              <Setter Property="StrokeEndLineCap" Value="Round" />
+                              <Setter Property="StrokeLineJoin" Value="Round" />
+                            </Style>
+                          </Path.Style>
+                        </Path>
                       </Grid>
                     </Border>
                     <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}"
@@ -562,7 +595,7 @@
               </ItemsControl.ItemsPanel>
             </ItemsControl>
           </DataTemplate>
-        </ListBox.ItemTemplate>
+        </ListBox.Resources>
       </ListBox>
     </DockPanel>
 

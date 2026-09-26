@@ -4,6 +4,7 @@ import type {
   ListTree,
   UiAction,
   UiEmptyView,
+  UiFilter,
   UiItem,
   UiPane,
   UiPaneField,
@@ -44,8 +45,9 @@ const LIST_ITEM_DETAIL_ALLOWED = ['preview', 'previewImageUri'];
 const DETAIL_ALLOWED = ['title', 'mediaKeys', 'subtitle', 'imageUri', 'markdown', 'actions'];
 const DETAIL_METADATA_ALLOWED: string[] = [];
 const DETAIL_FIELD_ALLOWED = ['label', 'value', 'valueIconUri'];
-const GRID_ALLOWED = ['columns', 'title'];
+const GRID_ALLOWED = ['columns', 'title', 'filter'];
 const GRID_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions'];
+const GRID_SECTION_ALLOWED = ['title', 'subtitle'];
 const ACTION_PANEL_ALLOWED: string[] = [];
 const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id'];
 const EMPTY_VIEW_ALLOWED = ['title', 'description'];
@@ -132,15 +134,29 @@ function optionalIcon(type: string, props: Record<string, unknown>, key: string)
     throw new ReactUiError(`<${type}> prop '${key}' must be a string or an icon object`);
   }
   const spec = value as IconSpec;
-  const sources = ['emoji' in spec, 'lucide' in spec, 'uri' in spec].filter(Boolean).length;
+  const sources = ['emoji' in spec, 'lucide' in spec, 'uri' in spec, 'svg' in spec].filter(
+    Boolean,
+  ).length;
   if (sources !== 1) {
-    throw new ReactUiError(`<${type}> prop '${key}' must set exactly one of emoji, lucide or uri`);
+    throw new ReactUiError(
+      `<${type}> prop '${key}' must set exactly one of emoji, lucide, uri or svg`,
+    );
   }
-  if ('color' in spec && !('lucide' in spec)) {
-    throw new ReactUiError(`<${type}> prop '${key}' may only set 'color' together with 'lucide'`);
+  if ('color' in spec && !('lucide' in spec || 'svg' in spec)) {
+    throw new ReactUiError(
+      `<${type}> prop '${key}' may only set 'color' together with 'lucide' or 'svg'`,
+    );
   }
   if (typeof spec.emoji === 'string') return { icon: spec.emoji };
   if (typeof spec.uri === 'string') return { iconUri: spec.uri };
+  if (typeof spec.svg === 'string') {
+    if (spec.svg.length === 0) {
+      throw new ReactUiError(`<${type}> prop '${key}' has empty svg content`);
+    }
+    const out: Partial<UiItem> = { iconSvg: spec.svg };
+    if (typeof spec.color === 'string') out.iconColor = spec.color;
+    return out;
+  }
   if (typeof spec.lucide === 'string') {
     const out: Partial<UiItem> = { iconName: spec.lucide };
     if (typeof spec.color === 'string') out.iconColor = spec.color;
@@ -149,34 +165,38 @@ function optionalIcon(type: string, props: Record<string, unknown>, key: string)
   throw new ReactUiError(`<${type}> prop '${key}' has empty icon fields`);
 }
 
+function optionalFilter(component: string, props: Record<string, unknown>): UiFilter | undefined {
+  const filterValue = props['filter'];
+  if (filterValue === undefined) {
+    return undefined;
+  }
+  if (!Array.isArray(filterValue)) {
+    throw new ReactUiError(`<${component}> prop 'filter' must be an array of {label, value}`);
+  }
+  const options = filterValue.map((option) => {
+    if (
+      typeof option !== 'object' ||
+      option === null ||
+      typeof (option as { label?: unknown }).label !== 'string' ||
+      typeof (option as { value?: unknown }).value !== 'string'
+    ) {
+      throw new ReactUiError(
+        `<${component}> prop 'filter' entries must be {label: string, value: string}`,
+      );
+    }
+    const { label, value } = option as { label: string; value: string };
+    return { label, value };
+  });
+  return options.length > 0 ? { options } : undefined;
+}
+
 function serializeList(node: HostNode, state: SerializeState): ListTree {
   checkProps('list', node.props, LIST_ALLOWED);
   const layoutValue = node.props['layout'];
   if (layoutValue !== undefined && layoutValue !== 'side-pane') {
     throw new ReactUiError(`<list> prop 'layout' must be 'side-pane'`);
   }
-  let filter: ListTree['filter'];
-  const filterValue = node.props['filter'];
-  if (filterValue !== undefined) {
-    if (!Array.isArray(filterValue)) {
-      throw new ReactUiError(`<list> prop 'filter' must be an array of {label, value}`);
-    }
-    const options = filterValue.map((option) => {
-      if (
-        typeof option !== 'object' ||
-        option === null ||
-        typeof (option as { label?: unknown }).label !== 'string' ||
-        typeof (option as { value?: unknown }).value !== 'string'
-      ) {
-        throw new ReactUiError(
-          `<list> prop 'filter' entries must be {label: string, value: string}`,
-        );
-      }
-      const { label, value } = option as { label: string; value: string };
-      return { label, value };
-    });
-    if (options.length > 0) filter = { options };
-  }
+  const filter = optionalFilter('list', node.props);
 
   const sections: UiSection[] = [];
   let pending: UiItem[] = [];
@@ -433,10 +453,18 @@ function serializeGrid(node: HostNode, state: SerializeState): GridTree {
   const tree: GridTree = { type: 'grid', columns, items: [] };
   const title = optionalString('grid', node.props, 'title');
   if (title !== undefined) tree.title = title;
+  const filter = optionalFilter('grid', node.props);
+  if (filter !== undefined) tree.filter = filter;
   let emptyView: UiEmptyView | undefined;
   let emptyViewCount = 0;
+  let looseItemCount = 0;
+  let sections: UiSection[] | undefined;
   for (const child of node.children) {
-    if (child.type === 'grid-item') {
+    if (child.type === 'grid-section') {
+      sections ??= [];
+      sections.push(serializeGridSection(child, state));
+    } else if (child.type === 'grid-item') {
+      looseItemCount += 1;
       tree.items.push(serializeItem(child, state, false));
     } else if (child.type === 'empty-view') {
       emptyViewCount += 1;
@@ -446,12 +474,37 @@ function serializeGrid(node: HostNode, state: SerializeState): GridTree {
       emptyView = serializeEmptyView(child);
     } else {
       throw new ReactUiError(
-        `<grid> children must be <Grid.Item> or <Grid.EmptyView>, got <${child.type}>`,
+        `<grid> children must be <Grid.Item>, <Grid.Section> or <Grid.EmptyView>, got <${child.type}>`,
       );
     }
   }
+  if (sections !== undefined && looseItemCount > 0) {
+    throw new ReactUiError(
+      'a <Grid> cannot mix <Grid.Section> children with loose <Grid.Item> children',
+    );
+  }
+  if (sections !== undefined) {
+    tree.sections = sections;
+    tree.items = [];
+  }
   if (emptyView !== undefined) tree.emptyView = emptyView;
   return tree;
+}
+
+function serializeGridSection(node: HostNode, state: SerializeState): UiSection {
+  checkProps('grid-section', node.props, GRID_SECTION_ALLOWED);
+  const title = optionalString('grid-section', node.props, 'title');
+  const subtitle = optionalString('grid-section', node.props, 'subtitle');
+  const items = node.children.map((child) => {
+    if (child.type !== 'grid-item') {
+      throw new ReactUiError(`<grid-section> children must be <Grid.Item>, got <${child.type}>`);
+    }
+    return serializeItem(child, state, false);
+  });
+  const section: UiSection = { items };
+  if (title !== undefined) section.title = title;
+  if (subtitle !== undefined) section.subtitle = subtitle;
+  return section;
 }
 
 function serializeEmptyView(node: HostNode): UiEmptyView {

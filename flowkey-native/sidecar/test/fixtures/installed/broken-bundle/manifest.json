@@ -1,0 +1,9 @@
+{
+  "id": "broken-bundle",
+  "name": "Broken Bundle",
+  "version": "1.0.0",
+  "description": "Valid manifest, bundle throws at import time.",
+  "commands": [{ "id": "open", "title": "Broken Bundle" }],
+  "nativeMethods": [],
+  "httpHosts": []
+}

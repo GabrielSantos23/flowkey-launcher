@@ -5,7 +5,7 @@ import type {
   ReactExtensionModule,
 } from '@flowkey/react-ui';
 import { ReactRoot } from '@flowkey/react-ui';
-import type { SidecarMessage } from '@flowkey/native-sdk';
+import { createCapabilities, type SidecarMessage } from '@flowkey/native-sdk';
 import type { NativeBridge } from './bridge';
 
 export const PUSH_INTERVAL_MS = 100;
@@ -60,37 +60,39 @@ export class ManagedRoot {
     try {
       this.lastQuery = props.query;
       this.lastFilterValue = props.filterValue;
+      const native: CommandProps['native'] = {
+        call: (method, params, options) => {
+          if (this.destroyed) {
+            return Promise.reject({
+              code: 'aborted',
+              message: `native method ${method} aborted`,
+            });
+          }
+          return this.nativeCall(this.extensionId, method, params, {
+            signal: anySignal([this.controller.signal, options?.signal]),
+          });
+        },
+        showHud: (options) => {
+          if (this.destroyed) {
+            return Promise.reject({
+              code: 'aborted',
+              message: 'native method hud.show aborted',
+            });
+          }
+          return this.nativeCall(
+            this.extensionId,
+            'hud.show',
+            { ...options },
+            {
+              signal: this.controller.signal,
+            },
+          );
+        },
+      };
       this.reactRoot.update({
         ...props,
-        native: {
-          call: (method, params, options) => {
-            if (this.destroyed) {
-              return Promise.reject({
-                code: 'aborted',
-                message: `native method ${method} aborted`,
-              });
-            }
-            return this.nativeCall(this.extensionId, method, params, {
-              signal: anySignal([this.controller.signal, options?.signal]),
-            });
-          },
-          showHud: (options) => {
-            if (this.destroyed) {
-              return Promise.reject({
-                code: 'aborted',
-                message: 'native method hud.show aborted',
-              });
-            }
-            return this.nativeCall(
-              this.extensionId,
-              'hud.show',
-              { ...options },
-              {
-                signal: this.controller.signal,
-              },
-            );
-          },
-        },
+        native,
+        capabilities: createCapabilities(native.call),
         signal: this.controller.signal,
       });
       const generation = this.reactRoot.current;

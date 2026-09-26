@@ -1,0 +1,354 @@
+{
+  "$comment": "Shared manifest validation fixture. The bun test in sdk/ and the xunit test in shell/tests/ both validate their manifest validators against these exact cases, so validator drift fails both sides. 'invalid' cases assert at least one error on expectedField with expectedCode.",
+  "valid": [
+    {
+      "name": "minimal",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "description": "A minimal third-party extension.",
+        "icon": "👋",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello World"
+          }
+        ],
+        "nativeMethods": ["clipboard.write"],
+        "httpHosts": []
+      }
+    },
+    {
+      "name": "wildcards-and-capabilities",
+      "manifest": {
+        "id": "capability-demo",
+        "name": "Capability Demo",
+        "version": "0.2.1-beta.1",
+        "description": "Exercises wildcard declarations, suffix hosts, oauth and preferences.",
+        "icon": "🧪",
+        "entry": "bundle.js",
+        "commands": [
+          {
+            "id": "search-things",
+            "title": "Search Things",
+            "mode": "view",
+            "keywords": ["demo"],
+            "icon": "search",
+            "iconColor": "#3B82F6"
+          },
+          {
+            "id": "run-job",
+            "title": "Run Job",
+            "mode": "background"
+          }
+        ],
+        "nativeMethods": [
+          "http.fetch",
+          "storage.*",
+          "clipboard.write",
+          "shell.openUrl",
+          "secrets.get"
+        ],
+        "httpHosts": ["api.example.com", ".cdn.example.com", "lrclib.net:8443"],
+        "oauth": ["spotify"],
+        "preferences": [
+          {
+            "name": "apiKey",
+            "type": "password",
+            "title": "API key",
+            "required": true
+          },
+          {
+            "name": "region",
+            "type": "dropdown",
+            "title": "Region",
+            "default": "eu",
+            "options": [
+              {
+                "value": "eu",
+                "title": "Europe"
+              },
+              {
+                "value": "us",
+                "title": "US"
+              }
+            ]
+          },
+          {
+            "name": "showBadges",
+            "type": "checkbox",
+            "title": "Show badges",
+            "default": true
+          },
+          {
+            "name": "greeting",
+            "type": "text",
+            "title": "Greeting",
+            "default": "Hello"
+          }
+        ]
+      }
+    },
+    {
+      "name": "no-optional-fields",
+      "manifest": {
+        "id": "bare.minimum",
+        "name": "Bare Minimum",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "ping",
+            "title": "Ping"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      }
+    },
+    {
+      "name": "image-file-icon",
+      "manifest": {
+        "id": "image-icon-ext",
+        "name": "Image Icon Ext",
+        "version": "1.0.0",
+        "description": "Ships a png as its icon.",
+        "icon": "command-icon.png",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open",
+            "icon": "assets/open.png"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "name": "id-uppercase",
+      "manifest": {
+        "id": "Hello-World",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "id",
+      "expectedCode": "format"
+    },
+    {
+      "name": "id-path-traversal",
+      "manifest": {
+        "id": "hello..world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "id",
+      "expectedCode": "pathUnsafe"
+    },
+    {
+      "name": "version-not-semver",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "version",
+      "expectedCode": "format"
+    },
+    {
+      "name": "no-commands",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands",
+      "expectedCode": "required"
+    },
+    {
+      "name": "duplicate-command-ids",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          },
+          {
+            "id": "open",
+            "title": "Hello Again"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[1].id",
+      "expectedCode": "duplicate"
+    },
+    {
+      "name": "reserved-command-id",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "__open__",
+            "title": "Reserved"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].id",
+      "expectedCode": "reserved"
+    },
+    {
+      "name": "native-method-single-segment",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": ["write"],
+        "httpHosts": []
+      },
+      "expectedField": "nativeMethods[0]",
+      "expectedCode": "format"
+    },
+    {
+      "name": "http-host-with-scheme",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": ["http.fetch"],
+        "httpHosts": ["https://api.example.com"]
+      },
+      "expectedField": "httpHosts[0]",
+      "expectedCode": "format"
+    },
+    {
+      "name": "entry-path-traversal",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "entry": "../evil.js",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "entry",
+      "expectedCode": "pathUnsafe"
+    },
+    {
+      "name": "dropdown-without-options",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": [],
+        "preferences": [
+          {
+            "name": "region",
+            "type": "dropdown",
+            "title": "Region"
+          }
+        ]
+      },
+      "expectedField": "preferences[0].options",
+      "expectedCode": "required"
+    },
+    {
+      "name": "missing-native-methods",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "httpHosts": []
+      },
+      "expectedField": "nativeMethods",
+      "expectedCode": "required"
+    },
+    {
+      "name": "icon-path-traversal",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "icon": "../evil.png",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Hello"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "icon",
+      "expectedCode": "format"
+    }
+  ]
+}

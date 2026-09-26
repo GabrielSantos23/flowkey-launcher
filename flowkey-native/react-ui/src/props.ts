@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 export interface IconSpec {
   emoji?: string;
   lucide?: string;
+  /** Raw SVG markup rendered as a tinted vector. */
+  svg?: string;
   color?: string;
   uri?: string;
 }
@@ -67,6 +69,14 @@ export interface DetailProps {
 export interface GridProps {
   columns: number;
   title?: string;
+  /** Search-bar dropdown options shown while this grid view is open. */
+  filter?: FilterOptionSpec[];
+  children?: ReactNode;
+}
+
+export interface GridSectionProps {
+  title?: string;
+  subtitle?: string;
   children?: ReactNode;
 }
 

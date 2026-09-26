@@ -7,15 +7,21 @@ existing Tauri app, Rust host and `asyar-sdk`.
 
 ## Layout
 
-- `contract/` — canonical JSON fixtures (UI tree + protocol). The single
-  source of truth: the bun test in `sdk/` and the xunit test in `shell/tests/`
-  both validate their models against these exact bytes, so contract drift
-  fails both sides.
+- `contract/` — canonical JSON fixtures (UI tree + protocol + manifest
+  validation). The single source of truth: the bun test in `sdk/` and the
+  xunit test in `shell/tests/` both validate their models against these exact
+  bytes, so contract drift fails both sides.
 - `sdk/` — `@flowkey/native-sdk`, the TypeScript SDK for the new extension
-  model (UI-tree types, protocol messages, `defineExtension`).
-- `sidecar/` — the sidecar process: loads extensions, speaks NDJSON over
-  stdin/stdout with the shell.
+  model (UI-tree types, protocol messages, manifest validation, typed
+  capabilities, `defineExtension`).
+- `cli/` — `@flowkey/cli`, the `flowkey` command (`init`, `dev`, `build`,
+  `validate`, `package`) for creating, running and sharing extensions.
+- `sidecar/` — the sidecar process: loads first-party extensions statically
+  and installed third-party extensions dynamically from disk, speaks NDJSON
+  over stdin/stdout with the shell.
 - `extensions/` — new-model extensions (first: `emoji`).
+- `docs/` — extension developer documentation (quickstart, package format,
+  capabilities & consent).
 - `shell/` — the WPF shell (`FlowKey.sln`, `FlowKey.Shell` + xunit tests).
 
 ## Commands
@@ -27,10 +33,13 @@ repo root):
 | ------------------- | ------------------------------------ |
 | `sdk:test`          | bun test for the SDK contract        |
 | `sdk:typecheck`     | TypeScript check for `sdk/`          |
+| `cli:test`          | bun test for `@flowkey/cli`          |
+| `cli:typecheck`     | TypeScript check for `cli/`          |
+| `cli:build`         | bundle the `flowkey` CLI             |
 | `sidecar:typecheck` | TypeScript check for `sidecar/`      |
 | `shell:build`       | `dotnet build` (Release)             |
 | `shell:test`        | `dotnet test` (xunit contract tests) |
-| `test`              | sdk:test + shell:test                |
+| `test`              | all typechecks + all test suites     |
 
 ## Development flags
 
@@ -82,10 +91,36 @@ preferences are NOT a security boundary between extensions either — the same
 caveat as the isolation note below applies.
 
 **Consent note:** declaring a native method or an httpHost in a manifest is
-NOT user consent — the shell trusts the manifest because, today, extensions
-load only from this repository's own folder (`flowkey-native/extensions/`).
-When third-party extension installation exists, a real consent prompt per
-capability is required before the gate alone is acceptable.
+NOT user consent on its own. Third-party extension installation now exists
+(Settings → Extensions → Install from file…), and it requires a consent
+dialog listing every declared capability before the package is extracted.
+The accepted capability set is stored per extension and enforced per native
+call for the extension's lifetime — a manifest can never grant more than the
+user accepted, and an update that adds capabilities keeps them locked until
+the user reviews them. See `docs/extension-capabilities.md`.
+
+## Third-party extensions
+
+Installed extensions are `.flowkey` packages (zips containing `manifest.json`
+plus a bundled `main.js`) placed in
+`%LOCALAPPDATA%\FlowKey.Shell\extensions\<id>\`. The sidecar discovers and
+dynamically imports them on every `init`; a broken extension is reported in
+the `ready.failures` list and never prevents the others from loading.
+
+Extension authors use `@flowkey/cli`:
+
+```bash
+pnpm dlx @flowkey/cli init "My Extension"
+cd my-extension && pnpm install
+pnpm dev        # build + install into FlowKey + watch
+pnpm package    # produce the .flowkey zip
+```
+
+Bundles alias `react`, `@flowkey/react-ui` and `@flowkey/native-sdk` to shims
+over `globalThis.__FLOWKEY_HOST__` (installed by the sidecar before the
+bundle is imported), so hooks and UI serialization always share the host's
+single module instances. See `docs/extension-quickstart.md` for the full
+tutorial and `docs/extension-format.md` for the package spec.
 
 ## Bun requirement
 

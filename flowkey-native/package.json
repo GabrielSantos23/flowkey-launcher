@@ -5,6 +5,9 @@
   "scripts": {
     "sdk:test": "cd sdk && bun test",
     "sdk:typecheck": "cd sdk && bunx tsc --noEmit",
+    "cli:test": "cd cli && bun test",
+    "cli:typecheck": "cd cli && bunx tsc --noEmit",
+    "cli:build": "cd cli && pnpm run build",
     "react-ui:test": "cd react-ui && bun test",
     "spotify:typecheck": "cd extensions/spotify && bunx tsc --noEmit",
     "spotify:test": "cd extensions/spotify && bun test",
@@ -15,6 +18,12 @@
     "sidecar:test": "cd sidecar && bun test",
     "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
     "shell:test": "cd shell && dotnet test FlowKey.sln",
-    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm google-translate:typecheck && pnpm google-translate:test && pnpm sidecar:test && pnpm shell:test"
+    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm cli:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm cli:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm google-translate:typecheck && pnpm google-translate:test && pnpm lucide-icons:typecheck && pnpm lucide-icons:test && pnpm sidecar:test && pnpm shell:test",
+    "icons:sync": "node scripts/sync-lucide-icons.mjs",
+    "lucide-icons:typecheck": "cd extensions/lucide-icons && bunx tsc --noEmit",
+    "lucide-icons:test": "cd extensions/lucide-icons && bun test"
+  },
+  "devDependencies": {
+    "lucide-static": "^0.544.0"
   }
 }

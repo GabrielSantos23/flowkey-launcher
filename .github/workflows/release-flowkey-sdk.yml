@@ -1,0 +1,63 @@
+name: Release FlowKey SDK
+
+# The flowkey-native TypeScript packages (@flowkey/native-sdk,
+# @flowkey/react-ui, @flowkey/cli) release on `flowkey-sdk-v*` tags so they can
+# move independently of the shell (`shell-v*`). Tag the version you want to
+# publish:
+#
+#   cd flowkey-native/sdk && npm version patch   # bump each package that changed
+#   git tag flowkey-sdk-v0.2.0 && git push origin flowkey-sdk-v0.2.0
+
+on:
+  push:
+    tags:
+      - 'flowkey-sdk-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing flowkey-sdk-v* tag to (re-)release'
+        required: true
+
+concurrency:
+  group: release-flowkey-sdk-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref_name }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v5
+        with:
+          version: 10.26.0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        working-directory: flowkey-native
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck and test TS packages
+        working-directory: flowkey-native
+        run: pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm cli:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm cli:test
+      - name: Build CLI
+        working-directory: flowkey-native/cli
+        run: pnpm run build
+      - name: Publish packages
+        working-directory: flowkey-native
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          pnpm config set //registry.npmjs.org/:_authToken $env:NPM_TOKEN
+          pnpm --filter @flowkey/native-sdk publish --no-git-checks --access public
+          pnpm --filter @flowkey/react-ui publish --no-git-checks --access public
+          pnpm --filter @flowkey/cli publish --no-git-checks --access public

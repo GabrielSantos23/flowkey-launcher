@@ -137,35 +137,86 @@
     "type": "grid",
     "title": "Results",
     "columns": 8,
-    "items": [
+    "sections": [
       {
-        "id": "😀",
-        "title": "😀 Grinning Face",
-        "icon": "😀",
-        "actions": [
+        "title": "Smileys",
+        "subtitle": "2",
+        "items": [
           {
-            "id": "copy",
-            "title": "Copy",
-            "primary": true
+            "id": "😀",
+            "title": "😀 Grinning Face",
+            "icon": "😀",
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ],
+            "iconUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+          },
+          {
+            "id": "🎉",
+            "title": "🎉 Party Popper",
+            "icon": "🎉",
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ]
           }
-        ],
-        "iconUri": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+        ]
       },
       {
-        "id": "🎉",
-        "title": "🎉 Party Popper",
-        "icon": "🎉",
-        "actions": [
+        "title": "Vectors",
+        "subtitle": "2",
+        "items": [
           {
-            "id": "copy",
-            "title": "Copy",
-            "primary": true
+            "id": "lucide-activity",
+            "title": "activity",
+            "iconName": "activity",
+            "iconColor": "#EF4444",
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ]
+          },
+          {
+            "id": "svg-heart",
+            "title": "heart",
+            "iconSvg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z\"/></svg>",
+            "iconColor": "#EC4899",
+            "actions": [
+              {
+                "id": "copy",
+                "title": "Copy",
+                "primary": true
+              }
+            ]
           }
         ]
       }
     ],
+    "filter": {
+      "options": [
+        {
+          "label": "PrimaryText",
+          "value": "primary"
+        },
+        {
+          "label": "Red",
+          "value": "red"
+        }
+      ]
+    },
     "emptyView": {
       "title": "Nothing here"
-    }
+    },
+    "items": []
   }
 }

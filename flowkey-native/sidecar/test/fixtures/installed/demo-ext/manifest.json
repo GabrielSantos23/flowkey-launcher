@@ -1,0 +1,15 @@
+{
+  "id": "demo-ext",
+  "name": "Demo Extension",
+  "version": "1.0.0",
+  "description": "Fixture functional extension used by loader tests.",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Demo Extension",
+      "mode": "view"
+    }
+  ],
+  "nativeMethods": ["clipboard.write"],
+  "httpHosts": []
+}

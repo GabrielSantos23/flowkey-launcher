@@ -1,0 +1,15 @@
+{
+  "id": "demo-react-ext",
+  "name": "Demo React Extension",
+  "version": "1.0.0",
+  "description": "Fixture React extension that resolves its UI pieces from host globals.",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Demo React Extension",
+      "mode": "view"
+    }
+  ],
+  "nativeMethods": [],
+  "httpHosts": []
+}

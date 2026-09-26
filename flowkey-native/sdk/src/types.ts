@@ -1,3 +1,5 @@
+import type { FlowKeyCapabilities } from './capabilities';
+
 export const PROTOCOL_VERSION = 1;
 
 export interface UiAction {
@@ -29,6 +31,8 @@ export interface UiItem {
   iconName?: string;
   iconColor?: string;
   iconUri?: string;
+  /** Raw SVG markup rendered as a vector (tinted by `iconColor`). */
+  iconSvg?: string;
   pane?: UiPane;
   actions?: UiAction[];
 }
@@ -40,7 +44,12 @@ export interface UiEmptyView {
 
 export interface UiSection {
   title?: string;
+  subtitle?: string;
   items: UiItem[];
+}
+
+export interface UiFilter {
+  options: UiFilterOption[];
 }
 
 export interface UiFilterOption {
@@ -51,7 +60,7 @@ export interface UiFilterOption {
 export interface ListTree {
   type: 'list';
   layout?: string;
-  filter?: { options: UiFilterOption[] };
+  filter?: UiFilter;
   sections: UiSection[];
   emptyView?: UiEmptyView;
 }
@@ -76,11 +85,25 @@ export interface GridTree {
   type: 'grid';
   title?: string;
   columns: number;
+  /** Flat item list; ignored when `sections` is present. */
   items: UiItem[];
+  /** Grouped items with optional headers (rendered as header rows). */
+  sections?: UiSection[];
+  /** Search-bar dropdown options shown while this grid view is open. */
+  filter?: UiFilter;
   emptyView?: UiEmptyView;
 }
 
 export type UiTree = ListTree | DetailTree | GridTree;
+
+export interface ManifestCommand {
+  id: string;
+  title: string;
+  keywords?: string[];
+  mode?: 'view' | 'background';
+  icon?: string;
+  iconColor?: string;
+}
 
 export interface ExtensionManifest {
   id: string;
@@ -88,17 +111,16 @@ export interface ExtensionManifest {
   version: string;
   description?: string;
   icon?: string;
-  commands: {
-    id: string;
-    title: string;
-    keywords?: string[];
-    mode?: 'view' | 'background';
-    icon?: string;
-    iconColor?: string;
-  }[];
+  /**
+   * Bundled JavaScript entry file that the sidecar imports at runtime,
+   * relative to the package root. Defaults to 'main.js'.
+   */
+  entry?: string;
+  commands: ManifestCommand[];
   nativeMethods: string[];
   httpHosts: string[];
   oauth?: string[];
+  preferences?: PreferenceSchema[];
 }
 
 export type Preferences = Record<string, unknown>;
@@ -121,6 +143,8 @@ export interface ExtensionContext {
     ): Promise<T>;
     showHud(options: HudOptions): Promise<void>;
   };
+  /** Typed capability groups over `native.call` (http, storage, clipboard, …). */
+  capabilities: FlowKeyCapabilities;
 }
 
 export interface SearchHandlers {
@@ -144,6 +168,7 @@ export interface PreferenceSchema {
   name: string;
   type: 'text' | 'password' | 'checkbox' | 'dropdown';
   title: string;
+  description?: string;
   default?: string | boolean;
   required?: boolean;
   options?: { value: string; title: string }[];
@@ -174,6 +199,8 @@ export interface InitMessage {
   protocolVersion: number;
   extensionsDir: string;
   preferences: Record<string, Preferences>;
+  /** Installed extension ids the shell has disabled; the sidecar must not load them. */
+  disabledExtensions?: string[];
 }
 
 export interface SearchMessage {
@@ -202,10 +229,17 @@ export interface PreferencesMessage {
 export type HostMessage =
   InitMessage | SearchMessage | ActionMessage | PreferencesMessage | NativeResultMessage;
 
+export interface ReadyFailure {
+  id: string;
+  message: string;
+}
+
 export interface ReadyMessage {
   type: 'ready';
   protocolVersion: number;
   extensions: ReadyExtension[];
+  /** Installed extensions that were discovered but failed to load. */
+  failures?: ReadyFailure[];
 }
 
 export interface UiMessage {

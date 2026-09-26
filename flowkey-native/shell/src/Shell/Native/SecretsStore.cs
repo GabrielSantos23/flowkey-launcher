@@ -82,6 +82,19 @@ public sealed class SecretsStore
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
     }
 
+    /// <summary>Removes every secret of an extension (uninstall hygiene).</summary>
+    public void RemoveExtension(string extensionId)
+    {
+        lock (gate)
+        {
+            EnsureLoaded();
+            if (secrets.Remove(extensionId))
+            {
+                File.WriteAllText(filePath, Encoding.UTF8.GetString(JsonSerializer.SerializeToUtf8Bytes(secrets)));
+            }
+        }
+    }
+
     private void Persist(string extensionId, Dictionary<string, string> slice)
     {
         secrets[extensionId] = slice;

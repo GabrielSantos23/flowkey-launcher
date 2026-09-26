@@ -1,5 +1,10 @@
 import type { ComponentType } from 'react';
-import type { ExtensionManifest, HudOptions, Preferences } from '@flowkey/native-sdk';
+import type {
+  ExtensionManifest,
+  FlowKeyCapabilities,
+  HudOptions,
+  Preferences,
+} from '@flowkey/native-sdk';
 
 export interface ReactNativeContext {
   call<T = unknown>(
@@ -16,6 +21,8 @@ export interface CommandProps {
   commandId?: string;
   preferences: Preferences;
   native: ReactNativeContext;
+  /** Typed capability groups (http, storage, clipboard, …) — same as `native`, but ergonomic. */
+  capabilities: FlowKeyCapabilities;
   signal: AbortSignal;
 }
 

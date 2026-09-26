@@ -57,6 +57,26 @@ public sealed class TokenVault
         }
     }
 
+    /// <summary>Removes every token of an extension (uninstall hygiene).</summary>
+    public void RemoveAll(string extensionId)
+    {
+        lock (gate)
+        {
+            EnsureLoaded();
+            var prefix = extensionId + "|";
+            var removed = entries.Keys.Where(k => k.StartsWith(prefix, StringComparison.Ordinal)).ToList();
+            if (removed.Count == 0)
+            {
+                return;
+            }
+            foreach (var key in removed)
+            {
+                entries.Remove(key);
+            }
+            Persist();
+        }
+    }
+
     private static string Key(string extensionId, string provider) => extensionId + "|" + provider;
 
     private void Persist()
