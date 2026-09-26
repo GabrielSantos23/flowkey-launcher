@@ -352,6 +352,8 @@ public partial class SettingsWindow : Window
         autoCheckToggle.Unchecked += (_, _) => updateService.SetAutoCheckEnabled(false, Dispatcher);
         page.Children.Add(SettingsRow("Check for Updates Automatically", "Look for new versions every 6 hours", autoCheckToggle));
 
+        page.Children.Add(BuildCheckForUpdatesSection());
+
         return page;
     }
 
@@ -478,9 +480,6 @@ public partial class SettingsWindow : Window
         return page;
     }
 
-    private TextBlock updateStatusText = new();
-    private Button? checkForUpdatesButton;
-
     private FrameworkElement BuildAboutPage()
     {
         var page = new StackPanel();
@@ -488,38 +487,53 @@ public partial class SettingsWindow : Window
         page.Children.Add(SettingsRow("Extensions loaded", extensions.Count.ToString(), null));
 
         page.Children.Add(SectionTitle("Updates"));
-        updateStatusText = new TextBlock
+        page.Children.Add(BuildCheckForUpdatesSection());
+        return page;
+    }
+
+    /// <summary>
+    /// Check-for-Updates button plus a live status line, shared by the General
+    /// page (below the auto-check toggle) and the About page.
+    /// </summary>
+    private FrameworkElement BuildCheckForUpdatesSection()
+    {
+        var section = new StackPanel();
+        var statusText = new TextBlock
         {
-            Text = UpdateServiceStatusText(updateService.Status),
+            Text = UpdateStatusText(updateService.Status),
             FontSize = 12,
             Foreground = FindResource("TextSecondaryBrush") as Brush,
             Margin = new Thickness(0, 2, 0, 0),
             TextWrapping = TextWrapping.Wrap,
         };
-        checkForUpdatesButton = new Button { Content = "Check for Updates" };
-        checkForUpdatesButton.Click += async (_, _) => await RunUpdateCheckAsync();
-        page.Children.Add(SettingsRow("Updates", "Check GitHub Releases for a newer version", checkForUpdatesButton));
-        page.Children.Add(updateStatusText);
-        return page;
+        var checkButton = new Button { Content = "Check for Updates" };
+        checkButton.Click += async (_, _) => await RunUpdateCheckAsync(statusText, checkButton);
+        section.Children.Add(SettingsRow("Updates", "Check GitHub Releases for a newer version", checkButton));
+        section.Children.Add(statusText);
+        return section;
     }
 
-    private async Task RunUpdateCheckAsync()
+    private async Task RunUpdateCheckAsync(TextBlock statusText, Button? checkButton)
     {
-        if (checkForUpdatesButton is not null)
+        if (checkButton is not null)
         {
-            checkForUpdatesButton.IsEnabled = false;
+            checkButton.IsEnabled = false;
         }
-        updateService.StatusChanged -= OnSettingsUpdateStatus;
-        updateService.StatusChanged += OnSettingsUpdateStatus;
+        void OnStatus(UpdateStatus status)
+        {
+            Dispatcher.BeginInvoke(() => statusText.Text = UpdateStatusText(status));
+        }
+        updateService.StatusChanged += OnStatus;
         try
         {
             await updateService.CheckNowAsync();
         }
         finally
         {
-            if (checkForUpdatesButton is not null)
+            updateService.StatusChanged -= OnStatus;
+            if (checkButton is not null)
             {
-                checkForUpdatesButton.IsEnabled = true;
+                checkButton.IsEnabled = true;
             }
         }
         if (updateService.Status.Phase == UpdatePhase.Available)
@@ -528,15 +542,7 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OnSettingsUpdateStatus(UpdateStatus status)
-    {
-        Dispatcher.BeginInvoke(() =>
-        {
-            updateStatusText.Text = UpdateServiceStatusText(status);
-        });
-    }
-
-    private static string UpdateServiceStatusText(UpdateStatus status) => status.Phase switch
+    private static string UpdateStatusText(UpdateStatus status) => status.Phase switch
     {
         UpdatePhase.Checking => "Checking for updates…",
         UpdatePhase.UpToDate => "You're up to date",

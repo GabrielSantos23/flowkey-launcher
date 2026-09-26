@@ -180,14 +180,43 @@ public static class BrandIconSvgParser
   {
     var document = XDocument.Parse(svg);
     return document.Descendants()
-        .Where(element => element.Name.LocalName == "path")
-        .Select(element => new
-        {
-          Data = (string?)element.Attribute("d"),
-          Fill = (string?)element.Attribute("fill"),
-        })
-        .Where(path => !string.IsNullOrWhiteSpace(path.Data) && !string.IsNullOrWhiteSpace(path.Fill))
-        .Select(path => new BrandIconLayer(Geometry.Parse(path.Data!), path.Fill!))
+        .Where(element => element.Name.LocalName is "path" or "polygon")
+        .Select(element => element.Name.LocalName == "path"
+            ? new
+            {
+              Data = (string?)element.Attribute("d"),
+              Fill = (string?)element.Attribute("fill"),
+            }
+            : new
+            {
+              Data = PolygonToPath((string?)element.Attribute("points")),
+              Fill = (string?)element.Attribute("fill"),
+            })
+        .Where(shape => !string.IsNullOrWhiteSpace(shape.Data)
+            && !string.IsNullOrWhiteSpace(shape.Fill)
+            // Gradient references (fill="url(#a)") cannot become a solid
+            // GeometryDrawing brush; skip them rather than paint accent over art.
+            && shape.Fill.StartsWith("#", StringComparison.Ordinal))
+        .Select(shape => new BrandIconLayer(Geometry.Parse(shape.Data!), shape.Fill!))
         .ToList();
+  }
+
+  private static string? PolygonToPath(string? points)
+  {
+    if (string.IsNullOrWhiteSpace(points))
+    {
+      return null;
+    }
+    var coordinates = points.Split(new[] { ' ', ',', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+    if (coordinates.Length < 6 || coordinates.Length % 2 != 0)
+    {
+      return null;
+    }
+    var segments = new List<string>(coordinates.Length / 2 + 1);
+    for (var i = 0; i < coordinates.Length; i += 2)
+    {
+      segments.Add($"{(i == 0 ? "M" : "L")}{coordinates[i]} {coordinates[i + 1]}");
+    }
+    return string.Join(" ", segments) + " Z";
   }
 }

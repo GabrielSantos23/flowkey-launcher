@@ -362,7 +362,11 @@ public sealed class SidecarHost : IDisposable
         {
             if (process is { HasExited: false })
             {
-                process.Kill(entireProcessTree: true);
+                // Plain Kill, never Kill(entireProcessTree: true) — tree
+                // enumeration can hang the UI thread. The job object's
+                // KILL_ON_JOB_CLOSE flag terminates the whole tree in-kernel
+                // when the handle closes below.
+                process.Kill();
             }
         }
         catch
