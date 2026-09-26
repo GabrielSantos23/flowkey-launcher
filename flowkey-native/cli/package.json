@@ -1,6 +1,6 @@
 {
   "name": "@flowkey-cli/cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Build, validate, package and install FlowKey extensions.",
   "type": "module",
   "bin": {
@@ -8,7 +8,8 @@
   },
   "files": [
     "dist",
-    "shims"
+    "shims",
+    "templates"
   ],
   "publishConfig": {
     "access": "public"
