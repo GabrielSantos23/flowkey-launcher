@@ -1,4 +1,4 @@
-# Asyar Project Agent Guidelines & Rules
+# FlowKey Project Agent Guidelines & Rules
 
 The following rules are mandatory across all agent sessions, subagents, and tasks in this repository.
 
@@ -15,44 +15,45 @@ The following rules are mandatory across all agent sessions, subagents, and task
 
 ## 3. Mandatory Verification & Local CI Matrix
 
-Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full local CI verification matrix:
+Before concluding any implementation, bug fix, or refactor, **ALWAYS** run the full verification matrix:
 
 ```bash
-pnpm check:ci
+pnpm --dir flowkey-native test
 ```
 
-Or manually run the steps:
+This chains (from `flowkey-native/package.json`):
 
-1. **Workspace Prettier Check**: `pnpm format:check` (in repo root)
-2. **Design System Compliance**: `pnpm check:design` (in repo root)
-3. **Full Frontend & Workspace Tests**: `pnpm -r --if-present test:run` (in repo root)
-4. **Rust Formatting (if Rust touched)**: `cargo fmt --check` (in `asyar-launcher/src-tauri`)
-5. **Clippy with `-D warnings` (if Rust touched)**: `cargo clippy --all-targets -- -D warnings` (in `asyar-launcher/src-tauri`)
-6. **Rust Test Suite (if Rust touched)**: `cargo test` (in `asyar-launcher/src-tauri`)
-7. **Type & Bindings Check (if bindings/types touched)**: `cargo test export_bindings -- --ignored` and check `git diff --exit-code -- asyar-launcher/src/bindings.ts`
+1. **TypeScript typechecks**: `sdk:typecheck`, `react-ui:typecheck`, `cli:typecheck`, `sidecar:typecheck`, plus per-extension `*:typecheck`
+2. **Bun test suites**: `sdk:test`, `react-ui:test`, `cli:test`, per-extension `*:test`, `sidecar:test`
+3. **C# shell tests**: `shell:test` (`dotnet test flowkey-native/shell/FlowKey.sln`)
+
+When C# code is touched, also build without warnings: `pnpm --dir flowkey-native shell:build`.
 
 ## 4. Formatting Enforcement
 
 - Format-on-save does not run automatically on files edited by agents.
 - Before concluding a task, ensure modified files are formatted:
-  - JS/TS/Svelte/JSON/MD: `pnpm exec prettier --write <file>` or `pnpm format`
-  - Rust: `rustfmt <file>` or `cd asyar-launcher/src-tauri && cargo fmt`
+  - JS/TS/TSX/JSON/MD/YAML: `pnpm exec prettier --write <file>` (run from the repo root; prettier covers `flowkey-native/` too)
+  - C#: match the surrounding style; `dotnet build` must stay warning-clean for new code (existing warnings must not grow)
 
 ## 5. Architectural Invariants
 
-- **Rust-First**: Rust is the brain, frontend is the presenter. Move filtering, ranking, scoring, fuzzy search, parsing, caching, and state logic to Rust.
-- **No Singletons**: Never introduce `getInstance()` or static singleton state; use `ServiceRegistry`.
-- **Never Hand-Edit Generated Files**: Always edit source definitions and run generators (`src/bindings.ts`, `kinds.ts`, `gatedPermissions.ts`, `knownRuntimes.ts`).
+- **Shell-is-the-gate, sidecar-is-the-brain**: the C# shell owns all privileged operations (filesystem, clipboard, network, OAuth, secrets, media, storage) and enforces manifest + consent policy on every native call. Extensions never touch the OS directly.
+- **Contract fixtures are law**: `flowkey-native/contract/*.fixture.json` (protocol, UI tree, manifest validation) is tested by BOTH the bun suites and the xunit suite. Any protocol or validation change updates the fixture and both sides together.
+- **Thin code-behind**: WPF window code-behind orchestrates only; install/validation/policy logic lives in testable classes under `Native/` (see `ExtensionPackageInstaller`, `ExtensionPolicy`).
+- **Generic capabilities, not extension hacks**: new extension-facing features are added as generic, manifest-gated native routes or UI primitives usable by any extension — never special-cased for one extension.
+- **Fail-closed consent**: an installed extension's effective capabilities are `manifest ∩ stored consent`; updates that add capabilities stay locked until the user re-accepts.
 
 ## 6. Tech Stack Standards
 
-- **Svelte 5 Runes Only**: Always use runes (`$state`, `$derived`, `$props`, `$bindable`, `$effect`). Svelte 4 syntax (`export let`, `$:`) is strictly forbidden.
-- **Tauri 2 APIs**: Use modular `@tauri-apps/api/*` and Tauri 2 plugins.
+- **Shell**: .NET 8 WPF (`flowkey-native/shell`), WPF-UI 4, Velopack updates. Pure WPF views bound to view models — no WebView.
+- **Sidecar & extensions**: TypeScript running under Bun (`flowkey-native/sidecar`), React rendered through `@flowkey/react-ui`'s custom reconciler. Extension bundles alias `react` / `@flowkey/*` to host globals — they must never bundle their own React copy.
+- **No AI features**: the product intentionally has no AI/LLM capability; do not add AI-dependent behavior.
 
 ## 7. Keyboard Shortcuts & Input Safety
 
-- **Preserve Text Editing**: Never bind native text editing shortcuts (`Cmd+Backspace`, `Option+Backspace`, `Cmd+A`, etc.) to list actions or item deletion.
-- **Destructive Actions in ⌘K**: Item deletion and trashing belong in the `⌘K` Action Panel, never bound directly to `Cmd+Backspace` / `Super+Backspace`.
+- **Preserve Text Editing**: Never bind native text editing shortcuts (`Ctrl+Backspace`, `Ctrl+A`, etc.) to list actions or item deletion.
+- **Destructive Actions in Ctrl+K**: Item deletion and trashing belong in the `Ctrl+K` Action Panel, never bound directly to `Ctrl+Backspace` / `Delete`.
 
 ## 8. Rules, Skills & Memories Structure
 

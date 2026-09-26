@@ -1,8 +1,8 @@
 # Skills & Memories Discipline
 
 - **On-Demand Skills**:
-  - Always consult `.agents/skills/*/SKILL.md` before making architectural, IPC, service layer, Tauri 2, Svelte 5, or TDD changes.
-  - Execute relevant skills whenever working within their specialized domains.
+  - Always consult `.agents/skills/*/SKILL.md` before making architectural, sidecar protocol, capability/route, UI-tree, or TDD changes.
+  - Execute relevant skills whenever working within their specialized domains (`architectural-integrity`, `review-ipc`, `design-language`, `generated-files`, `dev-environment`, `tdd`).
 
 - **Project Memories**:
-  - Consult `.agents/memories/MEMORY.md` at session start to review active project context, constraints, and historical incident records.
+  - `.agents/memories/MEMORY.md` is the project memory index. If it is missing, create it when a session produces durable context worth recording (incidents, decisions, constraints) — never store secrets or user-specific data there.

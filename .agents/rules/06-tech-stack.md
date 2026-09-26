@@ -1,18 +1,19 @@
 # Technology Stack & Framework Rules
 
-## 1. Svelte 5 (Always Use Runes)
+## 1. C# Shell (.NET 8 WPF)
 
-- **Mandatory Svelte 5 Runes**:
-  - Reactive state: `let count = $state(0)`
-  - Derived state: `let doubled = $derived(count * 2)`
-  - Component props: `let { name, onChange } = $props()` and `let { value = $bindable() } = $props()`
-  - Side effects: `$effect(() => { ... })`
-- **Forbidden Svelte 4 Syntax**:
-  - Never use `export let prop` (use `$props()`).
-  - Never use `$:` reactive declarations (use `$derived()` or `$effect()`).
-  - Never declare unreactive state variables expecting reactivity without `$state()`.
+- `flowkey-native/shell` targets `net8.0-windows` with WPF + WinForms interop and WPF-UI 4.
+- Views are XAML + code-behind bound to view models under `Rendering/`; there is **no WebView** — extension UI arrives as a serialized tree (`Protocol/UiTree.cs`).
+- New shell logic goes into `Native/*.cs` or `Rendering/*.cs` classes, not into code-behind.
+- XAML resources are theme brushes (`CellBackgroundBrush`, `TextPrimaryBrush`, …) — reference them via `DynamicResource`, never hardcode colors.
 
-## 2. Tauri 2 APIs
+## 2. TypeScript Sidecar & Extensions (Bun)
 
-- Use modern Tauri 2 modular packages (e.g. `@tauri-apps/api/core`, `@tauri-apps/api/event`, `@tauri-apps/plugin-shell`, etc.).
-- Never use deprecated Tauri 1 APIs or `@tauri-apps/api/tauri` imports.
+- The sidecar runs under Bun (`flowkey-native/sidecar`); the shared TS workspace lives in `flowkey-native/` (its own pnpm workspace, independent of the repo root).
+- Extension UI is **React rendered through `@flowkey/react-ui`'s custom reconciler** (`react-reconciler` → serialized UI tree). Extension components receive everything as props (`CommandProps`); there is no DOM.
+- Extension bundles must alias `react`, `@flowkey/react-ui` and `@flowkey/native-sdk` to the host-global shims (`cli/shims/`) — bundling a second React copy breaks hooks and serialization. Use `@flowkey/cli` to build.
+- The SDK (`@flowkey/native-sdk`) is types + manifest validation + typed capabilities; it is runtime-dependency-free.
+
+## 3. No AI Features
+
+- The product intentionally ships no AI/LLM capability. Do not add AI-dependent behavior, providers or UI.

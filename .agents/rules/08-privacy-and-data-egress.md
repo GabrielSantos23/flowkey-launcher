@@ -1,24 +1,26 @@
 # Privacy-First & Local-First Outbound Data Egress Policy
 
-Asyar is a local-first platform built on the guarantee that user data stays private and on-device by default.
+FlowKey is a local-first platform: user data stays on the device by default, and the only network egress is extension traffic the user explicitly consented to.
 
 ## 1. The Core Egress Invariant
 
-**NO USER DATA EVER LEAVES THE DEVICE THROUGH ASYAR UNLESS EXPLICITLY PERMITTED BY AUTHENTICATION, ENTITLEMENT, AND USER CONSENT.**
+**NO NETWORK REQUEST LEAVES THE DEVICE THROUGH FLOWKEY EXCEPT VIA `http.fetch`, WHICH IS GATED BY THE EXTENSION MANIFEST AND USER CONSENT, PER CALL.**
 
-All outbound network requests must be gated against an explicit policy before any socket is opened or HTTP payload constructed.
+The sidecar has no direct networking role: extensions cannot open sockets. Every request goes through the shell's `HttpFetchService`.
 
 ## 2. Policy Matrix by Egress Channel
 
-| Channel / Category                                                                                                              | Endpoints                                       | Required Gates                                                                                                                                                                                      | Default                         | Fail-Closed Policy                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| **Private User Data** (Settings, Snippets, Notes, Shortcuts, Portals, Clipboard, AI history, Extensions, Extension preferences) | `POST /api/sync/items`<br>`GET /api/sync/items` | 1. Authenticated session (`auth_state.token` is valid)<br>2. Active subscription (`sync:settings` / `sync:ai-conversations` entitlement)<br>3. Explicit user consent (`user.syncEnabled !== false`) | **Locked** (Signed-out = inert) | **Strictly blocked**: No network requests, no sync timer ticks, no provider subscriptions, no serialization. |
-| **Crash Reports**                                                                                                               | `POST /api/feedback`                            | `privacy.crashReportMode !== 'off'`                                                                                                                                                                 | **Off**                         | **Dropped locally**: Never sent without consent.                                                             |
-| **Anonymous Usage Metrics**                                                                                                     | `POST /api/usage`                               | `privacy.usageShareMode !== 'off'`                                                                                                                                                                  | **Off**                         | **Dropped locally**: Never sent without consent.                                                             |
+| Channel                                     | Gate                                                                                                                                                                                                      | Default                                     | Fail-Closed Behavior                                |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------- | --------------------------------------------------- |
+| **`http.fetch` (extension-initiated)**      | 1. `httpHosts` declared in the extension manifest<br>2. Host present in the stored consent record for installed extensions<br>3. `HttpPolicy` host allowlist match (exact host, `.suffix`, optional port) | **Denied** for undeclared/unconsented hosts | `HttpPolicy` failure — request never opens a socket |
+| **`http.fetch` with OAuth token injection** | Provider declared in `manifest.oauth` **and** consented; tokens live in the DPAPI-encrypted `token-vault.json`, never sent to the sidecar                                                                 | **Denied** without declaration + consent    | `providerNotDeclared` failure                       |
+| **`image.fetch`**                           | Same host allowlist as `http.fetch`                                                                                                                                                                       | **Denied** for undeclared hosts             | Failure; nothing cached                             |
+| **Auto-update (Velopack)**                  | Built-in, GitHub Releases only (`GitHubReleasesSource`)                                                                                                                                                   | On, 6-hourly                                | Update checks are the only first-party egress       |
 
 ## 3. Defense-in-Depth Requirements
 
-1. **Rust-Level Enforcement**: Never rely solely on frontend guards. The Rust backend command handlers (`sync_run`, `ApiClient`) must independently enforce token presence, entitlement validity, and policy rules before initiating network calls.
-2. **Session Expiration Auto-Purge**: If the server returns `401 Unauthorized` or token revocation, the local auth session (`auth_state` and disk `auth.dat`) must be purged immediately, terminating background sync loops.
-3. **Cross-Window Consistency**: Any auth state transition (login, logout, token expiration) must be broadcast across all webview windows (`asyar:auth-changed`) to guarantee immediate sync teardown or initialization.
-4. **User-Accessible Controls**: Users must always have the ability in Settings to inspect and toggle data-sharing / sync features on or off, even when signed out.
+1. **Shell-Level Enforcement**: `HttpPolicy` independently validates every URL (allowlist, embedded-credential rejection, resolved-IP private/loopback/link-local blocking, redirect downgrade checks). Never rely on the extension to self-limit.
+2. **Consent Intersection**: `ExtensionPolicy` computes effective capabilities as `manifest ∩ consent`; a manifest can never grant more than the user accepted at install (or re-accepted after an update).
+3. **Secrets Never Transit**: DPAPI-encrypted secrets (`secrets.json`) and OAuth tokens are consumed inside the shell; extensions receive only derived results (e.g. `{ ok, expiresAt }`), never token material.
+4. **Uninstall Purge**: removing an extension deletes its directory, storage, secrets, OAuth tokens and cached images — no orphaned user data.
+5. **No Telemetry**: FlowKey ships no analytics, crash reporting or usage sharing. Do not add any.
