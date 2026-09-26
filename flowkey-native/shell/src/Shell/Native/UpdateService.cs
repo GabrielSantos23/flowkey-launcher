@@ -167,7 +167,9 @@ public sealed class UpdateService
         {
             // Throws when the app is not running from a Velopack install
             // (e.g. a plain dotnet publish / dev checkout) — treat as dev build.
-            return new UpdateManager(source);
+            // GitHubReleasesSource is required: Velopack 1.x has no built-in
+            // GitHub source and a bare repo URL 404s on /RELEASES.
+            return new UpdateManager(new GitHubReleasesSource(source));
         }
         catch (Exception ex)
         {
