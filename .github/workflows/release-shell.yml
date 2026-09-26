@@ -83,7 +83,7 @@ jobs:
         working-directory: flowkey-native
 
       # The sidecar runs from source via bun and resolves workspace packages
-      # (@flowkey/native-sdk, react-ui, the extensions) through relative pnpm
+      # (@flowkey-cli/native-sdk, react-ui, the extensions) through relative pnpm
       # symlinks into flowkey-native/node_modules/.pnpm. Ship the trees with
       # symlinks preserved (tar, unlike Copy-Item/robocopy) and include the
       # ui-tree fixture so MainWindow.FindRepoRoot's walk-up finds the layout.

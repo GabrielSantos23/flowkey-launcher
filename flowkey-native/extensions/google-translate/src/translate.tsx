@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { CommandProps } from '@flowkey/react-ui';
-import { List } from '@flowkey/react-ui';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { List } from '@flowkey-cli/react-ui';
 import {
   AUTO_DETECT,
   isSameLanguage,

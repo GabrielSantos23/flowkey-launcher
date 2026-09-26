@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import type { CommandProps } from '@flowkey/react-ui';
-import { Action, ActionPanel, List } from '@flowkey/react-ui';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { Action, ActionPanel, List } from '@flowkey-cli/react-ui';
 import { TranslateError, type TranslateResult } from './api/client';
 import {
   AUTO_DETECT,

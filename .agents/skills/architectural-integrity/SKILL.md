@@ -51,7 +51,7 @@ Every extension-facing addition must be usable by any extension:
 ## Principle 4: Strict Layering
 
 ```
-Extensions (React via @flowkey/react-ui)
+Extensions (React via @flowkey-cli/react-ui)
   ↓ props (CommandProps) + typed capabilities
 Sidecar (loader, dispatcher, roots)          ← TS only
   ↓ NDJSON protocol (contract fixtures)

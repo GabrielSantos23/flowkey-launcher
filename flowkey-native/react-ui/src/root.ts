@@ -1,7 +1,7 @@
 import { createElement, type ComponentType } from 'react';
 import Reconciler from 'react-reconciler';
 import { ConcurrentRoot } from 'react-reconciler/constants';
-import type { UiTree } from '@flowkey/native-sdk';
+import type { UiTree } from '@flowkey-cli/native-sdk';
 import { hostConfig } from './hostConfig';
 import { commitHooks, type HostContainer } from './node';
 import { ActionRegistry } from './registry';

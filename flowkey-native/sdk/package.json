@@ -1,5 +1,5 @@
 {
-  "name": "@flowkey/native-sdk",
+  "name": "@flowkey-cli/native-sdk",
   "version": "0.1.0",
   "description": "TypeScript SDK for FlowKey extensions (types, manifest validation, typed capabilities).",
   "type": "module",

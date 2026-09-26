@@ -10,7 +10,7 @@ import type {
   UiPaneField,
   UiSection,
   UiTree,
-} from '@flowkey/native-sdk';
+} from '@flowkey-cli/native-sdk';
 import { Fragment, type ReactElement } from 'react';
 import { ReactUiError } from './errors';
 import { resolveIntrinsic } from './intrinsic';

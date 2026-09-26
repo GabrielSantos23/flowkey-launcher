@@ -1,5 +1,5 @@
 {
-  "name": "@flowkey/sidecar",
+  "name": "@flowkey-cli/sidecar",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,15 +8,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flowkey/extension-apps": "workspace:*",
-    "@flowkey/extension-clipboard-history": "workspace:*",
-    "@flowkey/extension-emoji": "workspace:*",
-    "@flowkey/extension-google-translate": "workspace:*",
-    "@flowkey/extension-lucide-icons": "workspace:*",
-    "@flowkey/extension-react-demo": "workspace:*",
-    "@flowkey/extension-spotify": "workspace:*",
-    "@flowkey/native-sdk": "workspace:*",
-    "@flowkey/react-ui": "workspace:*"
+    "@flowkey-cli/extension-apps": "workspace:*",
+    "@flowkey-cli/extension-clipboard-history": "workspace:*",
+    "@flowkey-cli/extension-emoji": "workspace:*",
+    "@flowkey-cli/extension-google-translate": "workspace:*",
+    "@flowkey-cli/extension-lucide-icons": "workspace:*",
+    "@flowkey-cli/extension-react-demo": "workspace:*",
+    "@flowkey-cli/extension-spotify": "workspace:*",
+    "@flowkey-cli/native-sdk": "workspace:*",
+    "@flowkey-cli/react-ui": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

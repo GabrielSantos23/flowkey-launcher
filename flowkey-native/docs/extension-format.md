@@ -56,6 +56,6 @@ Commands additionally accept `title`, `keywords` (search terms), `icon`,
 The `__open__` command id is reserved by the shell.
 
 Validation is implemented twice — in
-`@flowkey/native-sdk` (`validateManifest`, used by the CLI and the sidecar)
+`@flowkey-cli/native-sdk` (`validateManifest`, used by the CLI and the sidecar)
 and in the shell's installer (`ExtensionManifestValidator.cs`) — and both are
 pinned to identical behavior by `contract/manifest.fixture.json`.

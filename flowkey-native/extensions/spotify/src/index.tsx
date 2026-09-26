@@ -1,5 +1,5 @@
 import { createElement, type ReactNode } from 'react';
-import { defineReactExtension, List, type CommandProps } from '@flowkey/react-ui';
+import { defineReactExtension, List, type CommandProps } from '@flowkey-cli/react-ui';
 import manifest from '../manifest.json';
 import { SearchCommand } from './search';
 import {
@@ -90,7 +90,7 @@ const PLAYER_COMMANDS: Record<string, (props: CommandProps) => ReactNode> = {
 };
 
 export default defineReactExtension({
-  manifest: manifest as unknown as import('@flowkey/native-sdk').ExtensionManifest,
+  manifest: manifest as unknown as import('@flowkey-cli/native-sdk').ExtensionManifest,
   component: (props: CommandProps) => {
     const commandId = props.commandId ?? 'search';
     if (isSubViewCommand(commandId)) {

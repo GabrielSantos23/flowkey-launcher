@@ -1,5 +1,5 @@
 {
-  "name": "@flowkey/react-ui",
+  "name": "@flowkey-cli/react-ui",
   "version": "0.1.0",
   "description": "React components for FlowKey extension views (serialized to the native UI tree).",
   "type": "module",
@@ -28,11 +28,11 @@
     "scheduler": "^0.27.0"
   },
   "peerDependencies": {
-    "@flowkey/native-sdk": "*",
+    "@flowkey-cli/native-sdk": "*",
     "react": "^19.0.0"
   },
   "devDependencies": {
-    "@flowkey/native-sdk": "workspace:*",
+    "@flowkey-cli/native-sdk": "workspace:*",
     "@types/bun": "^1.2.0",
     "@types/react": "^19.3.0",
     "react": "19.3.0",

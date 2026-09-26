@@ -1,11 +1,11 @@
 {
-  "name": "@flowkey/extension-clipboard-history",
+  "name": "@flowkey-cli/extension-clipboard-history",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "dependencies": {
-    "@flowkey/native-sdk": "workspace:*"
+    "@flowkey-cli/native-sdk": "workspace:*"
   }
 }

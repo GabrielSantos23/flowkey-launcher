@@ -1,4 +1,4 @@
-import { defineExtension, type UiItem, type ExtensionModule } from '@flowkey/native-sdk';
+import { defineExtension, type UiItem, type ExtensionModule } from '@flowkey-cli/native-sdk';
 import manifestJson from '../manifest.json';
 
 interface HistoryItem {
@@ -51,7 +51,11 @@ function toUiItem(entry: HistoryItem, showTimestamps: boolean): UiItem {
   };
   return {
     id: entry.id,
-    title: isImage ? `Image (${entry.width ?? 0}×${entry.height ?? 0})` : preview.length > 0 ? preview : '(empty)',
+    title: isImage
+      ? `Image (${entry.width ?? 0}×${entry.height ?? 0})`
+      : preview.length > 0
+        ? preview
+        : '(empty)',
     kind: meta.label,
     iconName: isImage ? undefined : meta.iconName,
     iconColor: kind === 'color' ? entry.text.trim() : undefined,
@@ -129,10 +133,12 @@ export default defineExtension({
       if (actionId !== 'copy') {
         return null;
       }
-      const full = (await ctx.native.call<{ items: HistoryItem[] }>('clipboard.history', {
-        query: lastQuery,
-        limit: 50,
-      }))?.items.find((h) => h.id === item.id);
+      const full = (
+        await ctx.native.call<{ items: HistoryItem[] }>('clipboard.history', {
+          query: lastQuery,
+          limit: 50,
+        })
+      )?.items.find((h) => h.id === item.id);
       if (full?.kind === 'image') {
         await ctx.native.call('clipboard.copyEntry', { id: item.id });
       } else if (full) {

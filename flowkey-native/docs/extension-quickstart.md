@@ -10,13 +10,13 @@ TypeScript + React.
 
 The extension you build runs inside FlowKey's sidecar process. At runtime it
 shares the host's React and UI component instances — your bundle is built with
-`@flowkey/cli`, which wires that up automatically. You never configure this.
+`@flowkey-cli/cli`, which wires that up automatically. You never configure this.
 
 ## 1. Scaffold a project
 
 ```bash
-pnpm dlx @flowkey/cli init "My Extension"
-# or: npm exec @flowkey/cli -- init "My Extension"
+pnpm dlx @flowkey-cli/cli init "My Extension"
+# or: npm exec @flowkey-cli/cli -- init "My Extension"
 cd my-extension
 pnpm install
 ```

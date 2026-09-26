@@ -4,8 +4,8 @@ import {
   Grid,
   defineReactExtension,
   type CommandProps,
-} from '@flowkey/react-ui';
-import type { ExtensionManifest } from '@flowkey/native-sdk';
+} from '@flowkey-cli/react-ui';
+import type { ExtensionManifest } from '@flowkey-cli/native-sdk';
 import manifestJson from '../manifest.json';
 import { COLOR_OPTIONS, resolveColor } from './colors';
 import { componentName, displayName, filterIcons, iconPageUrl, type LucideIconMeta } from './icons';

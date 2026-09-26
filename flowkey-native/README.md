@@ -11,10 +11,10 @@ existing Tauri app, Rust host and `asyar-sdk`.
   validation). The single source of truth: the bun test in `sdk/` and the
   xunit test in `shell/tests/` both validate their models against these exact
   bytes, so contract drift fails both sides.
-- `sdk/` — `@flowkey/native-sdk`, the TypeScript SDK for the new extension
+- `sdk/` — `@flowkey-cli/native-sdk`, the TypeScript SDK for the new extension
   model (UI-tree types, protocol messages, manifest validation, typed
   capabilities, `defineExtension`).
-- `cli/` — `@flowkey/cli`, the `flowkey` command (`init`, `dev`, `build`,
+- `cli/` — `@flowkey-cli/cli`, the `flowkey` command (`init`, `dev`, `build`,
   `validate`, `package`) for creating, running and sharing extensions.
 - `sidecar/` — the sidecar process: loads first-party extensions statically
   and installed third-party extensions dynamically from disk, speaks NDJSON
@@ -33,7 +33,7 @@ repo root):
 | ------------------- | ------------------------------------ |
 | `sdk:test`          | bun test for the SDK contract        |
 | `sdk:typecheck`     | TypeScript check for `sdk/`          |
-| `cli:test`          | bun test for `@flowkey/cli`          |
+| `cli:test`          | bun test for `@flowkey-cli/cli`      |
 | `cli:typecheck`     | TypeScript check for `cli/`          |
 | `cli:build`         | bundle the `flowkey` CLI             |
 | `sidecar:typecheck` | TypeScript check for `sidecar/`      |
@@ -107,16 +107,16 @@ plus a bundled `main.js`) placed in
 dynamically imports them on every `init`; a broken extension is reported in
 the `ready.failures` list and never prevents the others from loading.
 
-Extension authors use `@flowkey/cli`:
+Extension authors use `@flowkey-cli/cli`:
 
 ```bash
-pnpm dlx @flowkey/cli init "My Extension"
+pnpm dlx @flowkey-cli/cli init "My Extension"
 cd my-extension && pnpm install
 pnpm dev        # build + install into FlowKey + watch
 pnpm package    # produce the .flowkey zip
 ```
 
-Bundles alias `react`, `@flowkey/react-ui` and `@flowkey/native-sdk` to shims
+Bundles alias `react`, `@flowkey-cli/react-ui` and `@flowkey-cli/native-sdk` to shims
 over `globalThis.__FLOWKEY_HOST__` (installed by the sidecar before the
 bundle is imported), so hooks and UI serialization always share the host's
 single module instances. See `docs/extension-quickstart.md` for the full

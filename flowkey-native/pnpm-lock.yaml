@@ -14,7 +14,7 @@ importers:
 
   cli:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../sdk
       commander:
@@ -39,28 +39,28 @@ importers:
 
   extensions/apps:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
 
   extensions/clipboard-history:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
 
   extensions/emoji:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
 
   extensions/google-translate:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@flowkey/react-ui':
+      '@flowkey-cli/react-ui':
         specifier: workspace:*
         version: link:../../react-ui
       react:
@@ -79,10 +79,10 @@ importers:
 
   extensions/lucide-icons:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@flowkey/react-ui':
+      '@flowkey-cli/react-ui':
         specifier: workspace:*
         version: link:../../react-ui
       react:
@@ -98,10 +98,10 @@ importers:
 
   extensions/react-demo:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@flowkey/react-ui':
+      '@flowkey-cli/react-ui':
         specifier: workspace:*
         version: link:../../react-ui
       react:
@@ -114,10 +114,10 @@ importers:
 
   extensions/spotify:
     dependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../../sdk
-      '@flowkey/react-ui':
+      '@flowkey-cli/react-ui':
         specifier: workspace:*
         version: link:../../react-ui
       react:
@@ -143,7 +143,7 @@ importers:
         specifier: ^0.27.0
         version: 0.27.0
     devDependencies:
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../sdk
       '@types/bun':
@@ -170,31 +170,31 @@ importers:
 
   sidecar:
     dependencies:
-      '@flowkey/extension-apps':
+      '@flowkey-cli/extension-apps':
         specifier: workspace:*
         version: link:../extensions/apps
-      '@flowkey/extension-clipboard-history':
+      '@flowkey-cli/extension-clipboard-history':
         specifier: workspace:*
         version: link:../extensions/clipboard-history
-      '@flowkey/extension-emoji':
+      '@flowkey-cli/extension-emoji':
         specifier: workspace:*
         version: link:../extensions/emoji
-      '@flowkey/extension-google-translate':
+      '@flowkey-cli/extension-google-translate':
         specifier: workspace:*
         version: link:../extensions/google-translate
-      '@flowkey/extension-lucide-icons':
+      '@flowkey-cli/extension-lucide-icons':
         specifier: workspace:*
         version: link:../extensions/lucide-icons
-      '@flowkey/extension-react-demo':
+      '@flowkey-cli/extension-react-demo':
         specifier: workspace:*
         version: link:../extensions/react-demo
-      '@flowkey/extension-spotify':
+      '@flowkey-cli/extension-spotify':
         specifier: workspace:*
         version: link:../extensions/spotify
-      '@flowkey/native-sdk':
+      '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../sdk
-      '@flowkey/react-ui':
+      '@flowkey-cli/react-ui':
         specifier: workspace:*
         version: link:../react-ui
     devDependencies:

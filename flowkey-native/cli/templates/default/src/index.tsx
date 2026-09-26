@@ -5,7 +5,7 @@ import {
   List,
   defineReactExtension,
   type CommandProps,
-} from '@flowkey/react-ui';
+} from '@flowkey-cli/react-ui';
 import manifest from '../manifest.json';
 
 const SAMPLE_ITEMS = [

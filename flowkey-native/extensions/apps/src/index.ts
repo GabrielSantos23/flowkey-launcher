@@ -1,4 +1,4 @@
-import { defineExtension, type UiItem, type ExtensionModule } from '@flowkey/native-sdk';
+import { defineExtension, type UiItem, type ExtensionModule } from '@flowkey-cli/native-sdk';
 
 interface AppInfo {
   id: string;
@@ -20,11 +20,14 @@ export default defineExtension({
   },
   handlers: {
     async search(query, ctx) {
-      const result = (await ctx.native.call<{ apps: AppInfo[] }>('apps.list', { query })) ?? { apps: [] };
+      const result = (await ctx.native.call<{ apps: AppInfo[] }>('apps.list', { query })) ?? {
+        apps: [],
+      };
       const items: UiItem[] = result.apps.map((app) => ({
         id: app.id,
         title: app.name,
-        subtitle: app.launchCount && app.launchCount > 0 ? `launched ${app.launchCount}x` : undefined,
+        subtitle:
+          app.launchCount && app.launchCount > 0 ? `launched ${app.launchCount}x` : undefined,
         kind: 'Application',
         iconUri: app.iconUri,
         actions: [{ id: 'launch', title: 'Open', primary: true }],

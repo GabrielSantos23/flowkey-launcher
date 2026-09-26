@@ -1,4 +1,8 @@
-import type { NativeCallMessage, NativeResultMessage, SidecarMessage } from '@flowkey/native-sdk';
+import type {
+  NativeCallMessage,
+  NativeResultMessage,
+  SidecarMessage,
+} from '@flowkey-cli/native-sdk';
 
 const NATIVE_CALL_TIMEOUT_MS = 5000;
 

@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flowkey/cli": "^0.1.0",
-    "@flowkey/native-sdk": "^0.1.0",
-    "@flowkey/react-ui": "^0.1.0",
+    "@flowkey-cli/cli": "^0.1.0",
+    "@flowkey-cli/native-sdk": "^0.1.0",
+    "@flowkey-cli/react-ui": "^0.1.0",
     "react": "19.3.0"
   },
   "devDependencies": {

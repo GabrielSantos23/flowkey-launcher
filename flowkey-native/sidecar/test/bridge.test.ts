@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { NativeBridge } from '../src/bridge';
-import type { NativeResultMessage, SidecarMessage } from '@flowkey/native-sdk';
+import type { NativeResultMessage, SidecarMessage } from '@flowkey-cli/native-sdk';
 
 describe('NativeBridge', () => {
   test('rejects with nativeTimeout after the custom timeoutMs elapses', async () => {

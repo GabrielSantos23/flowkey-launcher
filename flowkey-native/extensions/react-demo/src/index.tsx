@@ -4,8 +4,8 @@ import {
   Action,
   List,
   type CommandProps,
-} from '@flowkey/react-ui';
-import type { ExtensionManifest } from '@flowkey/native-sdk';
+} from '@flowkey-cli/react-ui';
+import type { ExtensionManifest } from '@flowkey-cli/native-sdk';
 import manifestJson from '../manifest.json';
 
 interface FetchResult {

@@ -1,11 +1,18 @@
 import * as React from 'react';
 import * as ReactJsxRuntime from 'react/jsx-runtime';
-import { Action, ActionPanel, Detail, Grid, List, defineReactExtension } from '@flowkey/react-ui';
-import { defineExtension } from '@flowkey/native-sdk';
+import {
+  Action,
+  ActionPanel,
+  Detail,
+  Grid,
+  List,
+  defineReactExtension,
+} from '@flowkey-cli/react-ui';
+import { defineExtension } from '@flowkey-cli/native-sdk';
 
 /**
  * Runtime services the sidecar injects into every installed extension bundle.
- * Extension builds alias `react`, `@flowkey/react-ui` and `@flowkey/native-sdk`
+ * Extension builds alias `react`, `@flowkey-cli/react-ui` and `@flowkey-cli/native-sdk`
  * to shims that read these globals, so React hooks and the UI serializer come
  * from the sidecar's single module instances (two React copies would break
  * hooks; a second component copy would not serialize).

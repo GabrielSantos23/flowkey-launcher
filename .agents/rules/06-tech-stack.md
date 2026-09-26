@@ -10,9 +10,9 @@
 ## 2. TypeScript Sidecar & Extensions (Bun)
 
 - The sidecar runs under Bun (`flowkey-native/sidecar`); the shared TS workspace lives in `flowkey-native/` (its own pnpm workspace, independent of the repo root).
-- Extension UI is **React rendered through `@flowkey/react-ui`'s custom reconciler** (`react-reconciler` → serialized UI tree). Extension components receive everything as props (`CommandProps`); there is no DOM.
-- Extension bundles must alias `react`, `@flowkey/react-ui` and `@flowkey/native-sdk` to the host-global shims (`cli/shims/`) — bundling a second React copy breaks hooks and serialization. Use `@flowkey/cli` to build.
-- The SDK (`@flowkey/native-sdk`) is types + manifest validation + typed capabilities; it is runtime-dependency-free.
+- Extension UI is **React rendered through `@flowkey-cli/react-ui`'s custom reconciler** (`react-reconciler` → serialized UI tree). Extension components receive everything as props (`CommandProps`); there is no DOM.
+- Extension bundles must alias `react`, `@flowkey-cli/react-ui` and `@flowkey-cli/native-sdk` to the host-global shims (`cli/shims/`) — bundling a second React copy breaks hooks and serialization. Use `@flowkey-cli/cli` to build.
+- The SDK (`@flowkey-cli/native-sdk`) is types + manifest validation + typed capabilities; it is runtime-dependency-free.
 
 ## 3. No AI Features
 

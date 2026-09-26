@@ -3,9 +3,9 @@ import type {
   ActionRegistry,
   CommandProps,
   ReactExtensionModule,
-} from '@flowkey/react-ui';
-import { ReactRoot } from '@flowkey/react-ui';
-import { createCapabilities, type SidecarMessage } from '@flowkey/native-sdk';
+} from '@flowkey-cli/react-ui';
+import { ReactRoot } from '@flowkey-cli/react-ui';
+import { createCapabilities, type SidecarMessage } from '@flowkey-cli/native-sdk';
 import type { NativeBridge } from './bridge';
 
 export const PUSH_INTERVAL_MS = 100;

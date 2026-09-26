@@ -6,7 +6,7 @@ import {
   type GridTree,
   type ListTree,
   type UiTree,
-} from '@flowkey/native-sdk';
+} from '@flowkey-cli/native-sdk';
 import { Action, ActionPanel, Detail, Grid, List, ReactRoot, ReactUiError } from '../src';
 import type { CommittedGeneration, CommandProps, ListItemProps, ListProps } from '../src';
 

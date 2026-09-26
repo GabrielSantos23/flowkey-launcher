@@ -1,4 +1,4 @@
-import { defineExtension, type ExtensionModule } from '@flowkey/native-sdk';
+import { defineExtension, type ExtensionModule } from '@flowkey-cli/native-sdk';
 import catalog from '../data/emoji.json';
 
 interface GemojiRecord {
@@ -20,7 +20,13 @@ export default defineExtension({
     description: 'Emoji picker with categories and keyword search.',
     icon: '😀',
     commands: [
-      { id: 'open', title: 'Emoji & Symbols', keywords: ['emoji', 'symbol'], icon: 'smile', iconColor: '#4F8CFF' },
+      {
+        id: 'open',
+        title: 'Emoji & Symbols',
+        keywords: ['emoji', 'symbol'],
+        icon: 'smile',
+        iconColor: '#4F8CFF',
+      },
     ],
     nativeMethods: ['clipboard.write'],
     httpHosts: [],

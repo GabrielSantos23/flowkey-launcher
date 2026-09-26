@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { CommandProps } from '@flowkey/react-ui';
-import { Action, ActionPanel, Detail, List } from '@flowkey/react-ui';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { Action, ActionPanel, Detail, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient } from './api/client';
 import type { SpotifyPlaybackState, SpotifyTrack } from './api/types';
 import { formatMs } from './format';

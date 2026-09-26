@@ -1,5 +1,5 @@
 {
-  "name": "@flowkey/cli",
+  "name": "@flowkey-cli/cli",
   "version": "0.1.0",
   "description": "Build, validate, package and install FlowKey extensions.",
   "type": "module",
@@ -27,7 +27,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@flowkey/native-sdk": "workspace:*",
+    "@flowkey-cli/native-sdk": "workspace:*",
     "commander": "^12.1.0",
     "esbuild": "^0.24.0",
     "fflate": "^0.8.2"

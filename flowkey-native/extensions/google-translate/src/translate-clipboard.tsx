@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import type { CommandProps } from '@flowkey/react-ui';
-import { Action, ActionPanel, List } from '@flowkey/react-ui';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { Action, ActionPanel, List } from '@flowkey-cli/react-ui';
 import type { NativeCallFn } from './api/client';
 import { AUTO_DETECT, languagePairLabel, readTranslatePreferences } from './preferences';
 import {

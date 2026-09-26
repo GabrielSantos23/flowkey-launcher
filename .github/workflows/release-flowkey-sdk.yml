@@ -1,7 +1,7 @@
 name: Release FlowKey SDK
 
-# The flowkey-native TypeScript packages (@flowkey/native-sdk,
-# @flowkey/react-ui, @flowkey/cli) release on `flowkey-sdk-v*` tags so they can
+# The flowkey-native TypeScript packages (@flowkey-cli/native-sdk,
+# @flowkey-cli/react-ui, @flowkey-cli/cli) release on `flowkey-sdk-v*` tags so they can
 # move independently of the shell (`shell-v*`). Tag the version you want to
 # publish:
 #
@@ -58,6 +58,6 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           pnpm config set //registry.npmjs.org/:_authToken $env:NPM_TOKEN
-          pnpm --filter @flowkey/native-sdk publish --no-git-checks --access public
-          pnpm --filter @flowkey/react-ui publish --no-git-checks --access public
-          pnpm --filter @flowkey/cli publish --no-git-checks --access public
+          pnpm --filter @flowkey-cli/native-sdk publish --no-git-checks --access public
+          pnpm --filter @flowkey-cli/react-ui publish --no-git-checks --access public
+          pnpm --filter @flowkey-cli/cli publish --no-git-checks --access public

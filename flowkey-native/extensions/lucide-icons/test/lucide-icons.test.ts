@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { validateManifest } from '@flowkey/native-sdk';
+import { validateManifest } from '@flowkey-cli/native-sdk';
 import manifestJson from '../manifest.json';
 import { COLORS, COLOR_OPTIONS, DEFAULT_COLOR, resolveColor } from '../src/colors';
 import { allIcons, componentName, displayName, filterIcons, iconPageUrl } from '../src/icons';

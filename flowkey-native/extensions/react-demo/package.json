@@ -1,13 +1,13 @@
 {
-  "name": "@flowkey/extension-react-demo",
+  "name": "@flowkey-cli/extension-react-demo",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "src/index.tsx",
   "types": "src/index.tsx",
   "dependencies": {
-    "@flowkey/native-sdk": "workspace:*",
-    "@flowkey/react-ui": "workspace:*",
+    "@flowkey-cli/native-sdk": "workspace:*",
+    "@flowkey-cli/react-ui": "workspace:*",
     "react": "19.3.0"
   },
   "devDependencies": {

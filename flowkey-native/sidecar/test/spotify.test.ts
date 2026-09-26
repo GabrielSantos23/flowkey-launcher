@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
-import type { ListTree, SidecarMessage } from '@flowkey/native-sdk';
-import spotify from '@flowkey/extension-spotify';
+import type { ListTree, SidecarMessage } from '@flowkey-cli/native-sdk';
+import spotify from '@flowkey-cli/extension-spotify';
 import { Dispatcher, loadExtensions } from '../src/loader';
-import { clearRecentSearches } from '@flowkey/extension-spotify/src/recent';
-import { resetCaches } from '@flowkey/extension-spotify/src/store';
+import { clearRecentSearches } from '@flowkey-cli/extension-spotify/src/recent';
+import { resetCaches } from '@flowkey-cli/extension-spotify/src/store';
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

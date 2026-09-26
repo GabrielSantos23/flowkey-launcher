@@ -25,7 +25,7 @@ sidecar process, and render into a native UI tree (no web view, no Electron).
 
 - **Native UI** — the shell renders three view types (`list`, `grid`,
   `detail`) from a serialized UI tree; extensions write React with
-  `@flowkey/react-ui` and never touch the screen directly.
+  `@flowkey-cli/react-ui` and never touch the screen directly.
 - **Capability gates** — every extension call (`http.fetch`, `clipboard.*`,
   `storage.*`, `secrets.*`, `shell.openUrl`, …) is checked against the
   extension manifest **and** the capabilities the user accepted at install
@@ -53,7 +53,7 @@ sidecar process, and render into a native UI tree (no web view, no Electron).
 ## Building an extension
 
 ```bash
-pnpm dlx @flowkey/cli init "My Extension"
+pnpm dlx @flowkey-cli/cli init "My Extension"
 cd my-extension && pnpm install
 pnpm dev        # build + install into FlowKey + watch
 pnpm package    # produce the .flowkey zip to share

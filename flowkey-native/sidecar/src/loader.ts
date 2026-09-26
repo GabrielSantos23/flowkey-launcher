@@ -13,19 +13,19 @@ import type {
   Preferences,
   UiTree,
   HudOptions,
-} from '@flowkey/native-sdk';
-import { resolveEntry, validateManifest, createCapabilities } from '@flowkey/native-sdk';
-import type { ReactExtensionModule } from '@flowkey/react-ui';
-import { ReactRoot } from '@flowkey/react-ui';
+} from '@flowkey-cli/native-sdk';
+import { resolveEntry, validateManifest, createCapabilities } from '@flowkey-cli/native-sdk';
+import type { ReactExtensionModule } from '@flowkey-cli/react-ui';
+import { ReactRoot } from '@flowkey-cli/react-ui';
 import { NativeBridge } from './bridge';
 import { RootManager, type ManagedRoot } from './roots';
-import emoji from '@flowkey/extension-emoji';
-import googleTranslate from '@flowkey/extension-google-translate';
-import apps from '@flowkey/extension-apps';
-import clipboardHistory from '@flowkey/extension-clipboard-history';
-import spotify from '@flowkey/extension-spotify';
-import reactDemo from '@flowkey/extension-react-demo';
-import lucideIcons from '@flowkey/extension-lucide-icons';
+import emoji from '@flowkey-cli/extension-emoji';
+import googleTranslate from '@flowkey-cli/extension-google-translate';
+import apps from '@flowkey-cli/extension-apps';
+import clipboardHistory from '@flowkey-cli/extension-clipboard-history';
+import spotify from '@flowkey-cli/extension-spotify';
+import reactDemo from '@flowkey-cli/extension-react-demo';
+import lucideIcons from '@flowkey-cli/extension-lucide-icons';
 
 type LoadedFunctional = ExtensionModule & { preferences: Preferences };
 type LoadedReact = ReactExtensionModule & { preferences: Preferences };

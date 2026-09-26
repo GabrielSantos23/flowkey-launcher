@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { validateManifest } from '@flowkey/native-sdk';
-import type { ReadyMessage } from '@flowkey/native-sdk';
+import { validateManifest } from '@flowkey-cli/native-sdk';
+import type { ReadyMessage } from '@flowkey-cli/native-sdk';
 import { loadInstalledExtensions } from '../src/loader';
 import { installHostGlobals } from '../src/hostGlobals';
 

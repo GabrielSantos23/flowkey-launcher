@@ -15,16 +15,16 @@ FlowKey lives at the repo root (GitHub: `GabrielSantos23/flowkey-launcher`):
 ├── pnpm-lock.yaml            ← root lockfile (prettier/husky)
 ├── .github/workflows/
 │   ├── release-shell.yml     ← shell-v* tags → dotnet test + Velopack GitHub Release
-│   ├── release-flowkey-sdk.yml ← flowkey-sdk-v* tags → TS tests + npm publish (@flowkey/*)
+│   ├── release-flowkey-sdk.yml ← flowkey-sdk-v* tags → TS tests + npm publish (@flowkey-cli/*)
 │   └── codeql.yml
 ├── flowkey-native/           ← THE product; its OWN pnpm workspace + own lockfile
 │   ├── pnpm-workspace.yaml   ← members: cli, sdk, sidecar, react-ui, extensions/* (allowBuilds: esbuild)
 │   ├── package.json          ← scripts: sdk:*, cli:*, react-ui:*, sidecar:*, shell:*, *:typecheck/:test, icons:sync
 │   ├── contract/             ← canonical JSON fixtures (protocol, ui-tree, manifest) — tested by bun AND xunit
-│   ├── sdk/                  ← @flowkey/native-sdk (types, manifest validation, capabilities)
-│   ├── cli/                  ← @flowkey/cli (flowkey init/dev/build/validate/package) + shims/ + templates/
+│   ├── sdk/                  ← @flowkey-cli/native-sdk (types, manifest validation, capabilities)
+│   ├── cli/                  ← @flowkey-cli/cli (flowkey init/dev/build/validate/package) + shims/ + templates/
 │   ├── sidecar/              ← the Bun extension host (loads first-party statically, installed from disk)
-│   ├── react-ui/             ← @flowkey/react-ui (react-reconciler → UI tree)
+│   ├── react-ui/             ← @flowkey-cli/react-ui (react-reconciler → UI tree)
 │   ├── extensions/           ← first-party extensions (emoji, apps, clipboard-history, google-translate, spotify, react-demo, lucide-icons)
 │   ├── scripts/              ← sync-lucide-icons.mjs (icon metadata generator)
 │   ├── shell/                ← FlowKey.sln: WPF shell (src/Shell) + xunit tests (tests/Shell.Tests)
@@ -36,7 +36,7 @@ FlowKey lives at the repo root (GitHub: `GabrielSantos23/flowkey-launcher`):
 ## Two Workspaces — Know Which One You're In
 
 - **Repo root**: tooling only (prettier, husky, lint-staged). `packages: []` — never add packages here. Run `pnpm exec prettier …` from the root (it covers `flowkey-native/`).
-- **`flowkey-native/`**: all product packages. `pnpm install` here regenerates `flowkey-native/pnpm-lock.yaml`. Workspace linking: `workspace:*` deps (e.g. extensions importing `@flowkey/native-sdk`) become symlinks after install.
+- **`flowkey-native/`**: all product packages. `pnpm install` here regenerates `flowkey-native/pnpm-lock.yaml`. Workspace linking: `workspace:*` deps (e.g. extensions importing `@flowkey-cli/native-sdk`) become symlinks after install.
 - `esbuild` runs a postinstall script; `allowBuilds: { esbuild: true }` in `flowkey-native/pnpm-workspace.yaml` authorizes it. A failing install printing "Ignored build scripts" means that field was lost.
 
 ## Lockfile Discipline
@@ -51,10 +51,10 @@ FlowKey lives at the repo root (GitHub: `GabrielSantos23/flowkey-launcher`):
 | `pnpm test`        | full matrix: all typechecks → all bun suites → `dotnet test FlowKey.sln` |
 | `pnpm shell:build` | `dotnet build FlowKey.sln -c Release`                                    |
 | `pnpm icons:sync`  | regenerate `extensions/lucide-icons/src/generated/` from `lucide-static` |
-| `pnpm cli:build`   | bundle `@flowkey/cli` to `dist/cli.js` (+ copies `shims/`)               |
+| `pnpm cli:build`   | bundle `@flowkey-cli/cli` to `dist/cli.js` (+ copies `shims/`)           |
 
 ## Release Flows
 
 - **Shell**: tag `shell-v*` → `release-shell.yml` (test job excludes environment-dependent xunit filters → build job: `dotnet publish --self-contained`, `bun build --compile` the sidecar into `FlowKey.Sidecar.exe`, tar sidecar/src + extensions + contract fixture beside the exe, `vpk pack`). The shell locates the repo tree at runtime by walking up to find `contract/ui-tree.fixture.json`.
-- **TS packages**: tag `flowkey-sdk-v*` → `release-flowkey-sdk.yml` → publishes `@flowkey/native-sdk`, `@flowkey/react-ui`, `@flowkey/cli` (requires the `NPM_TOKEN` secret and the `@flowkey` npm org to exist). `pnpm publish` rewrites `workspace:*` deps to real versions.
+- **TS packages**: tag `flowkey-sdk-v*` → `release-flowkey-sdk.yml` → publishes `@flowkey-cli/native-sdk`, `@flowkey-cli/react-ui`, `@flowkey-cli/cli` (requires the `NPM_TOKEN` secret and the `@flowkey` npm org to exist). `pnpm publish` rewrites `workspace:*` deps to real versions.
 - Never tag manually without running the version bumps first (`npm version` in the package + lockfile refresh).

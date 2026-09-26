@@ -10,7 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, join } from 'node:path';
-import { validateManifest } from '@flowkey/native-sdk';
+import { validateManifest } from '@flowkey-cli/native-sdk';
 import { ProjectError } from './lib/project';
 
 export function validateFile(manifestPath: string): { errors: number; warnings: number } {

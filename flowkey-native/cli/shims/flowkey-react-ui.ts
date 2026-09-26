@@ -1,5 +1,5 @@
 /**
- * Runtime shim aliased to `@flowkey/react-ui`. Reads the component set from
+ * Runtime shim aliased to `@flowkey-cli/react-ui`. Reads the component set from
  * the sidecar's host globals so the serialized element tags are produced by
  * the same module instances the sidecar's serializer understands.
  */
@@ -12,7 +12,7 @@ const reactUi = host?.reactUi ?? {};
 
 function missing(name: string): never {
   throw new Error(
-    `the FlowKey sidecar did not provide @flowkey/react-ui (missing ${name}); rebuild the extension with @flowkey/cli`,
+    `the FlowKey sidecar did not provide @flowkey-cli/react-ui (missing ${name}); rebuild the extension with @flowkey-cli/cli`,
   );
 }
 

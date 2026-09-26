@@ -13,7 +13,7 @@ const jsxRuntime = host?.reactJsx ?? {};
 
 function missing(name: string): never {
   throw new Error(
-    `the FlowKey sidecar did not provide the JSX runtime (missing ${name}); rebuild the extension with @flowkey/cli`,
+    `the FlowKey sidecar did not provide the JSX runtime (missing ${name}); rebuild the extension with @flowkey-cli/cli`,
   );
 }
 

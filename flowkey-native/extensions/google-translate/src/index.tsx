@@ -1,12 +1,12 @@
 import { createElement, type ReactNode } from 'react';
-import { defineReactExtension, List, type CommandProps } from '@flowkey/react-ui';
+import { defineReactExtension, List, type CommandProps } from '@flowkey-cli/react-ui';
 import manifest from '../manifest.json';
 import { TranslateClipboardCommand } from './translate-clipboard';
 import { TranslateCommand } from './translate';
 import { QuickTranslateCommand } from './quick-translate';
 
 export default defineReactExtension({
-  manifest: manifest as unknown as import('@flowkey/native-sdk').ExtensionManifest,
+  manifest: manifest as unknown as import('@flowkey-cli/native-sdk').ExtensionManifest,
   component: (props: CommandProps) => {
     const commandId = props.commandId ?? 'translate';
     if (commandId === 'quick-translate') {

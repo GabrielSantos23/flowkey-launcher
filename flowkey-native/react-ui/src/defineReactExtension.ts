@@ -4,7 +4,7 @@ import type {
   FlowKeyCapabilities,
   HudOptions,
   Preferences,
-} from '@flowkey/native-sdk';
+} from '@flowkey-cli/native-sdk';
 
 export interface ReactNativeContext {
   call<T = unknown>(

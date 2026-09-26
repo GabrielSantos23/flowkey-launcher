@@ -11,7 +11,7 @@ import {
 import { basename, dirname, join } from 'node:path';
 import { build, type BuildOptions } from 'esbuild';
 import { zipSync, type Zippable } from 'fflate';
-import { isImageFileName, type ExtensionManifest } from '@flowkey/native-sdk';
+import { isImageFileName, type ExtensionManifest } from '@flowkey-cli/native-sdk';
 import {
   findSourceEntry,
   loadManifest,

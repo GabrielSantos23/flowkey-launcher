@@ -1,4 +1,4 @@
-import { PROTOCOL_VERSION, type HostMessage, type SidecarMessage } from '@flowkey/native-sdk';
+import { PROTOCOL_VERSION, type HostMessage, type SidecarMessage } from '@flowkey-cli/native-sdk';
 import {
   Dispatcher,
   applyInit,

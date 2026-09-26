@@ -1,6 +1,6 @@
 import { createElement, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { CommandProps } from '@flowkey/react-ui';
-import { Action, ActionPanel, Grid, List } from '@flowkey/react-ui';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { Action, ActionPanel, Grid, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient } from './api/client';
 import { buildGridItems, buildListSections, collectArtworkUrls, type SearchResults } from './search';
 import { likedSongsKey } from './subviews';

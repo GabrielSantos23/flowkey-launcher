@@ -47,7 +47,7 @@ When C# code is touched, also build without warnings: `pnpm --dir flowkey-native
 ## 6. Tech Stack Standards
 
 - **Shell**: .NET 8 WPF (`flowkey-native/shell`), WPF-UI 4, Velopack updates. Pure WPF views bound to view models — no WebView.
-- **Sidecar & extensions**: TypeScript running under Bun (`flowkey-native/sidecar`), React rendered through `@flowkey/react-ui`'s custom reconciler. Extension bundles alias `react` / `@flowkey/*` to host globals — they must never bundle their own React copy.
+- **Sidecar & extensions**: TypeScript running under Bun (`flowkey-native/sidecar`), React rendered through `@flowkey-cli/react-ui`'s custom reconciler. Extension bundles alias `react` / `@flowkey-cli/*` to host globals — they must never bundle their own React copy.
 - **No AI features**: the product intentionally has no AI/LLM capability; do not add AI-dependent behavior.
 
 ## 7. Keyboard Shortcuts & Input Safety

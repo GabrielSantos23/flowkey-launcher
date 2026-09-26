@@ -1,5 +1,5 @@
 /**
- * Runtime shim aliased to `@flowkey/native-sdk`. The SDK is types-only at
+ * Runtime shim aliased to `@flowkey-cli/native-sdk`. The SDK is types-only at
  * runtime (contexts and capabilities are injected as props); only the
  * `defineExtension` identity helper comes through the host.
  */

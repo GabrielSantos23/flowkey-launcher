@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateManifest, type ExtensionManifest } from '@flowkey/native-sdk';
+import { validateManifest, type ExtensionManifest } from '@flowkey-cli/native-sdk';
 
 /** Absolute path to the CLI package directory (works from src and dist). */
 function findCliRoot(start: string): string {
@@ -25,8 +25,8 @@ export const shimAliases: Record<string, string> = {
   react: join(cliRoot, 'shims', 'react.ts'),
   'react/jsx-runtime': join(cliRoot, 'shims', 'react-jsx-runtime.ts'),
   'react/jsx-dev-runtime': join(cliRoot, 'shims', 'react-jsx-runtime.ts'),
-  '@flowkey/react-ui': join(cliRoot, 'shims', 'flowkey-react-ui.ts'),
-  '@flowkey/native-sdk': join(cliRoot, 'shims', 'flowkey-native-sdk.ts'),
+  '@flowkey-cli/react-ui': join(cliRoot, 'shims', 'flowkey-react-ui.ts'),
+  '@flowkey-cli/native-sdk': join(cliRoot, 'shims', 'flowkey-native-sdk.ts'),
 };
 
 export const SOURCE_ENTRIES = ['src/index.tsx', 'src/index.ts'];

@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { createElement, useState, useEffect, type ComponentType } from 'react';
-import type { SidecarMessage, UiMessage, UiTree, ListTree } from '@flowkey/native-sdk';
-import type { CommandProps } from '@flowkey/react-ui';
-import { Action } from '@flowkey/react-ui';
+import type { SidecarMessage, UiMessage, UiTree, ListTree } from '@flowkey-cli/native-sdk';
+import type { CommandProps } from '@flowkey-cli/react-ui';
+import { Action } from '@flowkey-cli/react-ui';
 import { RootManager, ManagedRoot, PUSH_INTERVAL_MS, MAX_ROOTS } from '../src/roots';
 import { Dispatcher } from '../src/loader';
 
