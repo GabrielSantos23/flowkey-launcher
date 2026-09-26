@@ -26,6 +26,7 @@ import clipboardHistory from '@flowkey-cli/extension-clipboard-history';
 import spotify from '@flowkey-cli/extension-spotify';
 import reactDemo from '@flowkey-cli/extension-react-demo';
 import lucideIcons from '@flowkey-cli/extension-lucide-icons';
+import obsidianNotes from '@flowkey-cli/extension-obsidian-notes';
 
 type LoadedFunctional = ExtensionModule & { preferences: Preferences };
 type LoadedReact = ReactExtensionModule & { preferences: Preferences };
@@ -43,6 +44,7 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   reactDemo,
   spotify,
   lucideIcons,
+  obsidianNotes,
 ];
 
 export function loadExtensions(): LoadedModule[] {

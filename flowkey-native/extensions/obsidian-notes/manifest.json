@@ -1,0 +1,61 @@
+{
+  "id": "obsidian-notes",
+  "name": "Obsidian Notes",
+  "version": "0.1.0",
+  "description": "Search and act on your Obsidian vault notes from FlowKey.",
+  "icon": "command-icon.png",
+  "commands": [
+    {
+      "id": "search-notes",
+      "title": "Search Notes",
+      "keywords": ["obsidian", "notes", "vault", "search"],
+      "mode": "view",
+      "icon": "file-text",
+      "iconColor": "#7C3AED"
+    },
+    {
+      "id": "pinned-notes",
+      "title": "Pinned Notes",
+      "keywords": ["obsidian", "pinned"],
+      "mode": "view",
+      "icon": "pencil",
+      "iconColor": "#7C3AED"
+    }
+  ],
+  "nativeMethods": [
+    "fs.*",
+    "clipboard.write",
+    "clipboard.paste",
+    "shell.openUrl",
+    "shell.openPath",
+    "shell.revealPath",
+    "hud.show"
+  ],
+  "httpHosts": [],
+  "fsPaths": ["{{vaultPath}}/**/*.md"],
+  "uriSchemes": ["obsidian"],
+  "preferences": [
+    {
+      "name": "vaultPath",
+      "type": "text",
+      "title": "Path to vault",
+      "description": "Absolute path to your Obsidian vault folder.",
+      "required": true
+    },
+    {
+      "name": "excludedFolders",
+      "type": "text",
+      "title": "Excluded folders",
+      "description": "Comma-separated folder names to skip during search.",
+      "required": false
+    },
+    {
+      "name": "showMetadata",
+      "type": "checkbox",
+      "title": "Show note metadata",
+      "description": "Show character count, word count and dates in the preview pane.",
+      "default": true,
+      "required": false
+    }
+  ]
+}

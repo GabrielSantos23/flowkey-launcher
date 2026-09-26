@@ -13,6 +13,7 @@
     "@flowkey-cli/extension-emoji": "workspace:*",
     "@flowkey-cli/extension-google-translate": "workspace:*",
     "@flowkey-cli/extension-lucide-icons": "workspace:*",
+    "@flowkey-cli/extension-obsidian-notes": "workspace:*",
     "@flowkey-cli/extension-react-demo": "workspace:*",
     "@flowkey-cli/extension-spotify": "workspace:*",
     "@flowkey-cli/native-sdk": "workspace:*",
