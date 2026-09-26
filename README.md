@@ -81,6 +81,7 @@ capabilities the user accepted at install time.
 | **Google Translate**  | Translate text as you type, quick-translate, and translate from the clipboard                                                                                  |
 | **Spotify**           | Search, browse your library, now playing, queue, devices, full playback control and lyrics — with OAuth + PKCE handled by the shell (bring your own client id) |
 | **Lucide Icons**      | Search 1636 Lucide icons in a tintable grid; copy name/SVG/component or open on lucide.dev (offline — icons bundled)                                           |
+| **Obsidian Notes**    | Search an Obsidian vault, preview notes with metadata, pin, append, and open notes via obsidian links                                                          |
 
 ### Third-party extensions
 
