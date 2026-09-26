@@ -9,6 +9,23 @@ keyboard-first, all rendered natively. Extensions are written in TypeScript +
 React, run in a Bun sidecar process, and serialize into a native UI tree:
 **no web view, no Electron, no DOM**.
 
+## Screenshots
+
+|          Main UI — favorites, suggestions and commands          |                         Calculator                         |
+| :-------------------------------------------------------------: | :--------------------------------------------------------: |
+|       ![FlowKey main UI](docs/images/flowkey-main-ui.png)       | ![FlowKey calculator](docs/images/flowkey-calculator.png)  |
+|                   **Emoji & Symbols picker**                    |                  **Lucide Icons search**                   |
+|      ![Emoji picker](docs/images/flowkey-emoji-picker.png)      | ![Lucide icons grid](docs/images/flowkey-lucide-icons.png) |
+| **Google Translate** — live translation with language detection |       **Spotify** — search, library and Now Playing        |
+|     ![Google Translate](docs/images/flowkey-translator.png)     |        ![Spotify](docs/images/flowkey-spotify.png)         |
+
+<!--
+Spotify screenshot placeholder: Spotify playback needs your own Spotify app
+(OAuth consent in the shell), so capture it by running the app, opening
+"Spotify Search" or "Now Playing", authorizing once, and saving the capture
+as docs/images/flowkey-spotify.png — it will appear in the table above.
+-->
+
 ## How it works
 
 ```
