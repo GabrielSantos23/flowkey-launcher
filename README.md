@@ -20,10 +20,11 @@ React, run in a Bun sidecar process, and serialize into a native UI tree:
 |     ![Google Translate](docs/images/flowkey-translator.png)     |        ![Spotify](docs/images/flowkey-spotify.png)         |
 
 <!--
-Spotify screenshot placeholder: Spotify playback needs your own Spotify app
-(OAuth consent in the shell), so capture it by running the app, opening
-"Spotify Search" or "Now Playing", authorizing once, and saving the capture
-as docs/images/flowkey-spotify.png — it will appear in the table above.
+Spotify screenshot placeholder: capture Now Playing while Spotify is
+actually playing (an active Spotify device is required by the API) and
+save it as docs/images/flowkey-spotify.png — it will appear in the table
+above. OAuth is already wired: open "Now Playing", authorize once in the
+browser, start playback, capture, commit.
 -->
 
 ## How it works
