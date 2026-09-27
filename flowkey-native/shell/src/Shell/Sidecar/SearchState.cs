@@ -238,6 +238,12 @@ public sealed class HeaderRow : UiRow
     public string Title { get; init; } = "";
 }
 
+/// <summary>Shell chrome row: runs the list's load-more action when activated.</summary>
+public sealed class LoadMoreRow : UiRow
+{
+    public static LoadMoreRow Instance { get; } = new();
+}
+
 public sealed class ItemRow : UiRow
 {
     public UiItem Item { get; init; } = new();

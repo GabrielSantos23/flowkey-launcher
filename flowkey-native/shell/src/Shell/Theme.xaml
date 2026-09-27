@@ -138,6 +138,12 @@
   <SolidColorBrush x:Key="HudBorderBrush" Color="#464646" />
   <SolidColorBrush x:Key="HudTextBrush" Color="#E8EAE9" />
 
+  <!-- Extension toast surface (`toast.show`) and semantic status accents -->
+  <Thickness x:Key="ToastPadding">14,12,14,12</Thickness>
+  <SolidColorBrush x:Key="SuccessBrush" Color="#22C55E" />
+  <SolidColorBrush x:Key="DangerBrush" Color="#EF4444" />
+  <SolidColorBrush x:Key="ChipBackgroundBrush" Color="#2E2E2E" />
+
   <LinearGradientBrush x:Key="FooterToastErrorBrush" StartPoint="0,0" EndPoint="1,0">
     <GradientStop Color="#96462323" Offset="0" />
     <GradientStop Color="#59462323" Offset="0.45" />

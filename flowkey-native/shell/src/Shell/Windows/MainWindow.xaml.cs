@@ -7,6 +7,17 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using Point = System.Windows.Point;
+using Brush = System.Windows.Media.Brush;
+using TextBox = System.Windows.Controls.TextBox;
+using CheckBox = System.Windows.Controls.CheckBox;
+using ComboBox = System.Windows.Controls.ComboBox;
+using ComboBoxItem = System.Windows.Controls.ComboBoxItem;
+using SelectionMode = System.Windows.Controls.SelectionMode;
+using ListBox = System.Windows.Controls.ListBox;
+using ListBoxItem = System.Windows.Controls.ListBoxItem;
+using PasswordBox = System.Windows.Controls.PasswordBox;
+using Button = System.Windows.Controls.Button;
+using Orientation = System.Windows.Controls.Orientation;
 using System.Windows.Threading;
 using FlowKey.Shell.Native;
 using FlowKey.Shell.Rendering;
@@ -56,6 +67,7 @@ public partial class MainWindow : Window
     private readonly ImageFetchService imageFetch = new();
     private readonly InstalledExtensionsStore installedExtensionsStore = new(AppLauncherService.DataDirectory);
     private readonly ExtensionStorageStore extensionStorageStore = new(AppLauncherService.DataDirectory);
+    private readonly ExtensionCacheStore extensionCacheStore = new(AppLauncherService.DataDirectory);
     private readonly ExtensionFsService extensionFsService = new();
     private readonly ExtensionPackageManager extensionManager;
     private readonly ExtensionPolicy extensionPolicy;
@@ -76,6 +88,7 @@ public partial class MainWindow : Window
     private SettingsWindow? settingsWindow;
     private ActionPanel? actionPanel;
     private HudWindow? hudWindow;
+    private ToastWindow? toastWindow;
     private const int CommandHotkeyBase = 0x4B00;
     private readonly Dictionary<int, (string ExtensionId, string CommandId)> commandHotkeyIds = new();
     private bool commandHotkeysRegistered;
@@ -193,6 +206,10 @@ public partial class MainWindow : Window
         nativeMethods.Register("apps.launch", p => ExecuteAppsLaunch(p));
         nativeMethods.Register("http.fetch", _ => NativeCallOutcome.Failure("notImplemented", "handled asynchronously"));
         nativeMethods.Register("clipboard.read", p => ExecuteClipboardRead());
+        nativeMethods.Register("clipboard.clear", _ => ExecuteClipboardClear());
+        nativeMethods.Register("apps.frontmost", _ => ExecuteAppsFrontmost());
+        nativeMethods.Register("apps.default", p => ExecuteAppsDefault(p));
+        nativeMethods.Register("system.selectedText", p => ExecuteSystemSelectedText(p));
         nativeMethods.Register("clipboard.history", p => ExecuteClipboardHistory(p));
         nativeMethods.Register("clipboard.clearHistory", _ =>
         {
@@ -205,6 +222,8 @@ public partial class MainWindow : Window
         nativeMethods.Register("clipboard.paste", ExecuteClipboardPaste);
         nativeMethods.Register("clipboard.editEntry", p => ExecuteClipboardEditEntry(p));
         nativeMethods.Register("hud.show", p => ExecuteHudShow(p));
+        nativeMethods.Register("toast.show", p => ExecuteToastShow(p));
+        nativeMethods.Register("alert.confirm", p => ExecuteAlertConfirm(p));
         nativeMethods.Register("media.current", _ => mediaSessions.CurrentOutcome());
         nativeMethods.Register("media.control", ExecuteMediaControl);
         _ = mediaSessions.InitializeAsync();
@@ -225,6 +244,7 @@ public partial class MainWindow : Window
             secretsStore,
             tokenVault,
             extensionStorageStore,
+            extensionCacheStore,
             Path.Combine(AppLauncherService.DataDirectory, "icon-cache", "images"));
         extensionPolicy = new ExtensionPolicy(() => readyExtensions, installedExtensionsStore);
 
@@ -241,6 +261,8 @@ public partial class MainWindow : Window
         sidecar.Ready += OnSidecarReady;
         sidecar.Ui += OnSidecarUi;
         sidecar.UiPush += OnSidecarUiPush;
+        sidecar.WindowCommand += OnSidecarWindowCommand;
+        sidecar.LaunchCommand += OnSidecarLaunchCommand;
         sidecar.Ack += OnSidecarAck;
         sidecar.Error += OnSidecarError;
         sidecar.Log += m => Dispatcher.BeginInvoke(() => SetStatusBar(m.Message));
@@ -931,8 +953,335 @@ public partial class MainWindow : Window
         return null;
     }
 
+    private void ShowForm(FormTree form, string? extensionId)
+    {
+        currentPagination = null;
+        currentForm = form;
+        currentFormExtensionId = extensionId;
+        currentFormEditors.Clear();
+
+        var fieldsPanel = new StackPanel { Margin = new Thickness(16) };
+        var heading = new TextBlock
+        {
+            Text = form.Title,
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        heading.SetResourceReference(TextBlock.ForegroundProperty, "TextPrimaryBrush");
+        fieldsPanel.Children.Add(heading);
+
+        foreach (var field in form.Fields)
+        {
+            fieldsPanel.Children.Add(BuildFormField(field));
+        }
+
+        var buttons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new Thickness(0, 10, 0, 8),
+        };
+        foreach (var action in form.Actions)
+        {
+            var button = new Button { Content = action.Title, MinWidth = 96, Margin = new Thickness(8, 0, 0, 0) };
+            if (action.Primary == true)
+            {
+                button.SetResourceReference(Button.BackgroundProperty, "AccentBrush");
+            }
+            var capturedAction = action;
+            button.Click += (_, _) => SubmitFormAction(capturedAction);
+            buttons.Children.Add(button);
+        }
+        fieldsPanel.Children.Add(buttons);
+
+        var scroller = new ScrollViewer
+        {
+            Content = fieldsPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        SmoothScroll.SetEnabled(scroller, true);
+
+        currentDetail = null;
+        DetailHost.Content = scroller;
+        DetailHost.Visibility = Visibility.Visible;
+        ResultsList.Visibility = Visibility.Collapsed;
+        EmptyView.Visibility = Visibility.Collapsed;
+        GridHostPanel.Visibility = Visibility.Collapsed;
+        UpdateFooter();
+        SearchBox.Focus();
+    }
+
+    private FrameworkElement BuildFormField(FormField field)
+    {
+        if (field.Kind == "separator")
+        {
+            return new System.Windows.Controls.Border
+            {
+                Height = 1,
+                Margin = new Thickness(0, 8, 0, 8),
+                Background = FindResource("DividerBrush") as Brush,
+            };
+        }
+
+        var row = new StackPanel { Margin = new Thickness(0, 4, 0, 4) };
+        var hasLabel = !string.IsNullOrEmpty(field.Label);
+        if (hasLabel)
+        {
+            var label = new TextBlock
+            {
+                Text = field.Label,
+                FontSize = 12,
+                Margin = new Thickness(0, 2, 0, 4),
+            };
+            label.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+            row.Children.Add(label);
+        }
+
+        FrameworkElement editor = field.Kind switch
+        {
+            "textfield" => BuildFormTextBox(field, isPassword: false, isMultiline: false),
+            "password" => BuildFormTextBox(field, isPassword: true, isMultiline: false),
+            "textarea" => BuildFormTextBox(field, isPassword: false, isMultiline: true),
+            "checkbox" => BuildFormCheckbox(field),
+            "dropdown" => BuildFormDropdown(field),
+            "datepicker" => new System.Windows.Controls.DatePicker(),
+            "tagpicker" => BuildFormTagPicker(field),
+            "filepicker" => BuildFormFilePicker(field),
+            "description" => BuildFormDescription(field),
+            _ => new FrameworkElement(),
+        };
+        if (!string.IsNullOrEmpty(field.Id))
+        {
+            currentFormEditors[field.Id] = editor;
+        }
+        row.Children.Add(editor);
+        return row;
+    }
+
+    private FrameworkElement BuildFormTextBox(FormField field, bool isPassword, bool isMultiline)
+    {
+        var defaultValue = field.Default?.ValueKind == JsonValueKind.String ? field.Default.Value.GetString() : null;
+        if (isPassword)
+        {
+            var passwordBox = new PasswordBox
+            {
+                Padding = new Thickness(8, 5, 8, 5),
+            };
+            if (!string.IsNullOrEmpty(defaultValue))
+            {
+                passwordBox.Password = defaultValue;
+            }
+            return passwordBox;
+        }
+        var textBox = new TextBox
+        {
+            Padding = new Thickness(8, 5, 8, 5),
+            AcceptsReturn = isMultiline,
+            TextWrapping = isMultiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
+            Height = isMultiline ? 96 : double.NaN,
+        };
+        if (!string.IsNullOrEmpty(defaultValue))
+        {
+            textBox.Text = defaultValue;
+        }
+        if (!string.IsNullOrEmpty(field.Placeholder))
+        {
+            textBox.Tag = field.Placeholder;
+        }
+        return textBox;
+    }
+
+    private FrameworkElement BuildFormCheckbox(FormField field)
+    {
+        var checkBox = new CheckBox { Content = field.Label };
+        checkBox.IsChecked = field.Default?.ValueKind == JsonValueKind.True;
+        return checkBox;
+    }
+
+    private FrameworkElement BuildFormDropdown(FormField field)
+    {
+        var combo = new ComboBox { Style = FindResource("SlimComboBox") as Style };
+        combo.Items.Add(new ComboBoxItem { Content = "(none)", Tag = "" });
+        var defaultValue = field.Default?.ValueKind == JsonValueKind.String ? field.Default.Value.GetString() : null;
+        foreach (var option in field.Options ?? new List<Protocol.PreferenceOption>())
+        {
+            combo.Items.Add(new ComboBoxItem { Content = option.Title, Tag = option.Value });
+        }
+        foreach (ComboBoxItem item in combo.Items)
+        {
+            if ((string)item.Tag == defaultValue)
+            {
+                combo.SelectedItem = item;
+                break;
+            }
+        }
+        return combo;
+    }
+
+    private FrameworkElement BuildFormTagPicker(FormField field)
+    {
+        var list = new System.Windows.Controls.ListBox
+        {
+            SelectionMode = SelectionMode.Multiple,
+            Height = 96,
+        };
+        var defaults = field.Defaults ?? new List<string>();
+        foreach (var option in field.Options ?? new List<Protocol.PreferenceOption>())
+        {
+            var item = new ListBoxItem { Content = option.Title, Tag = option.Value, IsSelected = defaults.Contains(option.Value) };
+            list.Items.Add(item);
+        }
+        return list;
+    }
+
+    private FrameworkElement BuildFormFilePicker(FormField field)
+    {
+        var pathBox = new TextBox { Visibility = Visibility.Collapsed, Padding = new Thickness(8, 5, 8, 5) };
+        var allowMultiple = field.AllowMultipleSelection == true;
+        var button = new Button
+        {
+            Content = field.CanChooseDirectories == true ? "Choose folder…" : "Choose file…",
+        };
+        button.Click += (_, _) =>
+        {
+            if (field.CanChooseDirectories == true)
+            {
+                var folderDialog = new Microsoft.Win32.OpenFolderDialog();
+                if (folderDialog.ShowDialog(this) == true)
+                {
+                    pathBox.Text = folderDialog.FolderName;
+                }
+                return;
+            }
+            var dialog = new Microsoft.Win32.OpenFileDialog { Multiselect = allowMultiple };
+            if (dialog.ShowDialog(this) == true)
+            {
+                pathBox.Text = string.Join('|', dialog.FileNames);
+            }
+        };
+        var stack = new StackPanel { Orientation = Orientation.Horizontal };
+        stack.Children.Add(button);
+        stack.Children.Add(pathBox);
+        if (pathBox.Text.Length > 0)
+        {
+            pathBox.Text = "";
+        }
+        return stack;
+    }
+
+    private FrameworkElement BuildFormDescription(FormField field)
+    {
+        var description = new TextBlock
+        {
+            Text = field.Label ?? "",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 2, 0, 2),
+        };
+        description.SetResourceReference(TextBlock.ForegroundProperty, "TextTertiaryBrush");
+        return description;
+    }
+
+    private Dictionary<string, JsonElement> CollectFormValues(FormTree form)
+    {
+        var values = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+        foreach (var field in form.Fields)
+        {
+            if (string.IsNullOrEmpty(field.Id) || !currentFormEditors.TryGetValue(field.Id, out var editor))
+            {
+                continue;
+            }
+            switch (field.Kind)
+            {
+                case "textfield":
+                case "textarea":
+                    if (editor is TextBox textBox && textBox.Text.Length > 0)
+                    {
+                        values[field.Id] = JsonSerializer.SerializeToElement(textBox.Text);
+                    }
+                    break;
+                case "password":
+                    if (editor is PasswordBox passwordBox && passwordBox.Password.Length > 0)
+                    {
+                        values[field.Id] = JsonSerializer.SerializeToElement(passwordBox.Password);
+                    }
+                    break;
+                case "checkbox":
+                    if (editor is CheckBox checkBox)
+                    {
+                        values[field.Id] = JsonSerializer.SerializeToElement(checkBox.IsChecked == true);
+                    }
+                    break;
+                case "dropdown":
+                    if (editor is ComboBox combo && combo.SelectedItem is ComboBoxItem selected)
+                    {
+                        values[field.Id] = JsonSerializer.SerializeToElement((string)selected.Tag);
+                    }
+                    break;
+                case "datepicker":
+                    if (editor is System.Windows.Controls.DatePicker picker && picker.SelectedDate is var date && date is not null)
+                    {
+                        values[field.Id] = JsonSerializer.SerializeToElement(date.Value.ToString("O"));
+                    }
+                    break;
+                case "tagpicker":
+                    if (editor is System.Windows.Controls.ListBox list)
+                    {
+                        var tags = list.Items.OfType<ListBoxItem>()
+                            .Where(i => i.IsSelected)
+                            .Select(i => (string)i.Tag)
+                            .Where(tag => !string.IsNullOrEmpty(tag))
+                            .ToList();
+                        values[field.Id] = JsonSerializer.SerializeToElement(tags);
+                    }
+                    break;
+                case "filepicker":
+                    if (editor is StackPanel stack)
+                    {
+                        var hidden = stack.Children.OfType<TextBox>().FirstOrDefault();
+                        if (hidden is not null && hidden.Text.Length > 0)
+                        {
+                            var paths = hidden.Text.Split('|');
+                            values[field.Id] = JsonSerializer.SerializeToElement(
+                                paths.Length == 1 ? (object)paths[0] : paths);
+                        }
+                    }
+                    break;
+            }
+        }
+        return values;
+    }
+
+    private void SubmitFormAction(UiAction action)
+    {
+        if (currentForm is null || currentFormExtensionId is null)
+        {
+            return;
+        }
+        var values = CollectFormValues(currentForm);
+        var missingRequired = currentForm.Fields
+            .Where(f => f.Required == true && !values.ContainsKey(f.Id))
+            .Select(f => f.Label ?? f.Id)
+            .ToList();
+        if (missingRequired.Count > 0)
+        {
+            ShowToast("Please fill in: " + string.Join(", ", missingRequired));
+            return;
+        }
+        DebugLog.Write($"FormAction ext={currentFormExtensionId} action={action.Id}");
+        var requestId = sidecar.SendFormAction(currentFormExtensionId, action.Id, new UiItem { Id = currentForm.Title }, values);
+        searchState.TrackAction(requestId, currentFormExtensionId);
+        BeginOperation();
+        if (action.Primary == true)
+        {
+            HideWindow();
+        }
+    }
+
     private bool PopView()
     {
+        currentPagination = null;
+        currentForm = null;
         if (searchState.Depth > 1 && searchState.Pop())
         {
             var restored = searchState.CurrentRows;
@@ -948,6 +1297,11 @@ public partial class MainWindow : Window
 
     private void PerformEscape()
     {
+        if (pendingArgumentCommand is not null)
+        {
+            CancelArgumentCapture();
+            return;
+        }
         if (GridHostPanel.Visibility == Visibility.Visible)
         {
             if (searchState.Depth > 1 && searchState.Pop())
@@ -1048,14 +1402,139 @@ public partial class MainWindow : Window
             actions);
     }
 
+    private void BeginArgumentCapture(string extensionId, CommandInfo command)
+    {
+        pendingArgumentCommand = command;
+        pendingArgumentExtensionId = extensionId;
+        SetSearchBoxSilently("");
+        SearchPlaceholder.Text = string.Join(' ', command.Arguments!.Select(a => "{" + a.Placeholder + "}"));
+        SearchBox.Focus();
+    }
+
+    private void CancelArgumentCapture()
+    {
+        pendingArgumentCommand = null;
+        pendingArgumentExtensionId = null;
+        SearchPlaceholder.Text = "Type to search…";
+    }
+
+    /// <summary>
+    /// Splits the capture query positionally across the declared arguments,
+    /// honouring double quotes; dropdown values must match declared data.
+    /// </summary>
+    internal static Dictionary<string, string>? ParseCommandArguments(
+        CommandInfo command, string query, out string? error)
+    {
+        error = null;
+        var pieces = new List<string>();
+        var current = new System.Text.StringBuilder();
+        var inQuotes = false;
+        foreach (var ch in query.Trim())
+        {
+            switch (ch)
+            {
+                case '"':
+                    inQuotes = !inQuotes;
+                    break;
+                case ' ' when !inQuotes:
+                    if (current.Length > 0)
+                    {
+                        pieces.Add(current.ToString());
+                        current.Clear();
+                    }
+                    break;
+                default:
+                    current.Append(ch);
+                    break;
+            }
+        }
+        if (current.Length > 0)
+        {
+            pieces.Add(current.ToString());
+        }
+
+        var declared = command.Arguments ?? new List<CommandArgument>();
+        if (pieces.Count > declared.Count)
+        {
+            error = $"This command takes at most {declared.Count} argument(s).";
+            return null;
+        }
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var i = 0; i < declared.Count; i++)
+        {
+            var argument = declared[i];
+            var value = i < pieces.Count ? pieces[i] : "";
+            var missing = value.Length == 0;
+            if (missing && argument.Required == true)
+            {
+                error = $"Missing value for '{argument.Placeholder}'.";
+                return null;
+            }
+            if (!missing && argument.Type == "dropdown")
+            {
+                var allowed = (argument.Data ?? new List<PreferenceOption>())
+                    .Any(o => string.Equals(o.Value, value, StringComparison.Ordinal));
+                if (!allowed)
+                {
+                    error = $"'{value}' is not a valid {argument.Placeholder} (use one of: " +
+                            string.Join(", ", (argument.Data ?? new List<PreferenceOption>()).Select(o => o.Value)) + ").";
+                    return null;
+                }
+            }
+            if (!missing)
+            {
+                result[argument.Name] = value;
+            }
+        }
+        return result;
+    }
+
+    private void SubmitArguments(string query)
+    {
+        var command = pendingArgumentCommand!;
+        var extensionId = pendingArgumentExtensionId!;
+        var arguments = ParseCommandArguments(command, query, out var error);
+        if (arguments is null)
+        {
+            ShowToast(error ?? "Invalid arguments.");
+            return;
+        }
+        CancelArgumentCapture();
+        SetSearchBoxSilently("");
+        HideWindow();
+        var requestId = sidecar.SendAction(
+            extensionId, CommandCatalog.OpenActionId,
+            new UiItem { Id = command.Id, Title = command.Title },
+            arguments);
+        searchState.TrackAction(requestId, extensionId);
+    }
+
     private void RunPrimaryAction()
     {
         DebugLog.Write("RunPrimaryAction");
+        if (pendingArgumentCommand is not null && pendingArgumentExtensionId is not null)
+        {
+            SubmitArguments(SearchBox.Text);
+            return;
+        }
         if (ResultsList.SelectedItem is CalculatorRow calculatorRow)
         {
             ClipboardService.WriteText(calculatorRow.CopyText);
             ShowToast("Answer copied");
             HideWindow();
+            return;
+        }
+        if (ResultsList.SelectedItem is LoadMoreRow
+            && currentPagination is not null
+            && currentPaginationExtensionId is not null)
+        {
+            DebugLog.Write("LoadMore ext=" + currentPaginationExtensionId);
+            var loadMoreRequestId = sidecar.SendAction(
+                currentPaginationExtensionId,
+                currentPagination.MoreActionId,
+                new UiItem { Id = "load-more" });
+            searchState.TrackAction(loadMoreRequestId, currentPaginationExtensionId);
+            BeginOperation();
             return;
         }
         if (ResultsList.SelectedItem is not ItemRow row || row.ExtensionId is null)
@@ -1210,6 +1689,11 @@ public partial class MainWindow : Window
         var openedCommand = extension?.Commands.FirstOrDefault(c => c.Id == row.CommandId);
         if (openedCommand?.Mode == "background")
         {
+            if (openedCommand.Arguments is { Count: > 0 })
+            {
+                BeginArgumentCapture(row.ExtensionId!, openedCommand);
+                return;
+            }
             sidecar.SendAction(row.ExtensionId!, CommandCatalog.OpenActionId,
                 new UiItem { Id = row.CommandId, Title = row.Item.Title });
             HideWindow();
@@ -1407,7 +1891,7 @@ public partial class MainWindow : Window
 
     private IReadOnlyList<UiRow> BuildDisplayRows()
     {
-        var extensionRows = searchState.CurrentRows;
+        var extensionRows = AppendLoadMore(searchState.CurrentRows);
         if (searchState.Depth > 1)
         {
             return extensionRows;
@@ -1415,7 +1899,7 @@ public partial class MainWindow : Window
         var query = SearchBox.Text.Trim();
         var commandRows = CommandCatalog
             .Search(query, readyExtensions)
-            .Where(cmd => CommandToggles.IsEnabled(cmd.ExtensionId, cmd.Command.Id))
+            .Where(cmd => CommandToggles.IsEnabled(cmd.ExtensionId, cmd.Command.Id, cmd.Command.DisabledByDefault != true))
             .Select(BuildCommandRow)
             .ToList();
         var extensionRowList = extensionRows.ToList();
@@ -1499,7 +1983,7 @@ public partial class MainWindow : Window
         {
             Id = "cmd:" + cmd.ExtensionId + ":" + cmd.Command.Id,
             Title = cmd.Command.Title,
-            Subtitle = cmd.ExtensionName,
+            Subtitle = cmd.Command.Subtitle ?? cmd.ExtensionName,
             Kind = "Command",
             Icon = cmd.Command.Icon is null ? cmd.Extension.Icon : "",
             IconColor = cmd.Command.IconColor,
@@ -1592,6 +2076,68 @@ public partial class MainWindow : Window
             .ToDictionary(p => p.Key, p => p.Value));
     }
 
+    private bool viewHoldsLoadingBar;
+    private Protocol.UiPagination? currentPagination;
+    private string? currentPaginationExtensionId;
+    private CommandInfo? pendingArgumentCommand;
+    private string? pendingArgumentExtensionId;
+    private FormTree? currentForm;
+    private string? currentFormExtensionId;
+    private readonly Dictionary<string, FrameworkElement> currentFormEditors = new(StringComparer.Ordinal);
+
+    private void ApplyViewChrome(UiTree tree)
+    {
+        var placeholder = tree switch
+        {
+            ListTree listTree => listTree.SearchBarPlaceholder,
+            GridTree gridTree => gridTree.SearchBarPlaceholder,
+            _ => null,
+        };
+        SearchPlaceholder.Text = string.IsNullOrWhiteSpace(placeholder)
+            ? "Type to search…"
+            : placeholder;
+        var holds = tree is ListTree l ? l.IsLoading == true : tree is GridTree g && g.IsLoading == true;
+        if (holds && !viewHoldsLoadingBar)
+        {
+            viewHoldsLoadingBar = true;
+            BeginOperation();
+        }
+        else if (!holds && viewHoldsLoadingBar)
+        {
+            viewHoldsLoadingBar = false;
+            EndOperation();
+        }
+    }
+
+    private void OnSidecarWindowCommand(WindowCommandMessage message)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            switch (message.Command)
+            {
+                case "closeMainWindow":
+                    HideWindow();
+                    break;
+                case "popToRoot":
+                    searchState.ResetToRoot();
+                    SetSearchBoxSilently("");
+                    UpdateChrome();
+                    break;
+                case "clearSearchBar":
+                    SetSearchBoxSilently("");
+                    break;
+                default:
+                    DebugLog.Write($"unknown window command '{message.Command}' from {message.ExtensionId}");
+                    break;
+            }
+        });
+    }
+
+    private void OnSidecarLaunchCommand(LaunchCommandMessage message)
+    {
+        Dispatcher.BeginInvoke(() => RunCommandFromShortcut(message.ExtensionId, message.CommandId));
+    }
+
     private void OnSidecarUi(UiMessage message)
     {
         Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, (Action)EndOperation);
@@ -1602,14 +2148,23 @@ public partial class MainWindow : Window
             {
                 return;
             }
+            ApplyViewChrome(message.Tree);
+            if (message.Tree is FormTree form)
+            {
+                ShowForm(form, searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId);
+                return;
+            }
+            currentForm = null;
             if (message.Tree is GridTree grid)
             {
+                currentPagination = null;
                 ShowGrid(grid);
                 return;
             }
             if (message.Tree is DetailTree detail)
             {
                 var extensionId = searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId;
+                currentPagination = null;
                 currentDetail = detail;
                 currentDetailExtensionId = extensionId;
                 DetailHost.Content = DetailRenderer.Render(detail, action =>
@@ -1627,6 +2182,11 @@ public partial class MainWindow : Window
                 ShowToast("received a non-list tree (not rendered in this phase)");
                 return;
             }
+            currentPagination = list.Pagination;
+            currentPaginationExtensionId =
+                list.Pagination is not null
+                    ? searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId
+                    : null;
             DebugLog.Write($"UiReceived req={message.RequestId}");
             var rows = searchState.ApplyResult(message.RequestId, list, out var stale);
             if (stale)
@@ -1657,13 +2217,21 @@ public partial class MainWindow : Window
                     $"UiPushDiscarded ext={message.ExtensionId} cmd={message.CommandId} q='{message.Query}'");
                 return;
             }
+            if (message.Tree is FormTree form)
+            {
+                ShowForm(form, message.ExtensionId);
+                return;
+            }
+            currentForm = null;
             if (message.Tree is GridTree grid)
             {
+                currentPagination = null;
                 ShowGrid(grid);
                 return;
             }
             if (message.Tree is DetailTree detail)
             {
+                currentPagination = null;
                 currentDetail = detail;
                 currentDetailExtensionId = message.ExtensionId;
                 DetailHost.Content = DetailRenderer.Render(detail, action =>
@@ -1677,6 +2245,9 @@ public partial class MainWindow : Window
             }
             if (message.Tree is ListTree list)
             {
+                currentPagination = list.Pagination;
+                currentPaginationExtensionId =
+                    list.Pagination is not null ? message.ExtensionId : null;
                 DebugLog.Write($"UiPushApplied ext={message.ExtensionId} cmd={message.CommandId}");
                 DetailHost.Visibility = Visibility.Collapsed;
                 GridHostPanel.Visibility = Visibility.Collapsed;
@@ -2369,6 +2940,17 @@ public partial class MainWindow : Window
         }
     }
 
+    private IReadOnlyList<UiRow> AppendLoadMore(IReadOnlyList<UiRow> rows)
+    {
+        if (currentPagination is null)
+        {
+            return rows;
+        }
+        var list = rows.ToList();
+        list.Add(LoadMoreRow.Instance);
+        return list;
+    }
+
     private void ApplyRows(IReadOnlyList<UiRow> rows, UiEmptyView? emptyView)
     {
         ResultsList.ItemsSource = rows;
@@ -2448,7 +3030,63 @@ public partial class MainWindow : Window
 
     private NativeCallOutcome ExecuteClipboardRead()
     {
-        var text = clipboardHistory.Latest();
+        try
+        {
+            var content = ClipboardService.ReadContent();
+            var text = content.Text ?? clipboardHistory.Latest();
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new
+            {
+                text,
+                html = content.Html,
+                paths = content.Paths,
+            }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
+        }
+    }
+
+    private NativeCallOutcome ExecuteClipboardClear()
+    {
+        try
+        {
+            ClipboardService.Clear();
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
+        }
+    }
+
+    private NativeCallOutcome ExecuteAppsFrontmost()
+    {
+        var app = DesktopAppsService.GetFrontmost();
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { app = app is null ? null : new
+        {
+            id = app.Id,
+            name = app.Name,
+            path = app.Path,
+        } }));
+    }
+
+    private NativeCallOutcome ExecuteAppsDefault(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "apps.default requires a string 'path' parameter");
+        }
+        var executable = DesktopAppsService.DefaultExecutableFor(pathElement.GetString() ?? "");
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { path = executable }));
+    }
+
+    private NativeCallOutcome ExecuteSystemSelectedText(Dictionary<string, JsonElement>? parameters)
+    {
+        var allowFallback = parameters is not null
+            && parameters.TryGetValue("allowFallback", out var fallbackElement)
+            && fallbackElement.ValueKind == JsonValueKind.True;
+        var text = SelectedTextService.GetSelectedText(allowFallback);
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { text }));
     }
 
@@ -2718,6 +3356,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (method.StartsWith("cache.", StringComparison.Ordinal))
+        {
+            var outcome = extensionCacheStore.Handle(extensionId, method, parameters);
+            CompleteNativeCall(requestId, method, outcome);
+            return;
+        }
+
         if (method.StartsWith("fs.", StringComparison.Ordinal) || method is "shell.openPath" or "shell.revealPath")
         {
             var scopes = FsPolicy.InterpolateAll(
@@ -2805,6 +3450,28 @@ public partial class MainWindow : Window
                 return NativeCallOutcome.Failure("invalidCommand", $"unknown media control command '{command ?? "<missing>"}'");
         }
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
+    private NativeCallOutcome ExecuteToastShow(Dictionary<string, JsonElement>? parameters)
+    {
+        if (!ToastService.TryParseRequest(parameters, out var toastRequest, out var toastError))
+        {
+            return NativeCallOutcome.Failure("invalidParams", toastError ?? "invalid toast.show parameters");
+        }
+        toastWindow ??= new ToastWindow();
+        toastWindow.ShowToast(toastRequest!);
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
+    private NativeCallOutcome ExecuteAlertConfirm(Dictionary<string, JsonElement>? parameters)
+    {
+        if (!AlertService.TryParseRequest(parameters, out var alertRequest, out var alertError))
+        {
+            return NativeCallOutcome.Failure("invalidParams", alertError ?? "invalid alert.confirm parameters");
+        }
+        var dialog = new ExtensionAlertDialog(alertRequest!);
+        var confirmed = dialog.ShowDialog() == true;
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { confirmed }));
     }
 
     private NativeCallOutcome ExecuteHudShow(Dictionary<string, JsonElement>? parameters)

@@ -1810,6 +1810,32 @@ public partial class SettingsWindow : Window
                     }
                     input = passwordBox;
                     break;
+                case "directory":
+                case "file":
+                    var pathBox = new TextBox();
+                    if (current.TryGetValue(entry.Name, out var pathValue))
+                    {
+                        pathBox.Text = pathValue.GetString() ?? "";
+                    }
+                    input = pathBox;
+                    break;
+                case "appPicker":
+                    var appCombo = new ComboBox { Style = FindResource("SlimComboBox") as Style };
+                    appCombo.Items.Add(new ComboBoxItem { Content = "(none)", Tag = "" });
+                    foreach (var app in AppsFolderEnumerator.Enumerate())
+                    {
+                        appCombo.Items.Add(new ComboBoxItem { Content = app.Name, Tag = app.LaunchPath });
+                    }
+                    var selectedApp = current.TryGetValue(entry.Name, out var appValue) ? appValue.GetString() : entry.Default?.GetString();
+                    foreach (ComboBoxItem appItem in appCombo.Items)
+                    {
+                        if ((string)appItem.Tag == selectedApp)
+                        {
+                            appCombo.SelectedItem = appItem;
+                        }
+                    }
+                    input = appCombo;
+                    break;
                 default:
                     var textBox = new TextBox();
                     if (current.TryGetValue(entry.Name, out var tv))
@@ -1821,7 +1847,18 @@ public partial class SettingsWindow : Window
             }
             inputs[entry.Name] = input;
             FrameworkElement rowControl;
-            if (entry.Type is "text" or "password")
+            if (entry.Type is "directory" or "file")
+            {
+                input.Visibility = Visibility.Collapsed;
+                var capturedEntry = entry;
+                var browseButton = new Button
+                {
+                    Content = entry.Type == "directory" ? "Choose folder…" : "Choose file…",
+                };
+                browseButton.Click += (_, _) => BrowsePreferencePath(capturedEntry, (TextBox)input);
+                rowControl = browseButton;
+            }
+            else if (entry.Type is "text" or "password")
             {
                 input.Visibility = Visibility.Collapsed;
                 var capturedEntry = entry;
@@ -1837,7 +1874,8 @@ public partial class SettingsWindow : Window
             {
                 rowControl = input;
             }
-            valuesPanel.Children.Add(SettingsRow(entry.Title, null, rowControl));
+            var rowDescription = entry.Type == "checkbox" ? entry.Label : null;
+            valuesPanel.Children.Add(SettingsRow(entry.Title, rowDescription, rowControl));
         }
         var saveButton = new Button { Content = "Save preferences" };
         saveButton.Click += (_, _) => SaveExtensionPreferences(extension, inputs);
@@ -1845,6 +1883,28 @@ public partial class SettingsWindow : Window
         var saveRow = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 4, 0, 0) };
         saveRow.Children.Add(saveButton);
         panel.Children.Add(saveRow);
+    }
+
+    private void BrowsePreferencePath(Protocol.PreferenceSchema entry, TextBox target)
+    {
+        if (entry.Type == "directory")
+        {
+            var folderDialog = new Microsoft.Win32.OpenFolderDialog { Title = entry.Title };
+            if (folderDialog.ShowDialog(this) == true)
+            {
+                target.Text = folderDialog.FolderName;
+            }
+            return;
+        }
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = entry.Title,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            target.Text = dialog.FileName;
+        }
     }
 
     private FrameworkElement? modalEditor;
@@ -1927,6 +1987,16 @@ public partial class SettingsWindow : Window
         var content = new StackPanel();
         content.Children.Add(label);
         content.Children.Add(editor);
+        if (!string.IsNullOrWhiteSpace(entry.Placeholder))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = entry.Placeholder,
+                FontSize = 12,
+                Foreground = FindResource("TextTertiaryBrush") as Brush,
+                Margin = new Thickness(0, 6, 0, 0),
+            });
+        }
         content.Children.Add(buttons);
         ModalCard.Child = content;
         ModalOverlay.Visibility = Visibility.Visible;

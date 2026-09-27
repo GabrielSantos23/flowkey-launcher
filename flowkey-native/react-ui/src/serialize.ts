@@ -1,5 +1,7 @@
 import type {
   DetailTree,
+  FormField,
+  FormTree,
   GridTree,
   ListTree,
   UiAction,
@@ -38,21 +40,40 @@ interface SerializeState {
   hasPane: boolean;
 }
 
-const LIST_ALLOWED = ['layout', 'filter'];
+const LIST_ALLOWED = ['layout', 'filter', 'isLoading', 'searchBarPlaceholder', 'pagination'];
 const LIST_SECTION_ALLOWED = ['title'];
-const LIST_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions', 'detail'];
+const LIST_ITEM_ALLOWED = [
+  'id',
+  'title',
+  'subtitle',
+  'kind',
+  'icon',
+  'keywords',
+  'accessories',
+  'actions',
+  'detail',
+];
 const LIST_ITEM_DETAIL_ALLOWED = ['preview', 'previewImageUri'];
 const DETAIL_ALLOWED = ['title', 'mediaKeys', 'subtitle', 'imageUri', 'markdown', 'actions'];
 const DETAIL_METADATA_ALLOWED: string[] = [];
-const DETAIL_FIELD_ALLOWED = ['label', 'value', 'valueIconUri'];
-const GRID_ALLOWED = ['columns', 'title', 'filter'];
-const GRID_ITEM_ALLOWED = ['id', 'title', 'subtitle', 'kind', 'icon', 'actions'];
+const DETAIL_FIELD_ALLOWED = ['label', 'value', 'valueIconUri', 'href', 'tags', 'kind'];
+const GRID_ALLOWED = ['columns', 'title', 'filter', 'isLoading', 'searchBarPlaceholder'];
+const GRID_ITEM_ALLOWED = [
+  'id',
+  'title',
+  'subtitle',
+  'kind',
+  'icon',
+  'keywords',
+  'accessories',
+  'actions',
+];
 const GRID_SECTION_ALLOWED = ['title', 'subtitle'];
 const ACTION_PANEL_ALLOWED: string[] = [];
-const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id'];
+const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id', 'style', 'shortcut'];
 const EMPTY_VIEW_ALLOWED = ['title', 'description'];
 
-const ROOT_TYPES = new Set(['list', 'detail', 'grid']);
+const ROOT_TYPES = new Set(['list', 'detail', 'grid', 'form']);
 
 export function serializeUiTree(container: HostContainer, registry: ActionRegistry): UiTree {
   const roots = container.children;
@@ -78,6 +99,7 @@ export function serializeUiTree(container: HostContainer, registry: ActionRegist
   };
   if (root.type === 'list') return serializeList(root, state);
   if (root.type === 'detail') return serializeDetail(root, state);
+  if (root.type === 'form') return serializeForm(root, state);
   return serializeGrid(root, state);
 }
 
@@ -190,6 +212,56 @@ function optionalFilter(component: string, props: Record<string, unknown>): UiFi
   return options.length > 0 ? { options } : undefined;
 }
 
+function optionalKeywords(type: string, props: Record<string, unknown>): string[] | undefined {
+  const value = props['keywords'];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.some((k) => typeof k !== 'string' || k.length === 0)) {
+    throw new ReactUiError(`<${type}> prop 'keywords' must be an array of non-empty strings`);
+  }
+  return value as string[];
+}
+
+const ACCESSORY_COLORS = ['success', 'danger', 'accent', 'secondary'];
+
+function optionalAccessories(type: string, props: Record<string, unknown>): UiItem['accessories'] {
+  const value = props['accessories'];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    throw new ReactUiError(
+      `<${type}> prop 'accessories' must be an array of {text, tooltip?, color?}`,
+    );
+  }
+  const accessories = value.map((entry) => {
+    if (
+      typeof entry !== 'object' ||
+      entry === null ||
+      typeof (entry as { text?: unknown }).text !== 'string' ||
+      (entry as { text?: string }).text!.length === 0
+    ) {
+      throw new ReactUiError(`<${type}> prop 'accessories' entries require a non-empty 'text'`);
+    }
+    const { text, tooltip, color } = entry as { text: string; tooltip?: unknown; color?: unknown };
+    const accessory: UiItem['accessories'] = [{ text }];
+    const a = accessory[0];
+    if (tooltip !== undefined) {
+      if (typeof tooltip !== 'string') {
+        throw new ReactUiError(`<${type}> prop 'accessories' tooltip must be a string`);
+      }
+      a.tooltip = tooltip;
+    }
+    if (color !== undefined) {
+      if (typeof color !== 'string' || !ACCESSORY_COLORS.includes(color)) {
+        throw new ReactUiError(
+          `<${type}> prop 'accessories' color must be one of: ${ACCESSORY_COLORS.join(', ')}`,
+        );
+      }
+      a.color = color as 'success' | 'danger' | 'accent' | 'secondary';
+    }
+    return a!;
+  });
+  return accessories.length > 0 ? accessories : undefined;
+}
+
 function serializeList(node: HostNode, state: SerializeState): ListTree {
   checkProps('list', node.props, LIST_ALLOWED);
   const layoutValue = node.props['layout'];
@@ -231,7 +303,49 @@ function serializeList(node: HostNode, state: SerializeState): ListTree {
   if (layout !== undefined) tree.layout = layout;
   if (filter !== undefined) tree.filter = filter;
   if (emptyView !== undefined) tree.emptyView = emptyView;
+  const isLoading = optionalBoolean('list', node.props, 'isLoading');
+  if (isLoading !== undefined) tree.isLoading = isLoading;
+  const placeholder = optionalString('list', node.props, 'searchBarPlaceholder');
+  if (placeholder !== undefined) tree.searchBarPlaceholder = placeholder;
+  const pagination = optionalPagination(node.props, state);
+  if (pagination !== undefined) tree.pagination = pagination;
   return tree;
+}
+
+function optionalPagination(
+  props: Record<string, unknown>,
+  state: SerializeState,
+): ListTree['pagination'] {
+  const value = props['pagination'];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'object' || value === null) {
+    throw new ReactUiError(
+      `<list> prop 'pagination' must be { hasNextPage: boolean, onLoadMore: () => void, pageSize?: number }`,
+    );
+  }
+  const { hasNextPage, onLoadMore, pageSize } = value as {
+    hasNextPage?: unknown;
+    onLoadMore?: unknown;
+    pageSize?: unknown;
+  };
+  if (typeof hasNextPage !== 'boolean') {
+    throw new ReactUiError(`<list> prop 'pagination' requires a boolean 'hasNextPage'`);
+  }
+  if (hasNextPage === false) {
+    return undefined;
+  }
+  if (typeof onLoadMore !== 'function') {
+    throw new ReactUiError(`<list> prop 'pagination' requires an 'onLoadMore' function`);
+  }
+  if (pageSize !== undefined && (typeof pageSize !== 'number' || pageSize <= 0)) {
+    throw new ReactUiError(`<list> prop 'pagination' 'pageSize' must be a positive number`);
+  }
+  const pagination: NonNullable<ListTree['pagination']> = {
+    hasNextPage: true,
+    moreActionId: state.registry.register(onLoadMore as ActionHandler),
+  };
+  if (pageSize !== undefined) pagination.pageSize = pageSize;
+  return pagination;
 }
 
 function serializeSection(node: HostNode, state: SerializeState): UiSection {
@@ -262,6 +376,10 @@ function serializeItem(node: HostNode, state: SerializeState, paneAllowed: boole
   if (subtitle !== undefined) item.subtitle = subtitle;
   const kind = optionalString(type, node.props, 'kind');
   if (kind !== undefined) item.kind = kind;
+  const keywords = optionalKeywords(type, node.props);
+  if (keywords !== undefined) item.keywords = keywords;
+  const accessories = optionalAccessories(type, node.props);
+  if (accessories !== undefined) item.accessories = accessories;
   Object.assign(item, optionalIcon(type, node.props, 'icon'));
   const actionsValue = node.props['actions'];
   if (actionsValue !== undefined) {
@@ -411,16 +529,62 @@ function serializeField(
       `<Metadata.Field> prop 'valueIconUri' is only supported inside <List.Item.Detail>`,
     );
   }
-  const field: UiPaneField = {
-    label: requireString('detail-field', props, 'label'),
-    value: requireString('detail-field', props, 'value'),
-  };
+  if (
+    allowValueIconUri &&
+    (props['kind'] !== undefined || props['href'] !== undefined || props['tags'] !== undefined)
+  ) {
+    throw new ReactUiError(
+      `<Metadata.Field> 'kind', 'href' and 'tags' are only supported inside <Detail.Metadata>`,
+    );
+  }
+  const kind = props['kind'];
+  if (kind !== undefined && (typeof kind !== 'string' || !FIELD_KINDS.includes(kind))) {
+    throw new ReactUiError(
+      `<Metadata.Field> prop 'kind' must be one of: ${FIELD_KINDS.join(', ')}`,
+    );
+  }
+  const field: Omit<UiPaneField, 'value'> & {
+    value?: string;
+    href?: string;
+    tags?: string[];
+    kind?: string;
+  } =
+    kind === 'separator'
+      ? { label: '', value: '', kind: 'separator' }
+      : {
+          label: requireString('detail-field', props, 'label'),
+          value:
+            kind === 'tags' && props['value'] === undefined
+              ? ''
+              : requireString('detail-field', props, 'value'),
+        };
+  if (kind !== undefined && kind !== 'separator') field.kind = kind;
+  if (kind === 'tags' || (kind === undefined && props['tags'] !== undefined)) {
+    const tags = props['tags'];
+    if (!Array.isArray(tags) || tags.some((t) => typeof t !== 'string' || t.length === 0)) {
+      throw new ReactUiError(
+        `<Metadata.Field> tags fields require an array of non-empty strings 'tags'`,
+      );
+    }
+    field.tags = tags as string[];
+    field.kind = 'tags';
+    if (field.value === '') delete field.value;
+  }
+  if (props['href'] !== undefined) {
+    if (typeof props['href'] !== 'string' || props['href'].length === 0) {
+      throw new ReactUiError(`<Metadata.Field> prop 'href' must be a non-empty string`);
+    }
+    field.kind = 'link';
+    field.href = props['href'] as string;
+  }
   if (allowValueIconUri) {
     const valueIconUri = optionalString('detail-field', props, 'valueIconUri');
     if (valueIconUri !== undefined) field.valueIconUri = valueIconUri;
   }
-  return field;
+  return field as UiPaneField;
 }
+
+const FIELD_KINDS = ['text', 'link', 'tags', 'separator'];
 
 function serializeDetail(node: HostNode, state: SerializeState): DetailTree {
   checkProps('detail', node.props, DETAIL_ALLOWED);
@@ -455,6 +619,10 @@ function serializeGrid(node: HostNode, state: SerializeState): GridTree {
   if (title !== undefined) tree.title = title;
   const filter = optionalFilter('grid', node.props);
   if (filter !== undefined) tree.filter = filter;
+  const isLoading = optionalBoolean('grid', node.props, 'isLoading');
+  if (isLoading !== undefined) tree.isLoading = isLoading;
+  const placeholder = optionalString('grid', node.props, 'searchBarPlaceholder');
+  if (placeholder !== undefined) tree.searchBarPlaceholder = placeholder;
   let emptyView: UiEmptyView | undefined;
   let emptyViewCount = 0;
   let looseItemCount = 0;
@@ -505,6 +673,143 @@ function serializeGridSection(node: HostNode, state: SerializeState): UiSection 
   if (title !== undefined) section.title = title;
   if (subtitle !== undefined) section.subtitle = subtitle;
   return section;
+}
+
+const FORM_FIELD_TAGS = new Set([
+  'form-textfield',
+  'form-password',
+  'form-textarea',
+  'form-checkbox',
+  'form-dropdown',
+  'form-datepicker',
+  'form-tagpicker',
+  'form-filepicker',
+  'form-description',
+  'form-separator',
+]);
+
+const FORM_FIELD_KIND_BY_TAG: Record<string, FormField['kind']> = {
+  'form-textfield': 'textfield',
+  'form-password': 'password',
+  'form-textarea': 'textarea',
+  'form-checkbox': 'checkbox',
+  'form-dropdown': 'dropdown',
+  'form-datepicker': 'datepicker',
+  'form-tagpicker': 'tagpicker',
+  'form-filepicker': 'filepicker',
+  'form-description': 'description',
+  'form-separator': 'separator',
+};
+
+function serializeForm(node: HostNode, state: SerializeState): FormTree {
+  checkProps('form', node.props, ['title', 'onSubmit', 'actions']);
+  const tree: FormTree = {
+    type: 'form',
+    title: requireString('form', node.props, 'title'),
+    fields: [],
+  };
+  const onSubmit = node.props['onSubmit'];
+  if (onSubmit !== undefined && typeof onSubmit !== 'function') {
+    throw new ReactUiError(`<form> prop 'onSubmit' must be a function`);
+  }
+  const seenFieldIds = new Set<string>();
+  for (const child of node.children) {
+    const intrinsic = resolveIntrinsic(child.type);
+    if (intrinsic === undefined || !FORM_FIELD_TAGS.has(intrinsic)) {
+      throw new ReactUiError(
+        `<form> children must be Form field components, got <${String(child.type)}>`,
+      );
+    }
+    const field = serializeFormField(child, intrinsic);
+    if (field !== undefined) {
+      if (field.id.length > 0) {
+        if (seenFieldIds.has(field.id)) {
+          throw new ReactUiError(`duplicate form field id '${field.id}'`);
+        }
+        seenFieldIds.add(field.id);
+      }
+      tree.fields.push(field);
+    }
+  }
+  const actionsValue = node.props['actions'];
+  if (actionsValue !== undefined) {
+    const actions = serializeActions(actionsValue, state);
+    if (actions.length > 0) tree.actions = actions;
+  }
+  if (typeof onSubmit === 'function') {
+    tree.submitActionId = state.registry.register(onSubmit as ActionHandler);
+  }
+  return tree;
+}
+
+function serializeFormField(node: HostNode, tag: string): FormField | undefined {
+  const kind = FORM_FIELD_KIND_BY_TAG[tag];
+  const props = node.props;
+  if (kind === 'separator') {
+    return { id: '', kind };
+  }
+  const id = kind === 'description' ? '' : requireString('form field', props, 'id');
+  const field: FormField = { id, kind };
+  const label = optionalString('form field', props, 'label');
+  if (label !== undefined) field.label = label;
+  const placeholder = optionalString('form field', props, 'placeholder');
+  if (placeholder !== undefined) field.placeholder = placeholder;
+  const required = optionalBoolean('form field', props, 'required');
+  if (required !== undefined) field.required = required;
+
+  if (kind === 'description') {
+    if (label === undefined) {
+      throw new ReactUiError(`<Form.Description> requires a non-empty string prop 'label'`);
+    }
+    return field;
+  }
+
+  const defaultValue = props['default'];
+  if (defaultValue !== undefined) {
+    if (kind === 'checkbox') {
+      if (typeof defaultValue !== 'boolean') {
+        throw new ReactUiError(`<Form.Checkbox> prop 'default' must be a boolean`);
+      }
+      field.default = defaultValue;
+    } else {
+      if (typeof defaultValue !== 'string') {
+        throw new ReactUiError(`<form field> prop 'default' must be a string`);
+      }
+      field.default = defaultValue;
+    }
+  }
+
+  if (kind === 'dropdown' || kind === 'tagpicker') {
+    const options = props['options'];
+    if (!Array.isArray(options) || options.some((o) => typeof o !== 'object' || o === null)) {
+      throw new ReactUiError(`<form field> prop 'options' must be an array of {value, title}`);
+    }
+    field.options = (options as { value?: unknown; title?: unknown }[]).map((option) => {
+      if (typeof option.value !== 'string' || typeof option.title !== 'string') {
+        throw new ReactUiError(
+          `<form field> prop 'options' entries require value and title strings`,
+        );
+      }
+      return { value: option.value, title: option.title };
+    });
+    const defaults = props['defaults'];
+    if (defaults !== undefined) {
+      if (!Array.isArray(defaults) || defaults.some((d) => typeof d !== 'string')) {
+        throw new ReactUiError(`<Form.TagPicker> prop 'defaults' must be an array of strings`);
+      }
+      field.defaults = defaults as string[];
+    }
+  }
+
+  if (kind === 'filepicker') {
+    const canChooseFiles = optionalBoolean('form field', props, 'canChooseFiles');
+    if (canChooseFiles !== undefined) field.canChooseFiles = canChooseFiles;
+    const canChooseDirectories = optionalBoolean('form field', props, 'canChooseDirectories');
+    if (canChooseDirectories !== undefined) field.canChooseDirectories = canChooseDirectories;
+    const allowMultipleSelection = optionalBoolean('form field', props, 'allowMultipleSelection');
+    if (allowMultipleSelection !== undefined) field.allowMultipleSelection = allowMultipleSelection;
+  }
+  return field;
 }
 
 function serializeEmptyView(node: HostNode): UiEmptyView {
@@ -565,6 +870,17 @@ function serializeActionElement(
   if (push !== undefined && push.length === 0) {
     throw new ReactUiError(`<action> prop 'push' must be a non-empty sub-view key`);
   }
+  const style = props['style'];
+  if (style !== undefined && style !== 'destructive') {
+    throw new ReactUiError(`<action> prop 'style' must be 'destructive'`);
+  }
+  const shortcut = optionalShortcut(props);
+  const extras = {
+    primary,
+    push,
+    style: style as UiAction['style'],
+    shortcut,
+  };
   const explicitId = optionalString('action', props, 'id');
   if (explicitId !== undefined) {
     if (explicitId === '__open__') {
@@ -577,15 +893,54 @@ function serializeActionElement(
     }
     state.seenActionIds.add(explicitId);
     state.registry.registerExplicit(explicitId, onAction as ActionHandler);
-    const action: UiAction = { id: explicitId, title };
-    if (primary === true) action.primary = true;
-    if (push !== undefined) action.push = push;
-    return action;
+    return finishAction({ id: explicitId, title }, extras);
   }
-  const action: UiAction = { id: state.registry.register(onAction as ActionHandler), title };
-  if (primary === true) action.primary = true;
-  if (push !== undefined) action.push = push;
+  return finishAction({ id: state.registry.register(onAction as ActionHandler), title }, extras);
+}
+
+function finishAction(
+  action: UiAction,
+  extras: {
+    primary?: boolean;
+    push?: string;
+    style?: UiAction['style'];
+    shortcut?: UiAction['shortcut'];
+  },
+): UiAction {
+  if (extras.primary === true) action.primary = true;
+  if (extras.push !== undefined) action.push = extras.push;
+  if (extras.style !== undefined) action.style = extras.style;
+  if (extras.shortcut !== undefined) action.shortcut = extras.shortcut;
   return action;
+}
+
+function optionalShortcut(props: Record<string, unknown>): UiAction['shortcut'] {
+  const value = props['shortcut'];
+  if (value === undefined) return undefined;
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    typeof (value as { key?: unknown }).key !== 'string' ||
+    (value as { key?: string }).key!.length === 0
+  ) {
+    throw new ReactUiError(
+      `<action> prop 'shortcut' must be { key: string, modifiers?: string[] }`,
+    );
+  }
+  const { key, modifiers } = value as { key: string; modifiers?: unknown };
+  const shortcut: { key: string; modifiers?: string[] } = { key };
+  if (modifiers !== undefined) {
+    if (
+      !Array.isArray(modifiers) ||
+      modifiers.some((m) => typeof m !== 'string' || m.length === 0)
+    ) {
+      throw new ReactUiError(
+        `<action> prop 'shortcut' modifiers must be an array of non-empty strings`,
+      );
+    }
+    shortcut.modifiers = modifiers as string[];
+  }
+  return shortcut;
 }
 
 function flattenElements(node: unknown): unknown[] {

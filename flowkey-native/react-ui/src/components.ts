@@ -12,6 +12,13 @@ import type {
   ListSectionProps,
   MetadataFieldProps,
   MetadataProps,
+  FormCheckboxProps,
+  FormDescriptionProps,
+  FormFilePickerProps,
+  FormIdProps,
+  FormOptionsProps,
+  FormProps,
+  FormTextFieldProps,
 } from './props';
 import { intrinsic } from './intrinsic';
 
@@ -37,6 +44,19 @@ export const Grid = Object.assign(intrinsic<GridProps>('grid'), {
   Section: intrinsic<GridSectionProps>('grid-section'),
   Item: intrinsic<GridItemProps>('grid-item'),
   EmptyView: intrinsic<EmptyViewProps>('empty-view'),
+});
+
+export const Form = Object.assign(intrinsic<FormProps>('form'), {
+  TextField: intrinsic<FormTextFieldProps>('form-textfield'),
+  PasswordField: intrinsic<FormTextFieldProps>('form-password'),
+  TextArea: intrinsic<FormTextFieldProps>('form-textarea'),
+  Checkbox: intrinsic<FormCheckboxProps>('form-checkbox'),
+  Dropdown: intrinsic<FormOptionsProps>('form-dropdown'),
+  DatePicker: intrinsic<FormIdProps>('form-datepicker'),
+  TagPicker: intrinsic<FormOptionsProps>('form-tagpicker'),
+  FilePicker: intrinsic<FormFilePickerProps>('form-filepicker'),
+  Description: intrinsic<FormDescriptionProps>('form-description'),
+  Separator: intrinsic<Record<string, never>>('form-separator'),
 });
 
 export const ActionPanel = intrinsic<ActionPanelProps>('action-panel');

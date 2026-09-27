@@ -10,10 +10,13 @@ import {
   type InitMessage,
   type ListTree,
   type NativeCallMessage,
+  type NativeResultMessage,
   type ReadyMessage,
   type SearchMessage,
   type UiPushMessage,
   type UiTree,
+  type LaunchCommandMessage,
+  type WindowCommandMessage,
 } from '../src/types';
 
 const contractDir = resolve(import.meta.dir, '../../contract');
@@ -21,6 +24,8 @@ const readFixture = (name: string) => JSON.parse(readFileSync(resolve(contractDi
 
 const uiFixture = readFixture('ui-tree.fixture.json');
 const protocolFixture = readFixture('protocol.fixture.json');
+
+import type { FormTree } from '../src/types';
 
 const asList = (tree: unknown): ListTree => tree as ListTree;
 const asDetail = (tree: unknown): DetailTree => tree as DetailTree;
@@ -107,6 +112,46 @@ describe('ui-tree contract fixture', () => {
     expect(list.sections[0].items[0].kind).toBeUndefined();
   });
 
+  test('list items carry keywords and accessories; trees carry loading and placeholder', () => {
+    const list = asList(uiFixture.list);
+    const rocket = list.sections[0].items.find((i) => i.id === '🚀');
+    expect(rocket?.keywords).toContain('rocket');
+    expect(rocket?.accessories?.[0]).toEqual({
+      text: 'Symbol',
+      tooltip: 'Unicode category',
+      color: 'secondary',
+    });
+    expect(list.isLoading).toBe(false);
+    expect(list.searchBarPlaceholder).toBe('Search symbols...');
+    const grid = asGrid(uiFixture.grid);
+    expect(grid.isLoading).toBe(true);
+  });
+
+  test('actions may declare a destructive style and a shortcut hint', () => {
+    const list = asList(uiFixture.list);
+    const remove = list.sections[0].items[0].actions?.find((a) => a.id === 'remove');
+    expect(remove?.style).toBe('destructive');
+    expect(remove?.shortcut?.key).toBe('backspace');
+    expect(remove?.shortcut?.modifiers).toEqual(['ctrl']);
+  });
+
+  test('list trees may declare pagination with a registry action id', () => {
+    const list = asList(uiFixture.list);
+    expect(list.pagination?.hasNextPage).toBe(true);
+    expect(list.pagination?.moreActionId).toBe('load-more-1');
+    expect(list.pagination?.pageSize).toBe(50);
+  });
+
+  test('detail metadata supports link, tags and separator field variants', () => {
+    const detail = asDetail(uiFixture.detail);
+    const link = detail.fields.find((f) => f.label === 'Repository');
+    expect(link?.href).toBe('https://github.com/x/y');
+    const tags = detail.fields.find((f) => f.label === 'Tags');
+    expect(tags?.kind).toBe('tags');
+    expect(tags?.tags).toEqual(['alpha', 'beta']);
+    expect(detail.fields.at(-1)?.kind).toBe('separator');
+  });
+
   test('every primary action id across fixtures is unique per item', () => {
     const trees: UiTree[] = [uiFixture.list, uiFixture.grid];
     for (const tree of trees) {
@@ -116,6 +161,41 @@ describe('ui-tree contract fixture', () => {
         expect(ids.every((id) => id === ids[0])).toBe(true);
       }
     }
+  });
+});
+
+describe('form tree contract fixture', () => {
+  const asForm = (tree: unknown): FormTree => tree as FormTree;
+
+  test('form tree carries titled fields of every kind and a submit action id', () => {
+    const form = asForm(uiFixture.form);
+    expect(form.type).toBe('form');
+    expect(form.title).toBe('New note');
+    const kinds = form.fields.map((f) => f.kind);
+    for (const kind of [
+      'textfield',
+      'password',
+      'textarea',
+      'checkbox',
+      'dropdown',
+      'datepicker',
+      'tagpicker',
+      'filepicker',
+      'description',
+      'separator',
+    ] as const) {
+      expect(kinds).toContain(kind);
+    }
+    const title = form.fields.find((f) => f.id === 'title');
+    expect(title?.required).toBe(true);
+    expect(title?.placeholder).toBe('Note title');
+    const vault = form.fields.find((f) => f.id === 'vault');
+    expect(vault?.options?.map((o) => o.value)).toEqual(['personal', 'work']);
+    expect(vault?.default).toBe('personal');
+    const tags = form.fields.find((f) => f.id === 'tags');
+    expect(tags?.defaults).toEqual(['idea']);
+    expect(form.actions?.some((a) => a.primary)).toBe(true);
+    expect(form.submitActionId).toBe('submit-1');
   });
 });
 
@@ -159,12 +239,35 @@ describe('protocol contract fixture', () => {
     expect(action.requestId).toBeTruthy();
     expect(action.extensionId).toBeTruthy();
     expect(action.item?.id).toBeTruthy();
+    expect(action.arguments).toEqual({ direction: 'push' });
   });
 
   test('search with a command context carries commandId', () => {
     const search: SearchMessage = protocolFixture.hostToSidecar.searchWithCommand;
     expect(search.commandId).toBe('open');
     expect(search.extensionId).toBe('clipboard-history');
+  });
+
+  test('search with a filter context carries filterValue', () => {
+    const search: SearchMessage = protocolFixture.hostToSidecar.searchWithCommand;
+    expect(search.filterValue).toBe('all');
+  });
+
+  test('nativeResult examples cover the ok and error variants', () => {
+    const ok: NativeResultMessage = protocolFixture.hostToSidecar.nativeResultOk;
+    expect(ok.type).toBe('nativeResult');
+    expect(ok.ok).toBe(true);
+    if (ok.ok) {
+      expect(ok.result).toBeDefined();
+    }
+
+    const failure: NativeResultMessage = protocolFixture.hostToSidecar.nativeResultError;
+    expect(failure.type).toBe('nativeResult');
+    expect(failure.ok).toBe(false);
+    if (!failure.ok) {
+      expect(failure.error.code).toBe('hostNotAllowed');
+      expect(failure.error.message).toBeTruthy();
+    }
   });
 
   test('ready commands may declare keywords, mode and an optional icon', () => {
@@ -213,6 +316,31 @@ describe('protocol contract fixture', () => {
     const openUrlCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallOpenUrl;
     expect(openUrlCall.method).toBe('shell.openUrl');
     expect(openUrlCall.params?.url).toBe('https://example.com/release');
+  });
+
+  test('windowCommand and launchCommand carry extension attribution', () => {
+    const windowCommand: WindowCommandMessage = protocolFixture.sidecarToHost.windowCommand;
+    expect(windowCommand.type).toBe('windowCommand');
+    expect(windowCommand.extensionId).toBe('demo-ext');
+    expect(windowCommand.command).toBe('closeMainWindow');
+
+    const launch: LaunchCommandMessage = protocolFixture.sidecarToHost.launchCommand;
+    expect(launch.type).toBe('launchCommand');
+    expect(launch.extensionId).toBe('demo-ext');
+    expect(launch.commandId).toBe('open');
+    expect(launch.query).toBe('notes');
+  });
+
+  test('toast and alert native calls follow the wire shape', () => {
+    const toastCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallToast;
+    expect(toastCall.method).toBe('toast.show');
+    expect(toastCall.params?.title).toBe('Saved');
+    expect(toastCall.params?.style).toBe('success');
+
+    const alertCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallAlert;
+    expect(alertCall.method).toBe('alert.confirm');
+    expect(alertCall.params?.title).toBe('Delete note?');
+    expect(alertCall.params?.destructive).toBe(true);
   });
 
   test('uiPush carries extension, command, view state and a tree without a requestId', () => {

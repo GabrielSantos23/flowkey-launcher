@@ -35,6 +35,9 @@
             "primary": true
           }
         ]
+      },
+      "arguments": {
+        "direction": "push"
       }
     },
     "preferences": {
@@ -49,7 +52,28 @@
       "requestId": "s-9",
       "extensionId": "clipboard-history",
       "query": "",
-      "commandId": "open"
+      "commandId": "open",
+      "filterValue": "all"
+    },
+    "nativeResultOk": {
+      "type": "nativeResult",
+      "requestId": "n-3",
+      "ok": true,
+      "result": {
+        "ok": true,
+        "value": {
+          "last-sync": "2026-09-27T08:00:00Z"
+        }
+      }
+    },
+    "nativeResultError": {
+      "type": "nativeResult",
+      "requestId": "n-2",
+      "ok": false,
+      "error": {
+        "code": "hostNotAllowed",
+        "message": "host evil.example.com is not declared by extension emoji"
+      }
     }
   },
   "sidecarToHost": {
@@ -216,6 +240,29 @@
         "url": "https://example.com/release"
       }
     },
+    "nativeCallToast": {
+      "type": "nativeCall",
+      "requestId": "n-5",
+      "extensionId": "demo-ext",
+      "method": "toast.show",
+      "params": {
+        "title": "Saved",
+        "message": "Note stored",
+        "style": "success"
+      }
+    },
+    "nativeCallAlert": {
+      "type": "nativeCall",
+      "requestId": "n-6",
+      "extensionId": "demo-ext",
+      "method": "alert.confirm",
+      "params": {
+        "title": "Delete note?",
+        "message": "This cannot be undone.",
+        "confirmTitle": "Delete",
+        "destructive": true
+      }
+    },
     "log": {
       "type": "log",
       "level": "info",
@@ -224,6 +271,17 @@
     "ack": {
       "type": "ack",
       "requestId": "a-2"
+    },
+    "windowCommand": {
+      "type": "windowCommand",
+      "extensionId": "demo-ext",
+      "command": "closeMainWindow"
+    },
+    "launchCommand": {
+      "type": "launchCommand",
+      "extensionId": "demo-ext",
+      "commandId": "open",
+      "query": "notes"
     }
   }
 }

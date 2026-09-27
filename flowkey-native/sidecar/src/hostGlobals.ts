@@ -3,12 +3,27 @@ import * as ReactJsxRuntime from 'react/jsx-runtime';
 import {
   Action,
   ActionPanel,
+  Color,
   Detail,
+  Form,
   Grid,
+  Icon,
   List,
   defineReactExtension,
+  useCachedPromise,
+  useCachedState,
+  useDebounce,
+  useFetch,
+  useLocalStorage,
+  usePromise,
+  withCache,
 } from '@flowkey-cli/react-ui';
-import { defineExtension } from '@flowkey-cli/native-sdk';
+import {
+  captureException,
+  createCapabilities,
+  defineExtension,
+  randomId,
+} from '@flowkey-cli/native-sdk';
 
 /**
  * Runtime services the sidecar injects into every installed extension bundle.
@@ -26,10 +41,23 @@ export interface FlowKeyHostGlobals {
     Grid: typeof Grid;
     ActionPanel: typeof ActionPanel;
     Action: typeof Action;
+    Form: typeof Form;
     defineReactExtension: typeof defineReactExtension;
+    usePromise: typeof usePromise;
+    useFetch: typeof useFetch;
+    useDebounce: typeof useDebounce;
+    useCachedState: typeof useCachedState;
+    useLocalStorage: typeof useLocalStorage;
+    useCachedPromise: typeof useCachedPromise;
+    withCache: typeof withCache;
+    Color: typeof Color;
+    Icon: typeof Icon;
   };
   nativeSdk: {
     defineExtension: typeof defineExtension;
+    createCapabilities: typeof createCapabilities;
+    randomId: typeof randomId;
+    captureException: typeof captureException;
   };
 }
 
@@ -42,8 +70,25 @@ export function installHostGlobals(): void {
   globalThis.__FLOWKEY_HOST__ = {
     react: React,
     reactJsx: ReactJsxRuntime,
-    reactUi: { List, Detail, Grid, ActionPanel, Action, defineReactExtension },
-    nativeSdk: { defineExtension },
+    reactUi: {
+      List,
+      Detail,
+      Grid,
+      Form,
+      ActionPanel,
+      Action,
+      defineReactExtension,
+      usePromise,
+      useFetch,
+      useDebounce,
+      useCachedState,
+      useLocalStorage,
+      useCachedPromise,
+      withCache,
+      Color,
+      Icon,
+    },
+    nativeSdk: { defineExtension, createCapabilities, randomId, captureException },
   };
 }
 

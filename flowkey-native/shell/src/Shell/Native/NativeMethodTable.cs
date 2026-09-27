@@ -44,19 +44,52 @@ public sealed class NativeMethodTable
 
     private static NativeCallOutcome WriteClipboard(Dictionary<string, JsonElement>? parameters)
     {
-        if (parameters is null || !parameters.TryGetValue("text", out var text) || text.ValueKind != JsonValueKind.String)
+        if (parameters is null)
         {
-            return NativeCallOutcome.Failure("invalidParams", "clipboard.write requires a string 'text' parameter");
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.write requires parameters");
+        }
+        var hasText = parameters.TryGetValue("text", out var text) && text.ValueKind == JsonValueKind.String;
+        var hasHtml = parameters.TryGetValue("html", out var html) && html.ValueKind == JsonValueKind.String;
+        var hasPaths = parameters.TryGetValue("paths", out var paths) && paths.ValueKind == JsonValueKind.Array;
+        if (!hasText && !hasHtml && !hasPaths)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "clipboard.write requires 'text', 'html' or 'paths'");
         }
 
         try
         {
-            ClipboardService.WriteText(text.GetString()!);
+            if (hasHtml || hasPaths)
+            {
+                var htmlValue = hasHtml ? html.GetString() : null;
+                var pathList = new List<string>();
+                if (hasPaths)
+                {
+                    foreach (var path in paths.EnumerateArray())
+                    {
+                        if (path.ValueKind == JsonValueKind.String)
+                        {
+                            pathList.Add(path.GetString() ?? "");
+                        }
+                    }
+                }
+                var textValue = hasText ? text.GetString() : htmlValue is null ? null : StripHtmlTags(htmlValue);
+                ClipboardService.WriteContent(new ClipboardWriteContent(textValue, htmlValue, pathList));
+            }
+            else
+            {
+                ClipboardService.WriteText(text.GetString()!);
+            }
             return NativeCallOutcome.Success();
         }
         catch (Exception ex)
         {
             return NativeCallOutcome.Failure("clipboardFailed", ex.Message);
         }
+    }
+
+    private static string? StripHtmlTags(string html)
+    {
+        var text = System.Text.RegularExpressions.Regex.Replace(html, "<[^>]*>", "");
+        return string.IsNullOrWhiteSpace(text) ? null : System.Net.WebUtility.HtmlDecode(text).Trim();
     }
 }

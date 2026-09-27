@@ -32,6 +32,8 @@ public sealed class SidecarHost : IDisposable
     public event Action<Protocol.ReadyMessage>? Ready;
     public event Action<Protocol.UiMessage>? Ui;
     public event Action<Protocol.UiPushMessage>? UiPush;
+    public event Action<Protocol.WindowCommandMessage>? WindowCommand;
+    public event Action<Protocol.LaunchCommandMessage>? LaunchCommand;
     public event Action<Protocol.ErrorMessage>? Error;
     public event Action<Protocol.LogMessage>? Log;
     public event Action<string, string, string, Dictionary<string, JsonElement>?>? NativeCallRequested;
@@ -210,6 +212,42 @@ public sealed class SidecarHost : IDisposable
         return requestId;
     }
 
+    public string SendAction(
+        string extensionId, string actionId, Protocol.UiItem? item,
+        IReadOnlyDictionary<string, string>? arguments)
+    {
+        requestCounter++;
+        var requestId = $"a{requestCounter}";
+        Send(new Protocol.ActionMessage
+        {
+            RequestId = requestId,
+            ExtensionId = extensionId,
+            ActionId = actionId,
+            Item = item,
+            Arguments = arguments is null
+                ? null
+                : new Dictionary<string, string>(arguments),
+        });
+        return requestId;
+    }
+
+    public string SendFormAction(
+        string extensionId, string actionId, Protocol.UiItem? item,
+        IReadOnlyDictionary<string, System.Text.Json.JsonElement> formValues)
+    {
+        requestCounter++;
+        var requestId = $"a{requestCounter}";
+        Send(new Protocol.ActionMessage
+        {
+            RequestId = requestId,
+            ExtensionId = extensionId,
+            ActionId = actionId,
+            Item = item,
+            FormValues = new Dictionary<string, System.Text.Json.JsonElement>(formValues),
+        });
+        return requestId;
+    }
+
     private void ReadLoop(Process p)
     {
         try
@@ -280,6 +318,20 @@ public sealed class SidecarHost : IDisposable
                     if (push is not null)
                     {
                         UiPush?.Invoke(push);
+                    }
+                    break;
+                case "windowCommand":
+                    var windowCommand = root.Deserialize<Protocol.WindowCommandMessage>(Protocol.JsonOptions.Default);
+                    if (windowCommand is not null)
+                    {
+                        WindowCommand?.Invoke(windowCommand);
+                    }
+                    break;
+                case "launchCommand":
+                    var launch = root.Deserialize<Protocol.LaunchCommandMessage>(Protocol.JsonOptions.Default);
+                    if (launch is not null)
+                    {
+                        LaunchCommand?.Invoke(launch);
                     }
                     break;
                 case "ack":

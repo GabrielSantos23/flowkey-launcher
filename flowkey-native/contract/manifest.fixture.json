@@ -35,12 +35,38 @@
             "mode": "view",
             "keywords": ["demo"],
             "icon": "search",
-            "iconColor": "#3B82F6"
+            "iconColor": "#3B82F6",
+            "subtitle": "Notes & vaults",
+            "disabledByDefault": true
           },
           {
             "id": "run-job",
             "title": "Run Job",
             "mode": "background"
+          },
+          {
+            "id": "sync",
+            "title": "Sync vault",
+            "mode": "background",
+            "interval": 300,
+            "arguments": [
+              {
+                "name": "direction",
+                "type": "dropdown",
+                "placeholder": "Direction",
+                "required": true,
+                "data": [
+                  {
+                    "title": "Push",
+                    "value": "push"
+                  },
+                  {
+                    "title": "Pull",
+                    "value": "pull"
+                  }
+                ]
+              }
+            ]
           }
         ],
         "nativeMethods": [
@@ -89,6 +115,37 @@
             "type": "text",
             "title": "Greeting",
             "default": "Hello"
+          },
+          {
+            "name": "vaultFolder",
+            "type": "directory",
+            "title": "Vault folder",
+            "default": "C:/notes"
+          },
+          {
+            "name": "exportFile",
+            "type": "file",
+            "title": "Export file",
+            "placeholder": "Choose a .json file"
+          },
+          {
+            "name": "editorApp",
+            "type": "appPicker",
+            "title": "Editor application",
+            "required": true
+          },
+          {
+            "name": "showHints",
+            "type": "checkbox",
+            "title": "Show hints",
+            "label": "Display hint chips next to results",
+            "default": false
+          },
+          {
+            "name": "vaultName",
+            "type": "text",
+            "title": "Vault name",
+            "placeholder": "e.g. Personal"
           }
         ],
         "fsPaths": ["{{vaultPath}}/**/*.md", "C:/shared/notes/**"],
@@ -410,6 +467,126 @@
         "uriSchemes": ["Obsidian"]
       },
       "expectedField": "uriSchemes[0]",
+      "expectedCode": "format"
+    },
+    {
+      "name": "preference-type-unknown",
+      "manifest": {
+        "id": "bad-pref",
+        "name": "Bad Pref",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": [],
+        "preferences": [
+          {
+            "name": "x",
+            "type": "appPickerX",
+            "title": "X"
+          }
+        ]
+      },
+      "expectedField": "preferences[0].type",
+      "expectedCode": "format"
+    },
+    {
+      "name": "checkbox-label-not-string",
+      "manifest": {
+        "id": "bad-pref2",
+        "name": "Bad Pref 2",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": [],
+        "preferences": [
+          {
+            "name": "x",
+            "type": "checkbox",
+            "title": "X",
+            "label": 5
+          }
+        ]
+      },
+      "expectedField": "preferences[0].label",
+      "expectedCode": "format"
+    },
+    {
+      "name": "argument-missing-placeholder",
+      "manifest": {
+        "id": "bad-arg",
+        "name": "Bad Arg",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open",
+            "arguments": [
+              {
+                "name": "q",
+                "type": "text"
+              }
+            ]
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].arguments[0].placeholder",
+      "expectedCode": "required"
+    },
+    {
+      "name": "argument-dropdown-without-data",
+      "manifest": {
+        "id": "bad-arg2",
+        "name": "Bad Arg 2",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open",
+            "arguments": [
+              {
+                "name": "q",
+                "type": "dropdown",
+                "placeholder": "P"
+              }
+            ]
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].arguments[0].data",
+      "expectedCode": "required"
+    },
+    {
+      "name": "interval-too-small",
+      "manifest": {
+        "id": "bad-interval",
+        "name": "Bad Interval",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "tick",
+            "title": "Tick",
+            "mode": "background",
+            "interval": 30
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].interval",
       "expectedCode": "format"
     }
   ]

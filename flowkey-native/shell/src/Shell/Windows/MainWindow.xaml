@@ -290,6 +290,7 @@
               <ColumnDefinition Width="Auto" />
               <ColumnDefinition Width="*" />
               <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0"
                     Width="{DynamicResource IconTileSize}"
@@ -404,7 +405,55 @@
                 </Style>
               </TextBlock.Style>
             </TextBlock>
+            <ItemsControl Grid.Column="3"
+                          ItemsSource="{Binding Item.Accessories}"
+                          VerticalAlignment="Center"
+                          Margin="10,0,0,0">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate>
+                  <Border Background="{DynamicResource ChipBackgroundBrush}"
+                          CornerRadius="{DynamicResource KeycapCornerRadius}"
+                          Padding="7,2"
+                          Margin="6,0,0,0"
+                          ToolTip="{Binding Tooltip}">
+                    <TextBlock Text="{Binding Text}"
+                               FontSize="{DynamicResource KeycapFontSize}"
+                               Foreground="{DynamicResource TextSecondaryBrush}">
+                      <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Color}" Value="success">
+                              <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Color}" Value="danger">
+                              <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Color}" Value="accent">
+                              <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </TextBlock.Style>
+                    </TextBlock>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </Grid>
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type rows:LoadMoreRow}">
+          <Border Padding="0,10">
+            <TextBlock Text="Load more"
+                       FontSize="{DynamicResource SecondaryFontSize}"
+                       Foreground="{DynamicResource AccentBrush}"
+                       FontWeight="Medium"
+                       HorizontalAlignment="Center" />
+          </Border>
         </DataTemplate>
         <DataTemplate DataType="{x:Type calc:CalculatorRow}">
           <Border Background="{DynamicResource SurfaceBrush}"

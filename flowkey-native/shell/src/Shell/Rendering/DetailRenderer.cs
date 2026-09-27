@@ -72,9 +72,51 @@ public static class DetailRenderer
         var rail = new StackPanel { Margin = new Thickness(4, 16, 16, 14) };
         foreach (var field in tree.Fields)
         {
+            if (string.Equals(field.Kind, "separator", StringComparison.Ordinal))
+            {
+                var divider = new System.Windows.Controls.Border
+                {
+                    Height = 1,
+                    Margin = new Thickness(0, 2, 0, 12),
+                    Background = FindDividerBrush(),
+                };
+                rail.Children.Add(divider);
+                continue;
+            }
+
             var label = SecondaryText(field.Label);
             label.FontSize = 12;
             rail.Children.Add(label);
+
+            if (field.Tags is { Count: > 0 } || string.Equals(field.Kind, "tags", StringComparison.Ordinal))
+            {
+                var chips = new WrapPanel { Margin = new Thickness(0, 1, 0, 10) };
+                foreach (var tag in field.Tags ?? [])
+                {
+                    var chip = new System.Windows.Controls.Border
+                    {
+                        CornerRadius = new CornerRadius(5),
+                        Margin = new Thickness(0, 2, 6, 2),
+                        Padding = new Thickness(8, 2, 8, 3),
+                    };
+                    chip.SetResourceReference(System.Windows.Controls.Border.BackgroundProperty, "ChipBackgroundBrush");
+                    var chipText = SecondaryText(tag);
+                    chipText.FontSize = 12;
+                    chip.Child = chipText;
+                    chips.Children.Add(chip);
+                }
+                rail.Children.Add(chips);
+                continue;
+            }
+
+            var isLink = !string.IsNullOrEmpty(field.Href) || string.Equals(field.Kind, "link", StringComparison.Ordinal);
+            if (isLink && !string.IsNullOrEmpty(field.Href))
+            {
+                rail.Children.Add(BuildMetadataLink(field));
+                continue;
+            }
+
+
             var value = PrimaryText(field.Value);
             value.FontSize = 14;
             value.FontWeight = FontWeights.SemiBold;
@@ -284,6 +326,43 @@ public static class DetailRenderer
             }
         }
         return textBlock;
+    }
+
+    private static System.Windows.Controls.TextBlock BuildMetadataLink(UiField field)
+    {
+        var openable = MarkdownLite.IsLinkOpenable(field.Href, out var canonical, out _);
+        var text = new Run(field.Value);
+        text.SetResourceReference(TextElement.ForegroundProperty, openable ? "AccentBrush" : "TextSecondaryBrush");
+        text.FontSize = 14;
+        text.FontWeight = FontWeights.SemiBold;
+        text.TextDecorations = openable ? TextDecorations.Underline : null;
+        var hyperlink = new System.Windows.Documents.Hyperlink(text) { ToolTip = canonical };
+        if (openable)
+        {
+            hyperlink.Click += (_, _) =>
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo(canonical) { UseShellExecute = true });
+                }
+                catch
+                {
+                    /* browser launch is best-effort */
+                }
+            };
+        }
+        var host = new System.Windows.Controls.TextBlock { Margin = new Thickness(0, 1, 0, 10) };
+        host.Inlines.Add(hyperlink);
+        return host;
+    }
+
+    private static System.Windows.Media.Brush FindDividerBrush()
+    {
+        if (System.Windows.Application.Current?.TryFindResource("DividerBrush") is System.Windows.Media.Brush brush)
+        {
+            return brush;
+        }
+        return System.Windows.Media.Brushes.Gray;
     }
 
     private static Hyperlink BuildLinkRun(MdInline.Link link)

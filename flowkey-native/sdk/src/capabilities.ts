@@ -1,4 +1,4 @@
-import type { HudOptions } from './types';
+import type { ConfirmOptions, HudOptions, ToastOptions } from './types';
 
 /** Raw native transport available on every extension context. */
 export type NativeCaller = <T = unknown>(
@@ -13,12 +13,40 @@ export interface HttpResponse {
   body?: string;
 }
 
+export interface ClipboardWriteContent {
+  text?: string;
+  html?: string;
+  paths?: string[];
+}
+
+export interface ClipboardReadContent {
+  text: string | null;
+  html: string | null;
+  paths: string[] | null;
+}
+
+export interface FrontmostApp {
+  id?: string | null;
+  name: string;
+  path?: string | null;
+}
+
 export interface FetchOptions {
   method?: string;
   headers?: Record<string, string>;
   body?: string;
   /** Request OAuth token injection for a provider declared in the manifest. */
   auth?: string;
+  /** Aborts the in-flight request (transport-level, never serialized as a param). */
+  signal?: AbortSignal;
+}
+
+/** Result of the shell's `oauth.*` routes (token state is vaulted host-side). */
+export interface OAuthStatus {
+  ok: boolean;
+  /** RFC 3339 expiry of the vaulted access token, when one exists. */
+  expiresAt?: string;
+  scope?: string;
 }
 
 export interface AppEntry {
@@ -28,13 +56,18 @@ export interface AppEntry {
 }
 
 export interface MediaSnapshot {
-  isPlaying: boolean;
+  playing: boolean;
   title?: string | null;
   artist?: string | null;
   album?: string | null;
-  positionSeconds?: number;
-  durationSeconds?: number;
+  positionMs?: number;
+  durationMs?: number;
+  /** Unix epoch milliseconds of when the snapshot was taken. */
+  updatedAtMs?: number;
 }
+
+/** Transport commands accepted by the shell's `media.control` route. */
+export type MediaCommand = 'playPause' | 'next' | 'previous';
 
 export interface HistoryEntry {
   id: string;
@@ -70,12 +103,62 @@ export interface FlowKeyCapabilities {
     /** Writes the text and pastes it into the foreground application. */
     paste(text: string): Promise<void>;
     history(options?: { query?: string; limit?: number }): Promise<HistoryEntry[]>;
+    /** Removes every entry from the clipboard history. */
+    clearHistory(): Promise<void>;
+    /** Deletes one history entry by id. */
+    deleteEntry(id: string): Promise<void>;
+    /** Re-copies a history entry to the clipboard. */
+    copyEntry(id: string): Promise<void>;
+    /** Copies a history entry and pastes it into the foreground application. */
+    pasteEntry(id: string): Promise<void>;
+    /** Opens a history entry (image file or temp text file) in the default editor. */
+    editEntry(id: string): Promise<void>;
+    /** Writes rich content: plain text, HTML and/or a file drop list. */
+    writeContent(content: ClipboardWriteContent): Promise<void>;
+    /** Reads the full clipboard snapshot (text, HTML, file drop list). */
+    readContent(): Promise<ClipboardReadContent>;
+    /** Empties the clipboard. */
+    clear(): Promise<void>;
   };
   storage: {
     get<T = unknown>(key: string): Promise<T | null>;
     set(key: string, value: unknown): Promise<void>;
     delete(key: string): Promise<void>;
     keys(): Promise<string[]>;
+    /** Loads every stored key/value pair (one get call per key). */
+    allItems<T = unknown>(): Promise<Record<string, T>>;
+  };
+
+  /**
+   * Per-extension transient cache with optional per-entry TTL and larger caps
+   * than `storage`. Entries are disposable — the shell may behave like a
+   * cold cache at any time, so treat misses as "compute again".
+   */
+  cache: {
+    get<T = unknown>(key: string): Promise<T | null>;
+    set(key: string, value: unknown, options?: { ttlSeconds?: number }): Promise<void>;
+    delete(key: string): Promise<void>;
+    clear(): Promise<void>;
+  };
+
+  /**
+   * Vaulted OAuth for providers declared in the manifest `oauth` list. Tokens
+   * never reach the extension — `http.fetch` injects them via `options.auth`,
+   * and these routes only report/refresh authorization state.
+   */
+  oauth: {
+    /** Runs the browser PKCE flow for a declared provider. */
+    authorize(
+      provider: string,
+      options?: { clientId?: string; signal?: AbortSignal; timeoutMs?: number },
+    ): Promise<OAuthStatus>;
+    /** Validates (and refreshes if needed) the vaulted token for a provider. */
+    status(
+      provider: string,
+      options?: { signal?: AbortSignal; timeoutMs?: number },
+    ): Promise<OAuthStatus>;
+    /** Deletes the vaulted tokens for a provider. */
+    disconnect(provider: string): Promise<void>;
   };
   secrets: {
     get(key: string): Promise<string | null>;
@@ -102,21 +185,60 @@ export interface FlowKeyCapabilities {
     /** Expands a glob (relative to a scope root, or absolute) into file entries with metadata. */
     glob(pattern: string, options?: { limit?: number }): Promise<FsEntry[]>;
     stat(path: string): Promise<FsEntry>;
+    /** Creates a directory (and parents) inside a declared scope. */
+    mkdir(path: string): Promise<void>;
+    /** Whether a file or directory exists inside a declared scope. */
+    exists(path: string): Promise<boolean>;
+    copy(from: string, to: string): Promise<void>;
+    move(from: string, to: string): Promise<void>;
+    /** Moves a file or directory to the Recycle Bin (recoverable). */
+    trash(path: string): Promise<void>;
   };
   apps: {
     list(query?: string): Promise<AppEntry[]>;
     launch(id: string): Promise<void>;
+    /** The currently focused application, when it can be resolved. */
+    frontmost(): Promise<FrontmostApp | null>;
+    /** System default executable for a file path or extension. */
+    defaultFor(path: string): Promise<string | null>;
   };
   media: {
     current(): Promise<MediaSnapshot>;
-    control(action: string): Promise<void>;
+    control(command: MediaCommand): Promise<void>;
   };
   image: {
     /** Downloads, downscales and caches an allowlisted image; returns a file: URI. */
     fetch(url: string): Promise<string>;
   };
+
+  /** Desktop integration queries (gated by their `system.*` routes). */
+  system: {
+    /**
+     * Selected text of the foreground application. UI Automation first; with
+     * `allowFallback` the shell may type Ctrl+C and read the clipboard,
+     * restoring the previous content afterwards.
+     */
+    selectedText(options?: { allowFallback?: boolean }): Promise<string | null>;
+  };
   hud: {
     show(options: HudOptions): Promise<void>;
+  };
+
+  /**
+   * Toast notifications rendered by the shell (bottom-right, style-accented).
+   * More expressive than `hud`: carries a message line and success/failure
+   * styling. Requires `toast.show` in the manifest.
+   */
+  toast: {
+    show(options: ToastOptions): Promise<void>;
+  };
+
+  /**
+   * Blocking confirmation dialog rendered by the shell. The native call stays
+   * pending until the user answers. Requires `alert.confirm` in the manifest.
+   */
+  alert: {
+    confirm(options: ConfirmOptions): Promise<boolean>;
   };
 }
 
@@ -127,11 +249,14 @@ function unwrapOk(result: { ok?: boolean } | undefined, method: string): void {
 }
 
 export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
-  const httpFetch = async (url: string, options?: FetchOptions): Promise<HttpResponse> =>
-    await call<{ status: number; headers: Record<string, string>; body?: string }>('http.fetch', {
-      url,
-      ...options,
-    });
+  const httpFetch = async (url: string, options?: FetchOptions): Promise<HttpResponse> => {
+    const { signal, ...params } = options ?? {};
+    return await call<{ status: number; headers: Record<string, string>; body?: string }>(
+      'http.fetch',
+      { url, ...params },
+      { signal },
+    );
+  };
 
   return {
     http: {
@@ -159,6 +284,30 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
         });
         return result.items ?? [];
       },
+      async clearHistory() {
+        await call('clipboard.clearHistory', {});
+      },
+      async deleteEntry(id) {
+        await call('clipboard.deleteEntry', { id });
+      },
+      async copyEntry(id) {
+        await call('clipboard.copyEntry', { id });
+      },
+      async pasteEntry(id) {
+        await call('clipboard.pasteEntry', { id });
+      },
+      async editEntry(id) {
+        await call('clipboard.editEntry', { id });
+      },
+      async writeContent(content) {
+        await call('clipboard.write', { ...content });
+      },
+      async readContent() {
+        return await call<ClipboardReadContent>('clipboard.read');
+      },
+      async clear() {
+        await call('clipboard.clear', {});
+      },
     },
     storage: {
       async get<T = unknown>(key: string): Promise<T | null> {
@@ -175,6 +324,51 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
       async keys() {
         const result = await call<{ ok: boolean; keys?: string[] }>('storage.keys');
         return result.keys ?? [];
+      },
+      async allItems<T = unknown>(): Promise<Record<string, T>> {
+        const keysResult = await call<{ ok: boolean; keys?: string[] }>('storage.keys');
+        const keys = keysResult.keys ?? [];
+        const entries = await Promise.all(
+          keys.map(async (key) => {
+            const result = await call<{ ok: boolean; value?: unknown }>('storage.get', { key });
+            unwrapOk(result, 'storage.get');
+            return [key, (result.value ?? null) as T | null] as const;
+          }),
+        );
+        return Object.fromEntries(
+          entries.filter((entry): entry is readonly [string, T] => entry[1] !== null),
+        );
+      },
+    },
+    cache: {
+      async get<T = unknown>(key: string): Promise<T | null> {
+        const result = await call<{ ok: boolean; value?: unknown }>('cache.get', { key });
+        unwrapOk(result, 'cache.get');
+        return (result.value ?? null) as T | null;
+      },
+      async set(key, value, options) {
+        await call('cache.set', { key, value, ttlSeconds: options?.ttlSeconds });
+      },
+      async delete(key) {
+        await call('cache.delete', { key });
+      },
+      async clear() {
+        await call('cache.clear', {});
+      },
+    },
+    oauth: {
+      async authorize(provider, options) {
+        return await call<OAuthStatus>(
+          'oauth.authorize',
+          { provider, clientId: options?.clientId },
+          { signal: options?.signal, timeoutMs: options?.timeoutMs },
+        );
+      },
+      async status(provider, options) {
+        return await call<OAuthStatus>('oauth.status', { provider }, options);
+      },
+      async disconnect(provider) {
+        await call('oauth.disconnect', { provider });
       },
     },
     secrets: {
@@ -225,22 +419,46 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
         const result = await call<FsEntry>('fs.stat', { path });
         return result;
       },
+      async mkdir(path) {
+        await call('fs.mkdir', { path });
+      },
+      async exists(path) {
+        const result = await call<{ ok: boolean; exists?: boolean }>('fs.exists', { path });
+        return result.exists === true;
+      },
+      async copy(from, to) {
+        await call('fs.copy', { from, to });
+      },
+      async move(from, to) {
+        await call('fs.move', { from, to });
+      },
+      async trash(path) {
+        await call('fs.trash', { path });
+      },
     },
     apps: {
       async list(query) {
-        const result = await call<{ items?: AppEntry[] }>('apps.list', { query });
-        return result.items ?? [];
+        const result = await call<{ apps?: AppEntry[] }>('apps.list', { query });
+        return result.apps ?? [];
       },
       async launch(id) {
         await call('apps.launch', { id });
+      },
+      async frontmost() {
+        const result = await call<{ app?: FrontmostApp | null }>('apps.frontmost');
+        return result.app ?? null;
+      },
+      async defaultFor(path) {
+        const result = await call<{ path?: string | null }>('apps.default', { path });
+        return result.path ?? null;
       },
     },
     media: {
       async current() {
         return call<MediaSnapshot>('media.current');
       },
-      async control(action) {
-        await call('media.control', { action });
+      async control(command) {
+        await call('media.control', { command });
       },
     },
     image: {
@@ -250,9 +468,28 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
         return result.uri ?? '';
       },
     },
+    system: {
+      async selectedText(options) {
+        const result = await call<{ text?: string | null }>('system.selectedText', {
+          allowFallback: options?.allowFallback === true,
+        });
+        return result.text ?? null;
+      },
+    },
     hud: {
       async show(options) {
         await call('hud.show', { ...options });
+      },
+    },
+    toast: {
+      async show(options) {
+        await call('toast.show', { ...options });
+      },
+    },
+    alert: {
+      async confirm(options) {
+        const result = await call<{ confirmed?: boolean }>('alert.confirm', { ...options });
+        return result.confirmed === true;
       },
     },
   };

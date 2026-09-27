@@ -6,6 +6,7 @@ using Xunit;
 
 namespace FlowKey.Shell.Tests;
 
+[Collection(nameof(RealClipboardCollection))]
 public class NativeMethodTableTests
 {
     private static Dictionary<string, JsonElement> Params(string key, string value) =>

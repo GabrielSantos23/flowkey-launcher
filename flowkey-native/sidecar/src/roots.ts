@@ -4,6 +4,7 @@ import type {
   CommandProps,
   ReactExtensionModule,
 } from '@flowkey-cli/react-ui';
+import type { ExtensionEnvironment } from '@flowkey-cli/native-sdk';
 import { ReactRoot } from '@flowkey-cli/react-ui';
 import { createCapabilities, type SidecarMessage } from '@flowkey-cli/native-sdk';
 import type { NativeBridge } from './bridge';
@@ -55,6 +56,7 @@ export class ManagedRoot {
     filterValue?: string;
     commandId?: string;
     preferences: CommandProps['preferences'];
+    environment: ExtensionEnvironment;
   }): void {
     this.responsePending = true;
     try {
@@ -89,8 +91,32 @@ export class ManagedRoot {
           );
         },
       };
+      const window: CommandProps['window'] = {
+        closeMainWindow: () =>
+          this.emit({
+            type: 'windowCommand',
+            extensionId: this.extensionId,
+            command: 'closeMainWindow',
+          }),
+        popToRoot: () =>
+          this.emit({ type: 'windowCommand', extensionId: this.extensionId, command: 'popToRoot' }),
+        clearSearchBar: () =>
+          this.emit({
+            type: 'windowCommand',
+            extensionId: this.extensionId,
+            command: 'clearSearchBar',
+          }),
+        launchCommand: (commandId: string, query?: string) =>
+          this.emit({
+            type: 'launchCommand',
+            extensionId: this.extensionId,
+            commandId,
+            query,
+          }),
+      };
       this.reactRoot.update({
         ...props,
+        window,
         native,
         capabilities: createCapabilities(native.call),
         signal: this.controller.signal,

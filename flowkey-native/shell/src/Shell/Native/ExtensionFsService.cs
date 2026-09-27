@@ -34,6 +34,11 @@ public sealed class ExtensionFsService
             "fs.delete" => Delete(parameters, interpolatedScopes),
             "fs.glob" => Glob(parameters, interpolatedScopes),
             "fs.stat" => Stat(parameters, interpolatedScopes),
+            "fs.mkdir" => Mkdir(parameters, interpolatedScopes),
+            "fs.exists" => Exists(parameters, interpolatedScopes),
+            "fs.copy" => Copy(parameters, interpolatedScopes),
+            "fs.move" => Move(parameters, interpolatedScopes),
+            "fs.trash" => Trash(parameters, interpolatedScopes),
             _ => NativeCallOutcome.Failure("notImplemented", $"native method '{method}' is not implemented by this shell"),
         };
     }
@@ -209,6 +214,135 @@ public sealed class ExtensionFsService
         }
     }
 
+    private static NativeCallOutcome Mkdir(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes)
+    {
+        if (!TryPath(parameters, scopes, out var path, out var failure))
+        {
+            return failure!;
+        }
+        try
+        {
+            Directory.CreateDirectory(path);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (IOException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+    }
+
+    private static NativeCallOutcome Exists(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes)
+    {
+        if (!TryPath(parameters, scopes, out var path, out var failure))
+        {
+            return failure!;
+        }
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new
+        {
+            ok = true,
+            exists = File.Exists(path) || Directory.Exists(path),
+        }));
+    }
+
+    private static NativeCallOutcome Copy(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes)
+    {
+        if (!TryTwoPaths(parameters, "from", "to", scopes, out var from, out var to, out var failure))
+        {
+            return failure!;
+        }
+        try
+        {
+            if (!File.Exists(from))
+            {
+                return NativeCallOutcome.Failure("fileNotFound", $"file '{from}' does not exist");
+            }
+            File.Copy(from, to, overwrite: false);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (IOException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+    }
+
+    private static NativeCallOutcome Move(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes)
+    {
+        if (!TryTwoPaths(parameters, "from", "to", scopes, out var from, out var to, out var failure))
+        {
+            return failure!;
+        }
+        try
+        {
+            if (!File.Exists(from))
+            {
+                return NativeCallOutcome.Failure("fileNotFound", $"file '{from}' does not exist");
+            }
+            File.Move(from, to, overwrite: false);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (IOException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return NativeCallOutcome.Failure("fsFailed", ex.Message);
+        }
+    }
+
+    private static NativeCallOutcome Trash(Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes)
+    {
+        if (!TryPath(parameters, scopes, out var path, out var failure))
+        {
+            return failure!;
+        }
+        if (!RecycleBin.TryTrash(path, out var trashError))
+        {
+            return NativeCallOutcome.Failure("fsFailed", trashError ?? "recycle bin operation failed");
+        }
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
+    private static bool TryTwoPaths(
+        Dictionary<string, JsonElement>? parameters, string fromName, string toName, IReadOnlyList<string> scopes,
+        out string from, out string to, out NativeCallOutcome? failure)
+    {
+        failure = null;
+        from = "";
+        to = "";
+        if (!TryPath(parameters, scopes, out var first, out var fromFailure, fromName) || fromFailure is not null)
+        {
+            failure = fromFailure ?? NativeCallOutcome.Failure("invalidParams", $"fs methods require a string '{fromName}' parameter");
+            return false;
+        }
+        if (parameters is null
+            || !parameters.TryGetValue(toName, out var toElement)
+            || toElement.ValueKind != JsonValueKind.String)
+        {
+            failure = NativeCallOutcome.Failure("invalidParams", $"fs methods require a string '{toName}' parameter");
+            return false;
+        }
+        var second = toElement.GetString() ?? "";
+        if (!FsPolicy.IsAllowed(second, scopes))
+        {
+            failure = NativeCallOutcome.Failure(
+                "pathNotInScope",
+                $"path '{second}' is outside the filesystem scopes declared by this extension");
+            return false;
+        }
+        from = first;
+        to = second;
+        return true;
+    }
+
     /// <summary>
     /// The static directory prefix of every scope (everything before the
     /// first wildcard character), used as the enumeration root for relative
@@ -242,13 +376,13 @@ public sealed class ExtensionFsService
 
     private static bool TryPath(
         Dictionary<string, JsonElement>? parameters, IReadOnlyList<string> scopes,
-        out string path, out NativeCallOutcome? failure)
+        out string path, out NativeCallOutcome? failure, string parameterName = "path")
     {
         failure = null;
         path = "";
-        if (parameters is null || !parameters.TryGetValue("path", out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
+        if (parameters is null || !parameters.TryGetValue(parameterName, out var pathElement) || pathElement.ValueKind != JsonValueKind.String)
         {
-            failure = NativeCallOutcome.Failure("invalidParams", "fs methods require a string 'path' parameter");
+            failure = NativeCallOutcome.Failure("invalidParams", $"fs methods require a string '{parameterName}' parameter");
             return false;
         }
         path = pathElement.GetString() ?? "";

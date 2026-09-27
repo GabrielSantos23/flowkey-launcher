@@ -14,6 +14,7 @@ public sealed class ExtensionPackageManager
     private readonly SecretsStore secretsStore;
     private readonly TokenVault tokenVault;
     private readonly ExtensionStorageStore storageStore;
+    private readonly ExtensionCacheStore cacheStore;
     private readonly string iconCacheImagesDirectory;
 
     public ExtensionPackageManager(
@@ -22,6 +23,7 @@ public sealed class ExtensionPackageManager
         SecretsStore secretsStore,
         TokenVault tokenVault,
         ExtensionStorageStore storageStore,
+        ExtensionCacheStore cacheStore,
         string iconCacheImagesDirectory)
     {
         this.store = store;
@@ -29,6 +31,7 @@ public sealed class ExtensionPackageManager
         this.secretsStore = secretsStore;
         this.tokenVault = tokenVault;
         this.storageStore = storageStore;
+        this.cacheStore = cacheStore;
         this.iconCacheImagesDirectory = iconCacheImagesDirectory;
     }
 
@@ -77,6 +80,7 @@ public sealed class ExtensionPackageManager
         secretsStore.RemoveExtension(extensionId);
         tokenVault.RemoveAll(extensionId);
         storageStore.RemoveExtension(extensionId);
+        cacheStore.RemoveExtension(extensionId);
         try
         {
             var imageCache = Path.Combine(iconCacheImagesDirectory, extensionId);

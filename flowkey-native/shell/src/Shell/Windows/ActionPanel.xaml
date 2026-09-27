@@ -71,7 +71,7 @@
               <TextBlock Grid.Column="1"
                          Text="{Binding Action.Title}"
                          FontSize="{DynamicResource TitleFontSize}"
-                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         Foreground="{Binding TitleBrush}"
                          VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis" />
               <Border Grid.Column="2"

@@ -40,10 +40,10 @@ public static class CommandToggles
         }
     }
 
-    public static bool IsEnabled(string extensionId, string commandId)
+    public static bool IsEnabled(string extensionId, string commandId, bool defaultEnabled = true)
     {
         var values = Load();
-        return !values.TryGetValue(Key(extensionId, commandId), out var enabled) || enabled;
+        return values.TryGetValue(Key(extensionId, commandId), out var enabled) ? enabled : defaultEnabled;
     }
 
     public static void SetEnabled(string extensionId, string commandId, bool enabled)

@@ -7,8 +7,9 @@ import {
   type ListTree,
   type UiTree,
 } from '@flowkey-cli/native-sdk';
-import { Action, ActionPanel, Detail, Grid, List, ReactRoot, ReactUiError } from '../src';
+import { Action, ActionPanel, Detail, Form, Grid, List, ReactRoot, ReactUiError } from '../src';
 import type { CommittedGeneration, CommandProps, ListItemProps, ListProps } from '../src';
+import type { FormTree } from '@flowkey-cli/native-sdk';
 
 function baseProps(overrides: Partial<CommandProps> = {}): CommandProps {
   const native = {
@@ -21,6 +22,18 @@ function baseProps(overrides: Partial<CommandProps> = {}): CommandProps {
     native,
     capabilities: createCapabilities(native.call),
     signal: new AbortController().signal,
+    window: {
+      closeMainWindow: () => {},
+      popToRoot: () => {},
+      clearSearchBar: () => {},
+      launchCommand: () => {},
+    },
+    environment: {
+      extensionId: 'test-ext',
+      extensionName: 'Test Extension',
+      extensionVersion: '1.0.0',
+      isDevelopment: true,
+    },
     ...overrides,
   };
 }
@@ -562,5 +575,302 @@ describe('push actions', () => {
       { onCommit: () => {}, onError: () => {} },
     );
     expect(() => root.update(props)).toThrow(/non-empty sub-view key/);
+  });
+});
+
+describe('phase 5 serializer features', () => {
+  test('list items serialize keywords and accessories; trees carry loading and placeholder', () => {
+    const generation = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          { isLoading: true, searchBarPlaceholder: 'Search symbols...' },
+          createElement(List.Item, {
+            id: 'rocket',
+            title: 'Rocket',
+            keywords: ['rocket', 'launch'],
+            accessories: [
+              { text: 'Symbol', tooltip: 'Unicode category', color: 'secondary' },
+              { text: 'new', color: 'success' },
+            ],
+            actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+          }),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    ).update(baseProps());
+    const tree = generation!.tree as ListTree;
+    expect(tree.isLoading).toBe(true);
+    expect(tree.searchBarPlaceholder).toBe('Search symbols...');
+    const item = tree.sections[0].items[0];
+    expect(item.keywords).toEqual(['rocket', 'launch']);
+    expect(item.accessories).toEqual([
+      { text: 'Symbol', tooltip: 'Unicode category', color: 'secondary' },
+      { text: 'new', color: 'success' },
+    ]);
+  });
+
+  test('detail metadata fields support link, tags and separator variants', () => {
+    const generation = new ReactRoot(
+      () =>
+        createElement(
+          Detail,
+          {
+            title: 'Rocket',
+            actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+          },
+          createElement(
+            Detail.Metadata,
+            null,
+            createElement(Detail.Metadata.Field, { label: 'Version', value: '2.0' }),
+            createElement(Detail.Metadata.Field, {
+              label: 'Repository',
+              value: 'github.com/x/y',
+              href: 'https://github.com/x/y',
+            }),
+            createElement(Detail.Metadata.Field, {
+              label: 'Tags',
+              kind: 'tags',
+              tags: ['alpha', 'beta'],
+            }),
+            createElement(Detail.Metadata.Field, { label: '', value: '', kind: 'separator' }),
+          ),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    ).update(baseProps());
+    const tree = generation!.tree as DetailTree;
+    expect(tree.fields[1].kind).toBe('link');
+    expect(tree.fields[1].href).toBe('https://github.com/x/y');
+    expect(tree.fields[2].kind).toBe('tags');
+    expect(tree.fields[2].tags).toEqual(['alpha', 'beta']);
+    expect(tree.fields[3].kind).toBe('separator');
+  });
+
+  test('actions serialize a destructive style and a shortcut hint', () => {
+    const generation = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          null,
+          createElement(List.Item, {
+            id: 'x',
+            title: 'X',
+            actions: createElement(
+              ActionPanel,
+              null,
+              createElement(Action, {
+                title: 'Remove',
+                onAction: () => {},
+                style: 'destructive',
+                shortcut: { key: 'backspace', modifiers: ['ctrl'] },
+              }),
+            ),
+          }),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    ).update(baseProps());
+    const tree = generation!.tree as ListTree;
+    const action = tree.sections[0].items[0].actions![0];
+    expect(action.style).toBe('destructive');
+    expect(action.shortcut).toEqual({ key: 'backspace', modifiers: ['ctrl'] });
+  });
+
+  test('unknown accessory colors are rejected', () => {
+    expect(() => {
+      const root = new ReactRoot(
+        () =>
+          createElement(
+            List,
+            null,
+            createElement(List.Item, {
+              id: 'x',
+              title: 'X',
+              accessories: [{ text: 'a', color: 'purple' as never }],
+              actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+            }),
+          ),
+        { onCommit: () => {}, onError: () => {} },
+      );
+      root.update(baseProps());
+    }).toThrow('color must be one of');
+  });
+});
+
+describe('list pagination', () => {
+  test('registers the load-more handler and serializes the pagination block', () => {
+    let loaded = false;
+    const root = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          {
+            pagination: {
+              hasNextPage: true,
+              pageSize: 50,
+              onLoadMore: () => {
+                loaded = true;
+              },
+            },
+          },
+          createElement(List.Item, {
+            id: 'x',
+            title: 'X',
+            actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+          }),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    );
+    const generation = root.update(baseProps())!;
+    const tree = generation.tree as ListTree;
+    expect(tree.pagination?.hasNextPage).toBe(true);
+    expect(tree.pagination?.pageSize).toBe(50);
+    expect(typeof generation.registry.resolve(tree.pagination!.moreActionId)).toBe('function');
+    generation.registry.resolve(tree.pagination!.moreActionId)!();
+    expect(loaded).toBe(true);
+    root.unmount();
+  });
+
+  test('collapses to no pagination when hasNextPage is false', () => {
+    const root = new ReactRoot(
+      () =>
+        createElement(
+          List,
+          {
+            pagination: { hasNextPage: false, onLoadMore: () => {} },
+          },
+          createElement(List.Item, {
+            id: 'x',
+            title: 'X',
+            actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+          }),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    );
+    const tree = root.update(baseProps())!.tree as ListTree;
+    expect(tree.pagination).toBeUndefined();
+    root.unmount();
+  });
+
+  test('rejects pagination without an onLoadMore function', () => {
+    expect(() => {
+      const root = new ReactRoot(
+        () =>
+          createElement(
+            List,
+            { pagination: { hasNextPage: true } as never },
+            createElement(List.Item, {
+              id: 'x',
+              title: 'X',
+              actions: createElement(Action, { title: 'Go', onAction: () => {} }),
+            }),
+          ),
+        { onCommit: () => {}, onError: () => {} },
+      );
+      root.update(baseProps());
+    }).toThrow('onLoadMore');
+  });
+});
+
+describe('form serializer', () => {
+  test('serializes a form tree with fields, actions and a registered submit handler', () => {
+    let submitted: Record<string, unknown> | null = null;
+    const generation = new ReactRoot(
+      () =>
+        createElement(
+          Form,
+          {
+            title: 'New note',
+            onSubmit: (values) => {
+              submitted = values;
+            },
+            actions: createElement(Action, { title: 'Create', primary: true, onAction: () => {} }),
+          },
+          createElement(Form.TextField, {
+            id: 'title',
+            label: 'Title',
+            required: true,
+            placeholder: 'Note title',
+          }),
+          createElement(Form.Dropdown, {
+            id: 'vault',
+            label: 'Vault',
+            options: [
+              { value: 'personal', title: 'Personal' },
+              { value: 'work', title: 'Work' },
+            ],
+            default: 'personal',
+          }),
+          createElement(Form.Checkbox, { id: 'pinned', label: 'Pin to top', default: false }),
+          createElement(Form.TagPicker, {
+            id: 'tags',
+            label: 'Tags',
+            options: [{ value: 'idea', title: 'Idea' }],
+            defaults: ['idea'],
+          }),
+          createElement(Form.DatePicker, { id: 'due', label: 'Due date' }),
+          createElement(Form.FilePicker, {
+            id: 'attachment',
+            label: 'Attachment',
+            canChooseFiles: true,
+          }),
+          createElement(Form.TextArea, { id: 'body', label: 'Body' }),
+          createElement(Form.PasswordField, { id: 'secret', label: 'Access key' }),
+          createElement(Form.Description, { label: 'Saved to the vault you picked.' }),
+          createElement(Form.Separator, null),
+        ),
+      { onCommit: () => {}, onError: () => {} },
+    ).update(baseProps())!;
+    const tree = generation.tree as FormTree;
+    expect(tree.type).toBe('form');
+    expect(tree.title).toBe('New note');
+    expect(tree.fields.map((f) => f.kind)).toEqual([
+      'textfield',
+      'dropdown',
+      'checkbox',
+      'tagpicker',
+      'datepicker',
+      'filepicker',
+      'textarea',
+      'password',
+      'description',
+      'separator',
+    ]);
+    const title = tree.fields[0];
+    expect(title.required).toBe(true);
+    expect(title.placeholder).toBe('Note title');
+    expect(tree.fields[1].default).toBe('personal');
+    expect(tree.fields[3].defaults).toEqual(['idea']);
+    expect(tree.actions?.[0].primary).toBe(true);
+    expect(typeof generation.registry.resolve(tree.submitActionId!)).toBe('function');
+    generation.registry.resolve(tree.submitActionId!)!({ title: 'Hello' });
+    expect((submitted as Record<string, unknown> | null) ?? null).toEqual({ title: 'Hello' });
+  });
+
+  test('rejects duplicate field ids and unknown children', () => {
+    expect(() => {
+      const root = new ReactRoot(
+        () =>
+          createElement(
+            Form,
+            { title: 'F' },
+            createElement(Form.TextField, { id: 'a' }),
+            createElement(Form.TextField, { id: 'a' }),
+          ),
+        { onCommit: () => {}, onError: () => {} },
+      );
+      root.update(baseProps());
+    }).toThrow('duplicate');
+
+    expect(() => {
+      const root = new ReactRoot(
+        () =>
+          createElement(
+            Form,
+            { title: 'F' },
+            createElement(List.Item, { id: 'x', title: 'X', actions: undefined as never }),
+          ),
+        { onCommit: () => {}, onError: () => {} },
+      );
+      root.update(baseProps());
+    }).toThrow('Form field components');
   });
 });

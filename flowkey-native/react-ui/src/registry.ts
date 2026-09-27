@@ -1,6 +1,12 @@
 import { ReactUiError } from './errors';
 
-export type ActionHandler = () => void | Promise<void>;
+/**
+ * Handlers registered against action ids. Regular actions ignore the payload;
+ * a form's submit handler receives the shell-collected field values.
+ */
+export type ActionHandler = (payload?: unknown) => void | Promise<void>;
+
+export type FormSubmitHandler = (values: Record<string, unknown>) => void | Promise<void>;
 
 export class ActionRegistry {
   private handlers = new Map<string, ActionHandler>();

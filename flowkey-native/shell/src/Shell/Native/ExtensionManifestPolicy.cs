@@ -25,6 +25,8 @@ public static class ExtensionManifestValidator
     private const int MaxNameLength = 50;
     private const int MaxDescriptionLength = 200;
     private const int MaxCommandTitleLength = 80;
+        private const int MinCommandIntervalSeconds = 60;
+        private const int MaxCommandArguments = 8;
     private const int MaxCommands = 128;
     private const int MaxNativeMethods = 128;
     private const int MaxHttpHosts = 64;
@@ -198,6 +200,109 @@ public static class ExtensionManifestValidator
                 {
                     Add(errors, $"{field}.keywords", "format", "keywords must be an array of strings");
                 }
+                if (command.TryGetProperty("subtitle", out var subtitle) && subtitle.ValueKind != JsonValueKind.Undefined)
+                {
+                    if (subtitle.ValueKind != JsonValueKind.String)
+                    {
+                        Add(errors, $"{field}.subtitle", "format", "command subtitle must be a string");
+                    }
+                    else if (subtitle.GetString()!.Length > MaxCommandTitleLength)
+                    {
+                        Add(errors, $"{field}.subtitle", "tooLong", $"command subtitle must be at most {MaxCommandTitleLength} characters");
+                    }
+                }
+                if (command.TryGetProperty("disabledByDefault", out var disabledByDefault)
+                    && disabledByDefault.ValueKind != JsonValueKind.Undefined
+                    && disabledByDefault.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                {
+                    Add(errors, $"{field}.disabledByDefault", "format", "command disabledByDefault must be a boolean");
+                }
+                if (command.TryGetProperty("interval", out var interval) && interval.ValueKind != JsonValueKind.Undefined)
+                {
+                    if (interval.ValueKind != JsonValueKind.Number || !interval.TryGetInt32(out var intervalSeconds))
+                    {
+                        Add(errors, $"{field}.interval", "format", "command interval must be an integer number of seconds");
+                    }
+                    else if (intervalSeconds < MinCommandIntervalSeconds)
+                    {
+                        Add(errors, $"{field}.interval", "format", $"command interval must be at least {MinCommandIntervalSeconds} seconds");
+                    }
+                    else if (!command.TryGetProperty("mode", out var intervalMode) || intervalMode.GetString() != "background")
+                    {
+                        Add(errors, $"{field}.interval", "format", "command interval requires mode background");
+                    }
+                }
+                if (command.TryGetProperty("arguments", out var commandArguments) && commandArguments.ValueKind != JsonValueKind.Undefined)
+                {
+                    if (commandArguments.ValueKind != JsonValueKind.Array)
+                    {
+                        Add(errors, $"{field}.arguments", "format", "command arguments must be an array");
+                    }
+                    else
+                    {
+                        if (commandArguments.GetArrayLength() > MaxCommandArguments)
+                        {
+                            Add(errors, $"{field}.arguments", "tooMany", $"at most {MaxCommandArguments} command arguments are allowed");
+                        }
+                        var seenArgumentNames = new HashSet<string>(StringComparer.Ordinal);
+                        var argumentIndex = 0;
+                        foreach (var argument in commandArguments.EnumerateArray())
+                        {
+                            var argumentField = $"{field}.arguments[{argumentIndex}]";
+                            if (argument.ValueKind != JsonValueKind.Object)
+                            {
+                                Add(errors, argumentField, "format", "command argument must be an object");
+                                argumentIndex++;
+                                continue;
+                            }
+                            if (!argument.TryGetProperty("name", out var argumentName)
+                                || argumentName.ValueKind != JsonValueKind.String
+                                || !System.Text.RegularExpressions.Regex.IsMatch(argumentName.GetString() ?? "", "^[a-zA-Z_][a-zA-Z0-9_]*$"))
+                            {
+                                Add(errors, $"{argumentField}.name", "format", "argument name must match ^[a-zA-Z_][a-zA-Z0-9_]*$");
+                            }
+                            else if (!seenArgumentNames.Add(argumentName.GetString()!))
+                            {
+                                Add(errors, $"{argumentField}.name", "duplicate", $"duplicate argument name '{argumentName.GetString()}'");
+                            }
+                            var argumentType = argument.TryGetProperty("type", out var argumentTypeElement)
+                                && argumentTypeElement.ValueKind == JsonValueKind.String
+                                    ? argumentTypeElement.GetString()
+                                    : null;
+                            if (argumentType is not ("text" or "password" or "dropdown"))
+                            {
+                                Add(errors, $"{argumentField}.type", "format", "argument type must be 'text' | 'password' | 'dropdown'");
+                            }
+                            else if (argumentType == "dropdown")
+                            {
+                                var dataOk = argument.TryGetProperty("data", out var argumentData)
+                                    && argumentData.ValueKind == JsonValueKind.Array
+                                    && argumentData.GetArrayLength() > 0
+                                    && argumentData.EnumerateArray().Any(o =>
+                                        o.ValueKind == JsonValueKind.Object
+                                        && o.TryGetProperty("value", out var dataValue) && dataValue.ValueKind == JsonValueKind.String
+                                        && o.TryGetProperty("title", out var dataTitle) && dataTitle.ValueKind == JsonValueKind.String);
+                                if (!dataOk)
+                                {
+                                    Add(errors, $"{argumentField}.data", "required", "dropdown argument requires data with value and title");
+                                }
+                            }
+                            if (!argument.TryGetProperty("placeholder", out var argumentPlaceholder)
+                                || argumentPlaceholder.ValueKind != JsonValueKind.String
+                                || string.IsNullOrWhiteSpace(argumentPlaceholder.GetString()))
+                            {
+                                Add(errors, $"{argumentField}.placeholder", "required", "argument placeholder is required");
+                            }
+                            if (argument.TryGetProperty("required", out var argumentRequired)
+                                && argumentRequired.ValueKind != JsonValueKind.Undefined
+                                && argumentRequired.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                            {
+                                Add(errors, $"{argumentField}.required", "format", "argument required must be a boolean");
+                            }
+                            argumentIndex++;
+                        }
+                    }
+                }
                 index++;
             }
         }
@@ -356,9 +461,9 @@ public static class ExtensionManifestValidator
                         && typeElement.ValueKind == JsonValueKind.String
                             ? typeElement.GetString()
                             : null;
-                    if (type is not ("text" or "password" or "checkbox" or "dropdown"))
+                    if (type is not ("text" or "password" or "checkbox" or "dropdown" or "file" or "directory" or "appPicker"))
                     {
-                        Add(errors, $"{field}.type", "format", "preference type must be 'text' | 'password' | 'checkbox' | 'dropdown'");
+                        Add(errors, $"{field}.type", "format", "preference type must be 'text' | 'password' | 'checkbox' | 'dropdown' | 'file' | 'directory' | 'appPicker'");
                     }
                     else if (type == "dropdown")
                     {
@@ -390,6 +495,14 @@ public static class ExtensionManifestValidator
                         {
                             Add(errors, $"{field}.default", "format", "preference default must be a string");
                         }
+                    }
+                    if (preference.TryGetProperty("label", out var prefLabel) && prefLabel.ValueKind != JsonValueKind.Undefined && prefLabel.ValueKind != JsonValueKind.String)
+                    {
+                        Add(errors, $"{field}.label", "format", "checkbox preference label must be a string");
+                    }
+                    if (preference.TryGetProperty("placeholder", out var prefPlaceholder) && prefPlaceholder.ValueKind != JsonValueKind.Undefined && prefPlaceholder.ValueKind != JsonValueKind.String)
+                    {
+                        Add(errors, $"{field}.placeholder", "format", "preference placeholder must be a string");
                     }
                     index++;
                 }

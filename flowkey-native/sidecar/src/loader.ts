@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import type {
   ExtensionModule,
   ExtensionManifest,
+  ExtensionWindow,
   PreferenceSchema,
   ReadyExtension,
   ReadyFailure,
@@ -13,6 +14,8 @@ import type {
   Preferences,
   UiTree,
   HudOptions,
+  ExtensionEnvironment,
+  Arguments,
 } from '@flowkey-cli/native-sdk';
 import { resolveEntry, validateManifest, createCapabilities } from '@flowkey-cli/native-sdk';
 import type { ReactExtensionModule } from '@flowkey-cli/react-ui';
@@ -28,8 +31,11 @@ import reactDemo from '@flowkey-cli/extension-react-demo';
 import lucideIcons from '@flowkey-cli/extension-lucide-icons';
 import obsidianNotes from '@flowkey-cli/extension-obsidian-notes';
 
-type LoadedFunctional = ExtensionModule & { preferences: Preferences };
-type LoadedReact = ReactExtensionModule & { preferences: Preferences };
+/** Where a loaded module came from: the repo's bundled registry or an installed package. */
+export type ModuleSource = 'bundled' | 'installed';
+
+type LoadedFunctional = ExtensionModule & { preferences: Preferences; source: ModuleSource };
+type LoadedReact = ReactExtensionModule & { preferences: Preferences; source: ModuleSource };
 export type LoadedModule = LoadedFunctional | LoadedReact;
 
 function isReactModule(module: LoadedModule): module is LoadedReact {
@@ -57,7 +63,23 @@ export function loadExtensions(): LoadedModule[] {
       return false;
     }
     return true;
-  }) as LoadedModule[];
+  }).map((m) => ({ ...m, preferences: {}, source: 'bundled' }) as LoadedModule);
+}
+
+/**
+ * Read-only facts about the running entry point, derived from the manifest and
+ * the module source. Injected into every functional context and React props.
+ */
+export function buildEnvironment(module: LoadedModule, commandId?: string): ExtensionEnvironment {
+  const command = commandId ? module.manifest.commands.find((c) => c.id === commandId) : undefined;
+  return {
+    extensionId: module.manifest.id,
+    extensionName: module.manifest.name,
+    extensionVersion: module.manifest.version,
+    commandId,
+    commandMode: command?.mode,
+    isDevelopment: module.source === 'bundled',
+  };
 }
 
 /**
@@ -140,6 +162,7 @@ function toLoadedModule(
     return {
       manifest,
       preferences: {},
+      source: 'installed',
       component: exposed.component as ReactExtensionModule['component'],
     } as LoadedReact;
   }
@@ -147,6 +170,7 @@ function toLoadedModule(
     return {
       manifest,
       preferences: {},
+      source: 'installed',
       handlers: exposed.handlers as ExtensionModule['handlers'],
     } as LoadedFunctional;
   }
@@ -185,6 +209,7 @@ export function applyInit(modules: LoadedModule[], init: InitMessage): LoadedMod
 export class Dispatcher {
   private bridge: NativeBridge;
   private roots: RootManager;
+  private readonly emit: (message: SidecarMessage) => void;
   private lastQuery = '';
   private lastExtensionId = '';
   private lastCommandId?: string;
@@ -195,6 +220,7 @@ export class Dispatcher {
     private loaded: LoadedModule[],
     emit: (message: SidecarMessage) => void,
   ) {
+    this.emit = emit;
     this.bridge = new NativeBridge(emit);
     this.roots = new RootManager(emit, (extensionId, method, params, options) =>
       this.bridge.call(extensionId, method, params, options),
@@ -208,6 +234,26 @@ export class Dispatcher {
   failPendingNativeCalls(error: { code: string; message: string }): void {
     this.roots.destroyAll();
     this.bridge.failAll(error);
+  }
+
+  /** Runs one background command on behalf of an interval schedule. */
+  async runBackgroundCommand(extensionId: string, commandId: string): Promise<void> {
+    const ext = this.loaded.find((e) => e.manifest.id === extensionId);
+    if (!ext || isReactModule(ext) || !ext.handlers.command) {
+      return;
+    }
+    if (!ext.manifest.commands.some((c) => c.id === commandId)) {
+      return;
+    }
+    try {
+      await ext.handlers.command(commandId, this.context(ext, commandId));
+    } catch (error) {
+      this.emit({
+        type: 'log',
+        level: 'error',
+        message: `background command ${extensionId}/${commandId} failed: ${describeError(error)}`,
+      });
+    }
   }
 
   async handle(message: HostMessage, emit: (message: SidecarMessage) => void): Promise<void> {
@@ -233,6 +279,8 @@ export class Dispatcher {
           message.item,
           message.requestId,
           emit,
+          message.arguments,
+          message.formValues,
         );
         break;
       case 'preferences': {
@@ -296,6 +344,8 @@ export class Dispatcher {
     item: Parameters<NonNullable<ExtensionModule['handlers']['onAction']>>[1],
     requestId: string,
     emit: (message: SidecarMessage) => void,
+    args?: Arguments,
+    formValues?: Record<string, unknown>,
   ): Promise<void> {
     const ext = this.loaded.find((e) => e.manifest.id === extensionId);
     if (!ext) {
@@ -339,11 +389,11 @@ export class Dispatcher {
             });
             return;
           }
-          await ext.handlers.command(commandId, this.context(ext));
+          await ext.handlers.command(commandId, this.context(ext, commandId, undefined, args));
           emit({ type: 'ack', requestId });
           return;
         }
-        const tree = await ext.handlers.search('', this.context(ext, commandId));
+        const tree = await ext.handlers.search('', this.context(ext, commandId, undefined, args));
         this.lastQuery = '';
         this.lastExtensionId = extensionId;
         this.lastCommandId = commandId;
@@ -372,7 +422,7 @@ export class Dispatcher {
           return;
         }
         try {
-          await handler();
+          await handler(formValues);
           const generation = root.reactRoot.current;
           if (!generation) {
             emit({
@@ -393,7 +443,7 @@ export class Dispatcher {
       }
 
       const tree: UiTree | null | undefined = ext.handlers.onAction
-        ? await ext.handlers.onAction(actionId, item, this.context(ext))
+        ? await ext.handlers.onAction(actionId, item, this.context(ext), formValues)
         : null;
       if (tree) {
         emit({ type: 'ui', requestId, tree });
@@ -428,7 +478,11 @@ export class Dispatcher {
     }
     root.responsePending = true;
     try {
-      root.updateProps({ ...props, preferences: ext.preferences });
+      root.updateProps({
+        ...props,
+        preferences: ext.preferences,
+        environment: buildEnvironment(ext, props.commandId),
+      });
       const generation = root.reactRoot.current;
       if (!generation) {
         emit({
@@ -469,6 +523,8 @@ export class Dispatcher {
         query: props.query,
         filterValue: props.filterValue,
         preferences: ext.preferences,
+        environment: buildEnvironment(ext),
+        window: this.windowFor(ext.manifest.id),
         native,
         capabilities: createCapabilities(native.call),
         signal: new AbortController().signal,
@@ -491,7 +547,24 @@ export class Dispatcher {
     this.roots.destroyAll();
   }
 
-  private context(ext: LoadedFunctional, commandId?: string, filterValue?: string) {
+  private windowFor(extensionId: string): ExtensionWindow {
+    return {
+      closeMainWindow: () =>
+        this.emit({ type: 'windowCommand', extensionId, command: 'closeMainWindow' }),
+      popToRoot: () => this.emit({ type: 'windowCommand', extensionId, command: 'popToRoot' }),
+      clearSearchBar: () =>
+        this.emit({ type: 'windowCommand', extensionId, command: 'clearSearchBar' }),
+      launchCommand: (commandId: string, query?: string) =>
+        this.emit({ type: 'launchCommand', extensionId, commandId, query }),
+    };
+  }
+
+  private context(
+    ext: LoadedFunctional,
+    commandId?: string,
+    filterValue?: string,
+    args?: Arguments,
+  ) {
     const native = {
       call: <T = unknown>(
         method: string,
@@ -505,10 +578,39 @@ export class Dispatcher {
       preferences: ext.preferences,
       commandId,
       filterValue,
+      arguments: args,
+      environment: buildEnvironment(ext, commandId),
+      window: this.windowFor(ext.manifest.id),
       native,
       capabilities: createCapabilities(native.call),
     };
   }
+}
+
+export interface BackgroundSchedule {
+  extensionId: string;
+  commandId: string;
+  intervalSeconds: number;
+}
+
+/**
+ * Background commands that declare an `interval` (already validated to be
+ * >= 60 s and background-mode by the manifest validators).
+ */
+export function collectBackgroundSchedules(modules: LoadedModule[]): BackgroundSchedule[] {
+  const schedules: BackgroundSchedule[] = [];
+  for (const module of modules) {
+    for (const command of module.manifest.commands) {
+      if (command.mode === 'background' && typeof command.interval === 'number') {
+        schedules.push({
+          extensionId: module.manifest.id,
+          commandId: command.id,
+          intervalSeconds: command.interval,
+        });
+      }
+    }
+  }
+  return schedules;
 }
 
 function toProtocolError(error: unknown): { code: string; message: string } {

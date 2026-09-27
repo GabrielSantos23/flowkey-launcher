@@ -164,13 +164,17 @@ public partial class ActionPanel : Window
         {
             Action = action;
             Icon = LucideIcon.Load(ActionIconName(action.Id));
-            IconBrush = (Brush)Application.Current.FindResource("TextPrimaryBrush");
+            var destructive = string.Equals(action.Style, "destructive", StringComparison.Ordinal);
+            var brushKey = destructive ? "DangerBrush" : "TextPrimaryBrush";
+            IconBrush = (Brush)Application.Current.FindResource(brushKey);
+            TitleBrush = IconBrush;
             EnterKeycapVisibility = action.Primary == true ? Visibility.Visible : Visibility.Collapsed;
         }
 
         public UiAction Action { get; }
         public Geometry? Icon { get; }
         public Brush IconBrush { get; }
+        public Brush TitleBrush { get; }
         public Visibility EnterKeycapVisibility { get; }
 
         private static string ActionIconName(string actionId) => actionId switch

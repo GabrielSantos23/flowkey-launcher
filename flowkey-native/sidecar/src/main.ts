@@ -1,6 +1,7 @@
 import { PROTOCOL_VERSION, type HostMessage, type SidecarMessage } from '@flowkey-cli/native-sdk';
 import {
   Dispatcher,
+  collectBackgroundSchedules,
   applyInit,
   loadExtensions,
   loadInstalledExtensions,
@@ -12,6 +13,21 @@ import { installHostGlobals } from './hostGlobals';
 installHostGlobals();
 
 const staticModules = loadExtensions();
+
+/**
+ * Re-runs background commands that declare an `interval` for the lifetime of
+ * the sidecar. Failures are logged, never fatal — the next tick retries.
+ */
+const backgroundTimers: ReturnType<typeof setInterval>[] = [];
+
+function startBackgroundSchedules(dispatcher: Dispatcher, modules: LoadedModule[]): void {
+  for (const schedule of collectBackgroundSchedules(modules)) {
+    const timer = setInterval(() => {
+      void dispatcher.runBackgroundCommand(schedule.extensionId, schedule.commandId);
+    }, schedule.intervalSeconds * 1000);
+    backgroundTimers.push(timer);
+  }
+}
 
 function emit(message: SidecarMessage): void {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -84,6 +100,7 @@ async function handleInit(message: Extract<HostMessage, { type: 'init' }>): Prom
     ...installed.filter((m) => !disabled.has(m.manifest.id)),
   ];
   dispatcher = new Dispatcher(applyInit(modules, message), emit);
+  startBackgroundSchedules(dispatcher, applyInit(modules, message));
   emit({
     type: 'ready',
     protocolVersion: PROTOCOL_VERSION,

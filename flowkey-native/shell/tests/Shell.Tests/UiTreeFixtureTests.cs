@@ -130,6 +130,86 @@ public class UiTreeFixtureTests
     }
 
     [Fact]
+    public void ListItemsCarryKeywordsAccessoriesLoadingAndPlaceholder()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
+        var list = Assert.IsType<ListTree>(tree);
+
+        var rocket = list.Sections[0].Items.Single(i => i.Id == "🚀");
+        Assert.Contains("rocket", rocket.Keywords!);
+        Assert.Equal("Symbol", rocket.Accessories![0].Text);
+        Assert.Equal("Unicode category", rocket.Accessories[0].Tooltip);
+        Assert.Equal("secondary", rocket.Accessories[0].Color);
+        Assert.Equal("success", rocket.Accessories[1].Color);
+        Assert.False(list.IsLoading!.Value);
+        Assert.Equal("Search symbols...", list.SearchBarPlaceholder);
+
+        var grid = Assert.IsType<GridTree>(JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("grid").GetRawText(), JsonOptions.Default));
+        Assert.True(grid.IsLoading!.Value);
+        Assert.Equal("Search results...", grid.SearchBarPlaceholder);
+    }
+
+    [Fact]
+    public void FormFixtureDeserializesIntoFormTree()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("form").GetRawText(), JsonOptions.Default);
+
+        var form = Assert.IsType<FormTree>(tree);
+        Assert.Equal("New note", form.Title);
+        Assert.Equal(10, form.Fields.Count);
+        Assert.Contains(form.Fields, f => f.Kind == "textfield" && f.Required == true);
+        var vault = form.Fields.Single(f => f.Id == "vault");
+        Assert.Equal(2, vault.Options!.Count);
+        Assert.Equal("personal", vault.Default!.Value.GetString());
+        var tags = form.Fields.Single(f => f.Id == "tags");
+        Assert.Equal(["idea"], tags.Defaults);
+        Assert.Contains(form.Actions, a => a.Primary == true);
+        Assert.Equal("submit-1", form.SubmitActionId);
+    }
+
+    [Fact]
+    public void ListTreesMayDeclarePagination()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
+        var list = Assert.IsType<ListTree>(tree);
+
+        Assert.True(list.Pagination!.HasNextPage);
+        Assert.Equal("load-more-1", list.Pagination.MoreActionId);
+        Assert.Equal(50, list.Pagination.PageSize);
+    }
+
+    [Fact]
+    public void ActionsMayDeclareDestructiveStyleAndShortcutHint()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("list").GetRawText(), JsonOptions.Default);
+        var list = Assert.IsType<ListTree>(tree);
+
+        var remove = list.Sections[0].Items[0].Actions!.Single(a => a.Id == "remove");
+        Assert.Equal("destructive", remove.Style);
+        Assert.Equal("backspace", remove.Shortcut!.Key);
+        Assert.Equal(["ctrl"], remove.Shortcut.Modifiers);
+    }
+
+    [Fact]
+    public void DetailMetadataSupportsLinkTagsAndSeparatorVariants()
+    {
+        var fixture = UiFixture();
+        var tree = JsonSerializer.Deserialize<UiTree>(fixture.RootElement.GetProperty("detail").GetRawText(), JsonOptions.Default);
+        var detail = Assert.IsType<DetailTree>(tree);
+
+        var link = detail.Fields.Single(f => f.Label == "Repository");
+        Assert.Equal("https://github.com/x/y", link.Href);
+        var tags = detail.Fields.Single(f => f.Label == "Tags");
+        Assert.Equal("tags", tags.Kind);
+        Assert.Equal(["alpha", "beta"], tags.Tags);
+        Assert.Equal("separator", detail.Fields[^1].Kind);
+    }
+
+    [Fact]
     public void ListFixtureCarriesOptionalKind()
     {
         var fixture = UiFixture();
@@ -197,6 +277,7 @@ public class ProtocolFixtureTests
         Assert.False(string.IsNullOrWhiteSpace(action.RequestId));
         Assert.Equal("emoji", action.ExtensionId);
         Assert.False(string.IsNullOrWhiteSpace(action.Item!.Id));
+        Assert.Equal("push", action.Arguments!["direction"]);
     }
 
     [Fact]
@@ -205,6 +286,31 @@ public class ProtocolFixtureTests
         var search = Root().GetProperty("hostToSidecar").GetProperty("searchWithCommand").Deserialize<SearchMessage>(JsonOptions.Default)!;
         Assert.Equal("open", search.CommandId);
         Assert.Equal("clipboard-history", search.ExtensionId);
+    }
+
+    [Fact]
+    public void SearchMayCarryFilterValue()
+    {
+        var search = Root().GetProperty("hostToSidecar").GetProperty("searchWithCommand").Deserialize<SearchMessage>(JsonOptions.Default)!;
+        Assert.Equal("all", search.FilterValue);
+    }
+
+    [Fact]
+    public void NativeResultExamplesCoverOkAndErrorVariants()
+    {
+        var root = Root();
+
+        var ok = root.GetProperty("hostToSidecar").GetProperty("nativeResultOk").Deserialize<NativeResultMessage>(JsonOptions.Default)!;
+        Assert.Equal("nativeResult", ok.Type);
+        Assert.True(ok.Ok);
+        Assert.NotNull(ok.Result);
+
+        var failure = root.GetProperty("hostToSidecar").GetProperty("nativeResultError").Deserialize<NativeResultMessage>(JsonOptions.Default)!;
+        Assert.Equal("nativeResult", failure.Type);
+        Assert.False(failure.Ok);
+        Assert.NotNull(failure.Error);
+        Assert.Equal("hostNotAllowed", failure.Error!.Code);
+        Assert.False(string.IsNullOrWhiteSpace(failure.Error.Message));
     }
 
     [Fact]
@@ -249,6 +355,39 @@ public class ProtocolFixtureTests
         var denied = root.GetProperty("sidecarToHost").GetProperty("nativeCallDenied").Deserialize<NativeCallMessage>(JsonOptions.Default)!;
         Assert.Equal("emoji", denied.ExtensionId);
         Assert.Equal("http.fetch", denied.Method);
+    }
+
+    [Fact]
+    public void WindowCommandAndLaunchCommandCarryAttribution()
+    {
+        var root = Root();
+
+        var windowCommand = root.GetProperty("sidecarToHost").GetProperty("windowCommand").Deserialize<WindowCommandMessage>(JsonOptions.Default)!;
+        Assert.Equal("windowCommand", windowCommand.Type);
+        Assert.Equal("demo-ext", windowCommand.ExtensionId);
+        Assert.Equal("closeMainWindow", windowCommand.Command);
+
+        var launch = root.GetProperty("sidecarToHost").GetProperty("launchCommand").Deserialize<LaunchCommandMessage>(JsonOptions.Default)!;
+        Assert.Equal("launchCommand", launch.Type);
+        Assert.Equal("demo-ext", launch.ExtensionId);
+        Assert.Equal("open", launch.CommandId);
+        Assert.Equal("notes", launch.Query);
+    }
+
+    [Fact]
+    public void ToastAndAlertNativeCallsFollowWireShape()
+    {
+        var root = Root();
+
+        var toast = root.GetProperty("sidecarToHost").GetProperty("nativeCallToast").Deserialize<NativeCallMessage>(JsonOptions.Default)!;
+        Assert.Equal("toast.show", toast.Method);
+        Assert.Equal("Saved", toast.Params!["title"].GetString());
+        Assert.Equal("success", toast.Params!["style"].GetString());
+
+        var alert = root.GetProperty("sidecarToHost").GetProperty("nativeCallAlert").Deserialize<NativeCallMessage>(JsonOptions.Default)!;
+        Assert.Equal("alert.confirm", alert.Method);
+        Assert.Equal("Delete note?", alert.Params!["title"].GetString());
+        Assert.True(alert.Params!["destructive"].GetBoolean());
     }
 
     [Fact]

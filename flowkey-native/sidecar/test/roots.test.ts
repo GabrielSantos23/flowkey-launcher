@@ -15,6 +15,15 @@ const manifest = {
   httpHosts: [],
 };
 
+const environment = {
+  extensionId: 'test-ext',
+  extensionName: 'Test Ext',
+  extensionVersion: '1.0.0',
+  commandId: 'open',
+  commandMode: 'view' as const,
+  isDevelopment: false,
+};
+
 function itemTree(label: string): UiTree {
   return {
     type: 'list',
@@ -66,7 +75,7 @@ describe('ManagedRoot push throttle', () => {
       return createElement('list', null, createElement('list-item', { id: 'x', title: `t${n}` }));
     };
     const { root, messages } = makeRoot(component);
-    root.updateProps({ query: 'q', preferences: {} });
+    root.updateProps({ query: 'q', preferences: {}, environment });
     const pushes = () => messages.filter((m) => m.type === 'uiPush');
     expect(pushes().length).toBe(0);
     bump!(1);
@@ -96,7 +105,7 @@ describe('ManagedRoot push throttle', () => {
       return createElement('list', null, createElement('list-item', { id: 'x', title: `t${n}` }));
     };
     const { root, messages } = makeRoot(component);
-    root.updateProps({ query: 'q', preferences: {} });
+    root.updateProps({ query: 'q', preferences: {}, environment });
     const pushes = () => messages.filter((m) => m.type === 'uiPush');
     expect(pushes().length).toBe(0);
     for (let i = 0; i < 3; i++) {
@@ -105,6 +114,37 @@ describe('ManagedRoot push throttle', () => {
     }
     await sleep(PUSH_INTERVAL_MS);
     expect(pushes().length).toBe(0);
+    root.destroy();
+  });
+});
+
+describe('ManagedRoot environment', () => {
+  test('updateProps forwards the environment into the component props', () => {
+    let captured: CommandProps | undefined;
+    const component = (props: CommandProps) => {
+      captured = props;
+      return createElement('list');
+    };
+    const { root } = (() => {
+      const messages: SidecarMessage[] = [];
+      const manager = new RootManager(
+        (message) => messages.push(message),
+        (async () => undefined) as never,
+      );
+      return { root: manager.ensure('test-ext', 'open', { manifest, component }) };
+    })();
+    const environment = {
+      extensionId: 'test-ext',
+      extensionName: 'Test Ext',
+      extensionVersion: '1.0.0',
+      commandId: 'open',
+      commandMode: 'view' as const,
+      isDevelopment: false,
+    };
+
+    root.updateProps({ query: 'q', preferences: {}, environment });
+
+    expect(captured?.environment).toEqual(environment);
     root.destroy();
   });
 });
@@ -143,7 +183,7 @@ describe('ManagedRoot abort and drop-after-destroy', () => {
     };
     const manager = new RootManager((message) => messages.push(message), nativeCall as never);
     const root = manager.ensure('test-ext', 'open', { manifest, component });
-    root.updateProps({ query: '', preferences: {} });
+    root.updateProps({ query: '', preferences: {}, environment });
     await sleep(30);
     expect(nativeCalls).toEqual(['clipboard.write']);
     root.destroy();
@@ -166,7 +206,7 @@ describe('ManagedRoot abort and drop-after-destroy', () => {
       (async () => undefined) as never,
     );
     const root = manager.ensure('test-ext', 'open', { manifest, component });
-    root.updateProps({ query: '', preferences: {} });
+    root.updateProps({ query: '', preferences: {}, environment });
     root.destroy();
     let rejection: { code?: string } | null = null;
     try {
@@ -198,7 +238,7 @@ describe('ManagedRoot abort and drop-after-destroy', () => {
       return undefined;
     }) as never);
     const root = manager.ensure('test-ext', 'open', { manifest, component });
-    root.updateProps({ query: '', preferences: {} });
+    root.updateProps({ query: '', preferences: {}, environment });
     await sleep(30);
     expect(nativeCalls).toEqual([
       { method: 'hud.show', params: { title: 'Playing next track', duration: 5 } },

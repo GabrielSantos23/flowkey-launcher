@@ -1,14 +1,26 @@
 /**
- * Runtime shim aliased to `@flowkey-cli/native-sdk`. The SDK is types-only at
- * runtime (contexts and capabilities are injected as props); only the
- * `defineExtension` identity helper comes through the host.
+ * Runtime shim aliased to `@flowkey-cli/native-sdk`. Contexts and capabilities
+ * are injected as props by the sidecar; only the pure helpers come through the
+ * host globals so every extension shares one implementation.
  */
 const host = (
   globalThis as {
     __FLOWKEY_HOST__?: { nativeSdk?: Record<string, unknown> };
   }
 ).__FLOWKEY_HOST__;
+const nativeSdk = host?.nativeSdk ?? {};
+
+function missing(name: string): never {
+  throw new Error(
+    `the FlowKey sidecar did not provide @flowkey-cli/native-sdk (missing ${name}); rebuild the extension with @flowkey-cli/cli`,
+  );
+}
 
 export const defineExtension =
-  (host?.nativeSdk?.defineExtension as ((module: unknown) => unknown) | undefined) ??
+  (nativeSdk.defineExtension as ((module: unknown) => unknown) | undefined) ??
   ((module: unknown) => module);
+export const createCapabilities =
+  nativeSdk.createCapabilities ?? (() => missing('createCapabilities'));
+export const randomId = nativeSdk.randomId ?? (() => missing('randomId'));
+export const captureException =
+  nativeSdk.captureException ?? ((error: unknown) => missing('captureException'));

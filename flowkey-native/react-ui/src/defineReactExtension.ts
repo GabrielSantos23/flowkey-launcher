@@ -1,6 +1,9 @@
 import type { ComponentType } from 'react';
 import type {
+  Arguments,
+  ExtensionEnvironment,
   ExtensionManifest,
+  ExtensionWindow,
   FlowKeyCapabilities,
   HudOptions,
   Preferences,
@@ -19,7 +22,13 @@ export interface CommandProps {
   query: string;
   filterValue?: string;
   commandId?: string;
+  /** Captured command arguments, when the command declares them. */
+  arguments?: Arguments;
   preferences: Preferences;
+  /** Read-only facts about the extension and the entry point being rendered. */
+  environment: ExtensionEnvironment;
+  /** Window/launch controls forwarded to the shell by the sidecar. */
+  window: ExtensionWindow;
   native: ReactNativeContext;
   /** Typed capability groups (http, storage, clipboard, …) — same as `native`, but ergonomic. */
   capabilities: FlowKeyCapabilities;

@@ -41,6 +41,15 @@
                 "id": "open-album",
                 "title": "Go to Songs",
                 "push": "album-songs:al1"
+              },
+              {
+                "id": "remove",
+                "title": "Remove",
+                "style": "destructive",
+                "shortcut": {
+                  "key": "backspace",
+                  "modifiers": ["ctrl"]
+                }
               }
             ]
           },
@@ -76,7 +85,19 @@
               }
             ],
             "iconName": "rocket",
-            "iconColor": "#8B5CF6"
+            "iconColor": "#8B5CF6",
+            "keywords": ["rocket", "launch", "ship"],
+            "accessories": [
+              {
+                "text": "Symbol",
+                "tooltip": "Unicode category",
+                "color": "secondary"
+              },
+              {
+                "text": "new",
+                "color": "success"
+              }
+            ]
           }
         ]
       },
@@ -102,6 +123,13 @@
     "emptyView": {
       "title": "No matches",
       "description": "Try a different keyword"
+    },
+    "isLoading": false,
+    "searchBarPlaceholder": "Search symbols...",
+    "pagination": {
+      "hasNextPage": true,
+      "moreActionId": "load-more-1",
+      "pageSize": 50
     }
   },
   "detail": {
@@ -119,6 +147,20 @@
       {
         "label": "Codepoints",
         "value": "U+1F680"
+      },
+      {
+        "label": "Repository",
+        "value": "github.com/x/y",
+        "href": "https://github.com/x/y"
+      },
+      {
+        "label": "Tags",
+        "kind": "tags",
+        "tags": ["alpha", "beta"]
+      },
+      {
+        "label": "",
+        "kind": "separator"
       }
     ],
     "actions": [
@@ -217,6 +259,96 @@
     "emptyView": {
       "title": "Nothing here"
     },
-    "items": []
+    "items": [],
+    "isLoading": true,
+    "searchBarPlaceholder": "Search results..."
+  },
+  "form": {
+    "type": "form",
+    "title": "New note",
+    "fields": [
+      {
+        "id": "title",
+        "kind": "textfield",
+        "label": "Title",
+        "placeholder": "Note title",
+        "required": true
+      },
+      {
+        "id": "vault",
+        "kind": "dropdown",
+        "label": "Vault",
+        "options": [
+          {
+            "value": "personal",
+            "title": "Personal"
+          },
+          {
+            "value": "work",
+            "title": "Work"
+          }
+        ],
+        "default": "personal"
+      },
+      {
+        "id": "pinned",
+        "kind": "checkbox",
+        "label": "Pin to top",
+        "default": false
+      },
+      {
+        "id": "tags",
+        "kind": "tagpicker",
+        "label": "Tags",
+        "options": [
+          {
+            "value": "idea",
+            "title": "Idea"
+          },
+          {
+            "value": "todo",
+            "title": "To-do"
+          }
+        ],
+        "defaults": ["idea"]
+      },
+      {
+        "id": "due",
+        "kind": "datepicker",
+        "label": "Due date"
+      },
+      {
+        "id": "attachment",
+        "kind": "filepicker",
+        "label": "Attachment",
+        "canChooseFiles": true
+      },
+      {
+        "id": "body",
+        "kind": "textarea",
+        "label": "Body",
+        "placeholder": "Write here..."
+      },
+      {
+        "id": "secret",
+        "kind": "password",
+        "label": "Access key"
+      },
+      {
+        "kind": "description",
+        "label": "Saved to the vault you picked."
+      },
+      {
+        "kind": "separator"
+      }
+    ],
+    "actions": [
+      {
+        "id": "submit-1",
+        "title": "Create note",
+        "primary": true
+      }
+    ],
+    "submitActionId": "submit-1"
   }
 }

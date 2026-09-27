@@ -3,6 +3,7 @@ import Reconciler from 'react-reconciler';
 import { ConcurrentRoot } from 'react-reconciler/constants';
 import type { UiTree } from '@flowkey-cli/native-sdk';
 import { hostConfig } from './hostConfig';
+import { HostContext } from './hostContext';
 import { commitHooks, type HostContainer } from './node';
 import { ActionRegistry } from './registry';
 import { serializeUiTree } from './serialize';
@@ -57,7 +58,17 @@ export class ReactRoot {
     this.syncError = undefined;
     try {
       reconciler.updateContainerSync(
-        createElement(this.component, props),
+        createElement(
+          HostContext.Provider,
+          {
+            value: {
+              native: props.native,
+              capabilities: props.capabilities,
+              environment: props.environment,
+            },
+          },
+          createElement(this.component, props),
+        ),
         this.fiberRoot,
         null,
         null,

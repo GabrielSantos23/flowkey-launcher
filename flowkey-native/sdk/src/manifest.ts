@@ -25,6 +25,8 @@ const HTTP_HOST_PATTERN =
   /^(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*|[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*)(?::\d{1,5})?$/;
 
 export const DEFAULT_ENTRY = 'main.js';
+export const MIN_COMMAND_INTERVAL_SECONDS = 60;
+export const MAX_COMMAND_ARGUMENTS = 8;
 export const RESERVED_COMMAND_IDS: readonly string[] = ['__open__'];
 const MAX_ID_LENGTH = 64;
 const MAX_NAME_LENGTH = 50;
@@ -239,6 +241,108 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
           error(`${field}.keywords`, 'format', 'keywords must be an array of strings');
         }
       }
+      if (command.subtitle !== undefined) {
+        if (typeof command.subtitle !== 'string') {
+          error(`${field}.subtitle`, 'format', 'command subtitle must be a string');
+        } else if (command.subtitle.length > MAX_COMMAND_TITLE_LENGTH) {
+          error(
+            `${field}.subtitle`,
+            'tooLong',
+            `command subtitle must be at most ${MAX_COMMAND_TITLE_LENGTH} characters`,
+          );
+        }
+      }
+      if (
+        command.disabledByDefault !== undefined &&
+        typeof command.disabledByDefault !== 'boolean'
+      ) {
+        error(
+          `${field}.disabledByDefault`,
+          'format',
+          'command disabledByDefault must be a boolean',
+        );
+      }
+      if (command.interval !== undefined) {
+        if (typeof command.interval !== 'number' || !Number.isInteger(command.interval)) {
+          error(
+            `${field}.interval`,
+            'format',
+            'command interval must be an integer number of seconds',
+          );
+        } else if (command.interval < MIN_COMMAND_INTERVAL_SECONDS) {
+          error(
+            `${field}.interval`,
+            'format',
+            `command interval must be at least ${MIN_COMMAND_INTERVAL_SECONDS} seconds`,
+          );
+        } else if (command.mode !== 'background') {
+          error(`${field}.interval`, 'format', 'command interval requires mode background');
+        }
+      }
+      if (command.arguments !== undefined) {
+        if (!Array.isArray(command.arguments)) {
+          error(`${field}.arguments`, 'format', 'command arguments must be an array');
+        } else {
+          if (command.arguments.length > MAX_COMMAND_ARGUMENTS) {
+            error(
+              `${field}.arguments`,
+              'tooMany',
+              `at most ${MAX_COMMAND_ARGUMENTS} command arguments are allowed`,
+            );
+          }
+          const seenArgumentNames = new Set<string>();
+          command.arguments.forEach((argument: unknown, argumentIndex: number) => {
+            const argumentField = `${field}.arguments[${argumentIndex}]`;
+            if (typeof argument !== 'object' || argument === null) {
+              error(argumentField, 'format', 'command argument must be an object');
+              return;
+            }
+            const arg = argument as Record<string, unknown>;
+            if (typeof arg.name !== 'string' || !PREFERENCE_NAME_PATTERN.test(arg.name)) {
+              error(
+                `${argumentField}.name`,
+                'format',
+                'argument name must match ^[a-zA-Z_][a-zA-Z0-9_]*$',
+              );
+            } else if (seenArgumentNames.has(arg.name)) {
+              error(`${argumentField}.name`, 'duplicate', `duplicate argument name '${arg.name}'`);
+            } else {
+              seenArgumentNames.add(arg.name);
+            }
+            if (arg.type !== 'text' && arg.type !== 'password' && arg.type !== 'dropdown') {
+              error(
+                `${argumentField}.type`,
+                'format',
+                "argument type must be 'text' | 'password' | 'dropdown'",
+              );
+            } else if (arg.type === 'dropdown') {
+              const dataOk =
+                Array.isArray(arg.data) &&
+                arg.data.length > 0 &&
+                arg.data.some(
+                  (o) =>
+                    typeof o === 'object' &&
+                    o !== null &&
+                    typeof (o as Record<string, unknown>).value === 'string' &&
+                    typeof (o as Record<string, unknown>).title === 'string',
+                );
+              if (!dataOk) {
+                error(
+                  `${argumentField}.data`,
+                  'required',
+                  'dropdown argument requires data with value and title',
+                );
+              }
+            }
+            if (typeof arg.placeholder !== 'string' || arg.placeholder.trim().length === 0) {
+              error(`${argumentField}.placeholder`, 'required', 'argument placeholder is required');
+            }
+            if (arg.required !== undefined && typeof arg.required !== 'boolean') {
+              error(`${argumentField}.required`, 'format', 'argument required must be a boolean');
+            }
+          });
+        }
+      }
     });
   }
 
@@ -353,11 +457,19 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
           seen.add(preference.name);
         }
         const type = preference.type;
-        if (type !== 'text' && type !== 'password' && type !== 'checkbox' && type !== 'dropdown') {
+        if (
+          type !== 'text' &&
+          type !== 'password' &&
+          type !== 'checkbox' &&
+          type !== 'dropdown' &&
+          type !== 'file' &&
+          type !== 'directory' &&
+          type !== 'appPicker'
+        ) {
           error(
             `${field}.type`,
             'format',
-            "preference type must be 'text' | 'password' | 'checkbox' | 'dropdown'",
+            "preference type must be 'text' | 'password' | 'checkbox' | 'dropdown' | 'file' | 'directory' | 'appPicker'",
           );
         } else if (type === 'dropdown') {
           if (
@@ -388,6 +500,12 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
           if (type !== 'checkbox' && typeof preference.default !== 'string') {
             error(`${field}.default`, 'format', 'preference default must be a string');
           }
+        }
+        if (preference.label !== undefined && typeof preference.label !== 'string') {
+          error(`${field}.label`, 'format', 'checkbox preference label must be a string');
+        }
+        if (preference.placeholder !== undefined && typeof preference.placeholder !== 'string') {
+          error(`${field}.placeholder`, 'format', 'preference placeholder must be a string');
         }
       });
     }

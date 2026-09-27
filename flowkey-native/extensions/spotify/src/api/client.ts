@@ -11,6 +11,7 @@ import type {
   SpotifyShow,
   SpotifyTrack,
 } from './types';
+import { createCapabilities, type OAuthStatus } from '@flowkey-cli/native-sdk';
 
 export type NativeCallFn = <T = unknown>(
   method: string,
@@ -38,32 +39,31 @@ interface FetchResult {
   bodyText: string;
 }
 
-export interface AuthorizeResult {
-  ok: boolean;
-  expiresAt?: string;
-  scope?: string;
-}
+/** OAuth route result — the shell vaults tokens and only reports state. */
+export type AuthorizeResult = OAuthStatus;
 
 export class SpotifyClient {
-  constructor(private readonly call: NativeCallFn) {}
+  private readonly oauth: ReturnType<typeof createCapabilities>['oauth'];
+
+  constructor(private readonly call: NativeCallFn) {
+    this.oauth = createCapabilities(call).oauth;
+  }
 
   async authorize(signal?: AbortSignal, clientId?: string): Promise<AuthorizeResult> {
-    const params: Record<string, unknown> = { provider: 'spotify' };
-    if (clientId) {
-      params.clientId = clientId;
-    }
-    return this.call<AuthorizeResult>('oauth.authorize', params, {
+    return this.oauth.authorize('spotify', {
+      clientId,
       signal,
       timeoutMs: OAUTH_TIMEOUT_MS,
     });
   }
 
   async authStatus(signal?: AbortSignal): Promise<AuthorizeResult> {
-    return this.call<AuthorizeResult>('oauth.status', { provider: 'spotify' }, { signal });
+    return this.oauth.status('spotify', { signal });
   }
 
   async disconnect(): Promise<{ ok: boolean }> {
-    return this.call<{ ok: boolean }>('oauth.disconnect', { provider: 'spotify' });
+    await this.oauth.disconnect('spotify');
+    return { ok: true };
   }
 
   async fetchImage(url: string, signal?: AbortSignal): Promise<string> {
@@ -151,7 +151,12 @@ export class SpotifyClient {
     trackName: string,
     artistName: string,
     signal?: AbortSignal,
-  ): Promise<{ trackName: string; artistName: string; plainLyrics: string; syncedLyrics?: string | null } | null> {
+  ): Promise<{
+    trackName: string;
+    artistName: string;
+    plainLyrics: string;
+    syncedLyrics?: string | null;
+  } | null> {
     const url =
       `https://lrclib.net/api/search?track_name=${encodeURIComponent(trackName)}` +
       `&artist_name=${encodeURIComponent(artistName)}`;
@@ -175,7 +180,12 @@ export class SpotifyClient {
       }
     }
     const hits = parseBody<
-      { plainLyrics?: string | null; syncedLyrics?: string | null; trackName?: string; artistName?: string }[]
+      {
+        plainLyrics?: string | null;
+        syncedLyrics?: string | null;
+        trackName?: string;
+        artistName?: string;
+      }[]
     >(result.status, result.bodyText, 'lyrics service');
     const hit =
       hits?.find((entry) => typeof entry.syncedLyrics === 'string' && entry.syncedLyrics) ??
@@ -203,7 +213,10 @@ export class SpotifyClient {
 
   async play(body: Record<string, unknown>, deviceId?: string): Promise<void> {
     if (deviceId) {
-      await this.apiVoid(`/me/player/play?device_id=${encodeURIComponent(deviceId)}`, { method: 'PUT', body });
+      await this.apiVoid(`/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
+        method: 'PUT',
+        body,
+      });
       return;
     }
     try {
@@ -319,7 +332,9 @@ export class SpotifyClient {
     return this.apiVoid(`/me/albums?ids=${ids.join(',')}`, { method: 'DELETE' });
   }
 
-  followedArtists(limit = 50): Promise<{ artists: { items: SpotifyArtist[]; next: string | null } }> {
+  followedArtists(
+    limit = 50,
+  ): Promise<{ artists: { items: SpotifyArtist[]; next: string | null } }> {
     return this.api(`/me/following?type=artist&limit=${limit}`);
   }
 
@@ -419,7 +434,11 @@ function parseBody<T>(status: number, bodyText: string, service = 'spotify'): T 
   try {
     parsed = JSON.parse(bodyText);
   } catch {
-    throw new SpotifyApiError('invalidResponse', `${service} returned malformed json (${status}): ${JSON.stringify(bodyText.slice(0, 60))}`, status);
+    throw new SpotifyApiError(
+      'invalidResponse',
+      `${service} returned malformed json (${status}): ${JSON.stringify(bodyText.slice(0, 60))}`,
+      status,
+    );
   }
   if (status < 200 || status >= 300) {
     const error = parsed as { error?: { message?: string; reason?: string } };
@@ -435,7 +454,11 @@ function parseBody<T>(status: number, bodyText: string, service = 'spotify'): T 
 function normalizeNativeError(error: unknown): SpotifyApiError {
   const candidate = error as { code?: string; message?: string; status?: number };
   if (candidate?.code) {
-    return new SpotifyApiError(candidate.code, candidate.message ?? candidate.code, candidate.status);
+    return new SpotifyApiError(
+      candidate.code,
+      candidate.message ?? candidate.code,
+      candidate.status,
+    );
   }
   return new SpotifyApiError('nativeError', String(error));
 }

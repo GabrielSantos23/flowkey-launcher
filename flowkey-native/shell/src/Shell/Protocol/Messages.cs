@@ -29,6 +29,9 @@ public sealed class ActionMessage
     public string ExtensionId { get; set; } = "";
     public string ActionId { get; set; } = "";
     public UiItem? Item { get; set; }
+    public Dictionary<string, string>? Arguments { get; set; }
+    /// <summary>Current form field values, sent by the shell while a form view is active.</summary>
+    public Dictionary<string, JsonElement>? FormValues { get; set; }
 }
 
 public sealed class PreferencesMessage
@@ -61,6 +64,8 @@ public sealed class PreferenceSchema
     public JsonElement? Default { get; set; }
     public bool Required { get; set; }
     public List<PreferenceOption>? Options { get; set; }
+    public string? Label { get; set; }
+    public string? Placeholder { get; set; }
 }
 
 public sealed class PreferenceOption
@@ -89,10 +94,24 @@ public sealed class CommandInfo
 {
     public string Id { get; set; } = "";
     public string Title { get; set; } = "";
+    public string? Subtitle { get; set; }
     public List<string>? Keywords { get; set; }
     public string? Mode { get; set; }
     public string? Icon { get; set; }
     public string? IconColor { get; set; }
+    public bool? DisabledByDefault { get; set; }
+    /// <summary>Background refresh cadence in seconds (>= 60, background commands only).</summary>
+    public int? Interval { get; set; }
+    public List<CommandArgument>? Arguments { get; set; }
+}
+
+public sealed class CommandArgument
+{
+    public string Name { get; set; } = "";
+    public string Type { get; set; } = "text";
+    public string Placeholder { get; set; } = "";
+    public bool? Required { get; set; }
+    public List<PreferenceOption>? Data { get; set; }
 }
 
 public sealed class AckMessage
@@ -141,6 +160,22 @@ public sealed class NativeResultMessage
     public bool Ok { get; set; }
     public JsonElement? Result { get; set; }
     public ProtocolError? Error { get; set; }
+}
+
+public sealed class WindowCommandMessage
+{
+    public string Type { get; set; } = "windowCommand";
+    public string ExtensionId { get; set; } = "";
+    /// <summary>closeMainWindow | popToRoot | clearSearchBar</summary>
+    public string Command { get; set; } = "";
+}
+
+public sealed class LaunchCommandMessage
+{
+    public string Type { get; set; } = "launchCommand";
+    public string ExtensionId { get; set; } = "";
+    public string CommandId { get; set; } = "";
+    public string? Query { get; set; }
 }
 
 public sealed class ProtocolError

@@ -1,6 +1,6 @@
 {
   "name": "@flowkey-cli/cli",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Build, validate, package and install FlowKey extensions.",
   "type": "module",
   "bin": {
