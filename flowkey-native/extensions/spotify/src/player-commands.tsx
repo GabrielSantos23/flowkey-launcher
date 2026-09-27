@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CommandProps } from '@flowkey-cli/react-ui';
 import { Action, ActionPanel, Detail, List } from '@flowkey-cli/react-ui';
-import { SpotifyApiError, SpotifyClient } from './api/client';
+import { SpotifyApiError, SpotifyClient, type NativeCallFn } from './api/client';
 import type { SpotifyDevice, SpotifyPlaybackState, SpotifyTrack } from './api/types';
 import { formatMs } from './format';
 import { loadLibrary } from './store';
@@ -49,6 +49,45 @@ type RunOutcome =
   | { kind: 'authRequired' }
   | { kind: 'noDevice' }
   | { kind: 'noTrack' };
+
+export type MediaSkipCommand = 'next' | 'previous';
+
+/**
+ * Skips via the Windows media transport controls (`media.control`) instead of the
+ * Spotify Web API, so Next/Previous work without Spotify auth or an active device.
+ * The SMTC snapshot only feeds the result message; the skip itself is best-effort.
+ */
+export async function mediaSkipOutcome(
+  command: MediaSkipCommand,
+  call: NativeCallFn,
+): Promise<RunOutcome> {
+  let currentTitle: string | null = null;
+  let snapshotFailed = false;
+  try {
+    const media = await call<MediaState | null>('media.current');
+    currentTitle = media?.title?.trim() || null;
+  } catch {
+    snapshotFailed = true;
+  }
+  try {
+    await call('media.control', { command });
+  } catch (caught) {
+    return { kind: 'message', title: describeError(caught) };
+  }
+  if (currentTitle) {
+    return {
+      kind: 'message',
+      title: command === 'next' ? `Skipped ${currentTitle}` : `Went back to ${currentTitle}`,
+    };
+  }
+  if (snapshotFailed) {
+    return {
+      kind: 'message',
+      title: command === 'next' ? 'Skipped to next track' : 'Went back to previous track',
+    };
+  }
+  return { kind: 'noTrack' };
+}
 
 async function playbackStateWithRetry(client: SpotifyClient): Promise<SpotifyPlaybackState | null> {
   try {
@@ -200,30 +239,36 @@ export function TogglePlayPauseCommand(props: CommandProps): ReactNode {
   );
 }
 
+function MediaSkipCommand({
+  native,
+  workingTitle,
+  command,
+}: CommandProps & { workingTitle: string; command: MediaSkipCommand }): ReactNode {
+  const [outcome, setOutcome] = useState<RunOutcome>({ kind: 'working' });
+  useEffect(() => {
+    let alive = true;
+    void mediaSkipOutcome(command, native.call).then((result) => {
+      if (alive) setOutcome(result);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [native, command]);
+  useEffect(() => {
+    const title = outcomeHudTitle(outcome);
+    if (title) {
+      void native.showHud({ title });
+    }
+  }, [outcome, native]);
+  return <OutcomeView outcome={outcome} workingTitle={workingTitle} />;
+}
+
 export function NextCommand(props: CommandProps): ReactNode {
-  return (
-    <SimplePlayerCommand
-      {...props}
-      workingTitle="Skipping…"
-      action={async ({ track }, client) => {
-        await client.next();
-        return `Skipped ${track.name}`;
-      }}
-    />
-  );
+  return <MediaSkipCommand {...props} workingTitle="Skipping…" command="next" />;
 }
 
 export function PreviousCommand(props: CommandProps): ReactNode {
-  return (
-    <SimplePlayerCommand
-      {...props}
-      workingTitle="Going back…"
-      action={async ({ track }, client) => {
-        await client.previous();
-        return `Went back to ${track.name}`;
-      }}
-    />
-  );
+  return <MediaSkipCommand {...props} workingTitle="Going back…" command="previous" />;
 }
 
 export function JustPlayCommand(props: CommandProps): ReactNode {
@@ -375,7 +420,6 @@ export function StartRadioCommand(props: CommandProps): ReactNode {
   );
 }
 
-
 export function CopyUrlCommand(props: CommandProps): ReactNode {
   return (
     <SimplePlayerCommand
@@ -416,10 +460,7 @@ export function CopyEmbedCommand(props: CommandProps): ReactNode {
   );
 }
 
-function usePlayerAction(
-  client: SpotifyClient,
-  action: () => Promise<string>,
-): RunOutcome {
+function usePlayerAction(client: SpotifyClient, action: () => Promise<string>): RunOutcome {
   const [outcome, setOutcome] = useState<RunOutcome>({ kind: 'working' });
   const actionRef = useRef(action);
   actionRef.current = action;
@@ -589,9 +630,7 @@ export function QueueCommand(props: CommandProps): ReactNode {
   const current = isTrack(queue.currently_playing) ? queue.currently_playing : null;
   return (
     <List>
-      {entries.length === 0 && !current ? (
-        <List.EmptyView title="Queue is empty" />
-      ) : null}
+      {entries.length === 0 && !current ? <List.EmptyView title="Queue is empty" /> : null}
       {current ? (
         <List.Section title="Now Playing">
           <List.Item
@@ -894,7 +933,11 @@ function activeLineIndex(lines: LyricLine[], positionMs: number): number {
   return index;
 }
 
-function lyricsMarkdown(lyrics: LyricsState, media: MediaState | null, activeIndex: number): string {
+function lyricsMarkdown(
+  lyrics: LyricsState,
+  media: MediaState | null,
+  activeIndex: number,
+): string {
   const header: string[] = [];
   if (media?.artist) header.push('**Artist:** ' + media.artist);
   if (media?.album) header.push('**Album:** ' + media.album);

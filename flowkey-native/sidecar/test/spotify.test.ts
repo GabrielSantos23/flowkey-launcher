@@ -703,24 +703,28 @@ describe('spotify player commands', () => {
     expect(String(seekCall!.params.url)).toContain('position_ms=60000');
   });
 
-  test('next tolerates a non-json 200 response', async () => {
+  test('next skips via the Windows media controls', async () => {
     const h = harness();
     await h.search('', 'pc-8', 'next');
-    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
+    await commandStubs.resolve(h, 'media.control', { result: { ok: true } });
     await sleep(400);
+    const skipCall = h.calls().find((call) => call.method === 'media.control');
+    expect(skipCall).toBeTruthy();
+    expect(skipCall!.params).toEqual({ command: 'next' });
+    expect(h.calls().filter((call) => call.method === 'http.fetch')).toHaveLength(0);
+    const hudCall = h.calls().find((call) => call.method === 'hud.show');
+    expect(hudCall).toBeTruthy();
+    expect(String(hudCall!.params.title)).toBe('Skipped One More Time');
+  });
+
+  test('toggle-play-pause tolerates a non-json 200 response', async () => {
+    const h = harness();
+    await h.search('', 'pc-3', 'toggle-play-pause');
     await h.resolveLatest('http.fetch', {
       result: { status: 200, bodyText: '<html>gateway blip</html>', headers: {}, truncated: false },
     });
-    await sleep(400);
-    const hudCall = h.calls().find((call) => call.method === 'hud.show');
-    expect(hudCall).toBeTruthy();
-    expect(String(hudCall!.params.title)).toContain('Skipped');
-  });
-
-  test('toggle-play-pause pauses when playing', async () => {
-    const h = harness();
-    await h.search('', 'pc-3', 'toggle-play-pause');
-    await commandStubs.resolve(h, 'http.fetch', okJson(playbackFixture));
+    await sleep(300);
+    await h.resolveLatest('http.fetch', okJson(playbackFixture));
     await sleep(400);
     await h.resolveLatest('http.fetch', {
       result: { status: 204, bodyText: '', headers: {}, truncated: false },
