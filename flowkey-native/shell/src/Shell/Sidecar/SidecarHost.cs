@@ -231,7 +231,7 @@ public sealed class SidecarHost : IDisposable
         }
         catch (Exception ex)
         {
-            log($"sidecar read loop ended: {ex.Message}");
+            log($"sidecar read loop ended: {ex}");
         }
     }
 
@@ -319,6 +319,13 @@ public sealed class SidecarHost : IDisposable
         {
             log($"bad sidecar json: {ex.Message}");
         }
+        catch (Exception ex)
+        {
+            // A handler exception (policy, store, renderer) must never kill
+            // the read loop — that closes the pipe and crash-loops the
+            // sidecar. Log and keep the connection alive.
+            log($"sidecar message handler failed: {ex}");
+        }
     }
 
     private void HandleReady(Protocol.ReadyMessage? ready)
@@ -366,6 +373,11 @@ public sealed class SidecarHost : IDisposable
             await Task.Delay(delay);
             if (!disposed && !fatal)
             {
+                // Stop before restarting: the crashed process's writer thread
+                // only exits when disposed flips, and leaving it alive means
+                // two writers interleave lines into the new process's stdin.
+                Stop();
+                disposed = false;
                 Start();
             }
         });

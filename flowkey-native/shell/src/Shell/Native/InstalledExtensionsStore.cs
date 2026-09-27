@@ -126,6 +126,14 @@ public sealed class InstalledExtensionsStore
             }
             records = JsonSerializer.Deserialize<Dictionary<string, InstalledExtension>>(
                 File.ReadAllText(filePath), JsonOptions.Default) ?? new(StringComparer.Ordinal);
+            // Consent lists written by older builds may be absent from the
+            // JSON, which deserializes to null. Treat missing consent as
+            // granted-nothing (fail closed) instead of a null that throws
+            // later during policy evaluation.
+            foreach (var id in records.Keys.ToList())
+            {
+                records[id] = WithHealedConsent(records[id]);
+            }
         }
         catch (JsonException)
         {
@@ -135,5 +143,24 @@ public sealed class InstalledExtensionsStore
         {
             records = new(StringComparer.Ordinal);
         }
+    }
+
+    private static InstalledExtension WithHealedConsent(InstalledExtension record)
+    {
+        if (record.Consent is null)
+        {
+            return record with { Consent = new ExtensionConsent([], [], [], [], []) };
+        }
+        return record with
+        {
+            Consent = record.Consent with
+            {
+                NativeMethods = record.Consent.NativeMethods ?? [],
+                HttpHosts = record.Consent.HttpHosts ?? [],
+                OAuth = record.Consent.OAuth ?? [],
+                FsPaths = record.Consent.FsPaths ?? [],
+                UriSchemes = record.Consent.UriSchemes ?? [],
+            },
+        };
     }
 }

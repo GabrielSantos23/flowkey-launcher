@@ -139,21 +139,23 @@ public sealed class ExtensionPolicy
             Version = record.Version,
             Commands = manifest.Commands,
             // Manifest ∩ consent: consent wildcards ("storage.*") cover any
-            // matching method the manifest declares.
+            // matching method the manifest declares. A consent list missing
+            // from the persisted record grants nothing (fail closed), and it
+            // must never throw — this runs on the sidecar read loop.
             NativeMethods = manifest.NativeMethods
-                .Where(m => NativeMethodPolicy.IsDeclared(record.Consent.NativeMethods, m))
+                .Where(m => NativeMethodPolicy.IsDeclared(record.Consent.NativeMethods ?? [], m))
                 .ToList(),
             HttpHosts = manifest.HttpHosts
-                .Where(h => record.Consent.HttpHosts.Contains(h, StringComparer.Ordinal))
+                .Where(h => (record.Consent.HttpHosts ?? []).Contains(h, StringComparer.Ordinal))
                 .ToList(),
             OAuth = manifest.OAuth
-                .Where(p => record.Consent.OAuth.Contains(p, StringComparer.Ordinal))
+                .Where(p => (record.Consent.OAuth ?? []).Contains(p, StringComparer.Ordinal))
                 .ToList(),
             FsPaths = manifest.FsPaths
-                .Where(f => record.Consent.FsPaths.Contains(f, StringComparer.Ordinal))
+                .Where(f => (record.Consent.FsPaths ?? []).Contains(f, StringComparer.Ordinal))
                 .ToList(),
             UriSchemes = manifest.UriSchemes
-                .Where(p => record.Consent.UriSchemes.Contains(p, StringComparer.Ordinal))
+                .Where(p => (record.Consent.UriSchemes ?? []).Contains(p, StringComparer.Ordinal))
                 .ToList(),
         };
     }
