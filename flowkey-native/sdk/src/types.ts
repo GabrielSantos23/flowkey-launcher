@@ -202,6 +202,10 @@ export interface ManifestCommand {
   subtitle?: string;
   keywords?: string[];
   mode?: 'view' | 'background';
+  /** Rendering surface: `tree` (default, native UI tree) or `web` (WebView2). */
+  ui?: 'tree' | 'web';
+  /** Web bundle filename for `ui: 'web'` commands (default `main.web.js`). */
+  webEntry?: string;
   icon?: string;
   iconColor?: string;
   /** Command starts disabled until the user enables it. */
@@ -245,6 +249,52 @@ export interface ExtensionManifest {
 }
 
 export type Preferences = Record<string, unknown>;
+
+/**
+ * Mount/update directive for a web-mode command (`ui: 'web'`): the shell
+ * shows its WebView2 surface and loads the extension's web bundle. Sent in
+ * place of a `ui`/`uiPush` tree whenever the command declares web UI.
+ */
+export interface WebViewMessage {
+  type: 'webView';
+  requestId: string;
+  extensionId: string;
+  commandId: string;
+  /** Web bundle filename inside the extension package (e.g. `main.web.js`). */
+  entry: string;
+  props: {
+    query: string;
+    filterValue?: string;
+    arguments?: Arguments;
+    preferences: Preferences;
+    environment: ExtensionEnvironment;
+  };
+}
+
+/** Capability call relayed from the webview; the sidecar routes it through NativeBridge. */
+export interface WebCallMessage {
+  type: 'webCall';
+  /** Shell-minted bridge id; echoed by `webResult` and matched by `webAbort`. */
+  bridgeId: string;
+  extensionId: string;
+  method: string;
+  params?: Record<string, unknown>;
+}
+
+export interface WebResultMessage {
+  type: 'webResult';
+  bridgeId: string;
+  ok: boolean;
+  result?: unknown;
+  error?: { code: string; message: string };
+}
+
+/** Webview-side abort of an in-flight bridged call. */
+export interface WebAbortMessage {
+  type: 'webAbort';
+  bridgeId: string;
+  extensionId: string;
+}
 
 /** Captured command arguments keyed by argument name (values are strings). */
 export type Arguments = Record<string, string>;
@@ -410,7 +460,13 @@ export interface PreferencesMessage {
 }
 
 export type HostMessage =
-  InitMessage | SearchMessage | ActionMessage | PreferencesMessage | NativeResultMessage;
+  | InitMessage
+  | SearchMessage
+  | ActionMessage
+  | PreferencesMessage
+  | NativeResultMessage
+  | WebCallMessage
+  | WebAbortMessage;
 
 export interface ReadyFailure {
   id: string;
@@ -502,6 +558,8 @@ export type SidecarMessage =
   | NativeCallMessage
   | WindowCommandMessage
   | LaunchCommandMessage
+  | WebViewMessage
+  | WebResultMessage
   | LogMessage;
 
 export function defineExtension(module: ExtensionModule): ExtensionModule {

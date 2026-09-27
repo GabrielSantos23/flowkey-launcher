@@ -536,6 +536,13 @@
              Margin="{DynamicResource DetailMargin}"
              VerticalScrollBarVisibility="Auto"
              Visibility="Collapsed" />
+    <Border x:Name="WebViewSurface"
+            Grid.Row="1"
+            Margin="{DynamicResource DetailMargin}"
+            Visibility="Collapsed"
+            Background="{DynamicResource WindowBackgroundBrush}">
+      <Grid x:Name="WebViewContainer" />
+    </Border>
 
     <DockPanel x:Name="GridHostPanel"
              Grid.Row="1"

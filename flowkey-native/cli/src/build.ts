@@ -87,6 +87,8 @@ export async function buildExtension(options: {
   const result = await build(esbuildConfig(sourceEntry, entryPath, options.minify ?? false));
   const bundled = Object.keys(result.metafile?.inputs ?? {}).length;
 
+  const webBundles = await buildWebBundles(loaded, outDir, options.minify ?? false, log);
+
   writeDistManifest(loaded, outDir, entryFile);
   copyManifestIcon(loaded, outDir, log);
 
@@ -96,6 +98,68 @@ export async function buildExtension(options: {
     log(`  ${basename(file)}: ${statSync(file).size} bytes`);
   }
   return { outDir, entryFile, entryPath, files };
+}
+
+/**
+ * Web-mode commands (`ui: 'web'`) ship a browser bundle: IIFE, real react-dom
+ * (no host shims — the WebView2 page owns its React), written next to the
+ * native bundle using the command's `webEntry` name.
+ */
+export function findWebCommands(
+  loaded: LoadedManifest,
+): { commandId: string; outputName: string; source: string }[] {
+  const commands = loaded.manifest.commands ?? [];
+  const candidates = [
+    (id: string) => join(loaded.dir, 'src', `${id}.web.tsx`),
+    (id: string) => join(loaded.dir, 'src', `${id}.web.ts`),
+    () => join(loaded.dir, 'src', 'index.web.tsx'),
+    () => join(loaded.dir, 'src', 'index.web.ts'),
+  ];
+  const built: { commandId: string; outputName: string; source: string }[] = [];
+  for (const command of commands) {
+    if (command.ui !== 'web') continue;
+    let source: string | null = null;
+    for (const candidate of candidates) {
+      const path = candidate(command.id);
+      if (existsSync(path)) {
+        source = path;
+        break;
+      }
+    }
+    if (source) {
+      built.push({
+        commandId: command.id,
+        outputName: command.webEntry ?? `${command.id}.web.js`,
+        source,
+      });
+    }
+  }
+  return built;
+}
+
+export async function buildWebBundles(
+  loaded: LoadedManifest,
+  outDir: string,
+  minify: boolean,
+  log: (message: string) => void,
+): Promise<string[]> {
+  const outputNames: string[] = [];
+  for (const web of findWebCommands(loaded)) {
+    await build({
+      entryPoints: [web.source],
+      bundle: true,
+      format: 'iife',
+      platform: 'browser',
+      jsx: 'automatic',
+      target: 'es2022',
+      outfile: join(outDir, web.outputName),
+      minify,
+      logLevel: 'warning',
+    });
+    outputNames.push(web.outputName);
+    log(`web bundle ${web.outputName} (${web.commandId})`);
+  }
+  return outputNames;
 }
 
 /**

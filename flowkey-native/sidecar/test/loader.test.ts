@@ -2,7 +2,16 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { validateManifest } from '@flowkey-cli/native-sdk';
-import type { ExtensionContext, ExtensionManifest, ReadyMessage } from '@flowkey-cli/native-sdk';
+import type {
+  ExtensionContext,
+  ExtensionManifest,
+  NativeCallMessage,
+  ReadyMessage,
+  SidecarMessage,
+  UiMessage,
+  WebViewMessage,
+  WebResultMessage,
+} from '@flowkey-cli/native-sdk';
 import {
   buildEnvironment,
   collectBackgroundSchedules,
@@ -290,5 +299,131 @@ describe('command arguments', () => {
 
     expect(captured?.arguments).toEqual({ direction: 'push' });
     expect(captured?.commandId).toBe('sync');
+  });
+});
+
+describe('web commands', () => {
+  const webManifest: ExtensionManifest = {
+    id: 'web-ext',
+    name: 'Web Ext',
+    version: '1.0.0',
+    commands: [
+      { id: 'test', title: 'Test', mode: 'view', ui: 'web', webEntry: 'main.web.js' },
+      { id: 'tick', title: 'Tick', mode: 'background' },
+    ],
+    nativeMethods: ['http.fetch'],
+    httpHosts: ['speed.cloudflare.com'],
+  };
+  const webModule = {
+    manifest: webManifest,
+    source: 'installed',
+    preferences: { token: 'abc' },
+    component: () => null,
+  } as unknown as LoadedModule;
+
+  test('search on a web command emits a webView mount message', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], () => {});
+    await dispatcher.handle(
+      {
+        type: 'search',
+        requestId: 's-1',
+        extensionId: 'web-ext',
+        query: 'hello',
+        commandId: 'test',
+      },
+      (message) => emitted.push(message),
+    );
+
+    const mount = emitted.find((m) => m.type === 'webView') as WebViewMessage | undefined;
+    expect(mount).toBeDefined();
+    expect(mount!.requestId).toBe('s-1');
+    expect(mount!.extensionId).toBe('web-ext');
+    expect(mount!.commandId).toBe('test');
+    expect(mount!.entry).toBe('main.web.js');
+    expect(mount!.props.query).toBe('hello');
+    expect(mount!.props.preferences).toEqual({ token: 'abc' });
+    expect(mount!.props.environment.commandMode).toBe('view');
+    expect(emitted.some((m) => m.type === 'ui')).toBe(false);
+  });
+
+  test('root search on a web-only extension emits an empty list', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], () => {});
+    await dispatcher.handle(
+      { type: 'search', requestId: 's-2', extensionId: 'web-ext', query: '' },
+      (message) => emitted.push(message),
+    );
+
+    const ui = emitted.find((m) => m.type === 'ui') as UiMessage | undefined;
+    expect(ui?.tree).toEqual({ type: 'list', sections: [] });
+  });
+
+  test('webCall relays through the bridge and answers with webResult', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], (message) => emitted.push(message));
+    await dispatcher.handleWebCall({
+      type: 'webCall',
+      bridgeId: 'w-1',
+      extensionId: 'web-ext',
+      method: 'http.fetch',
+      params: { url: 'https://speed.cloudflare.com/meta' },
+    });
+
+    const call = emitted.find((m) => m.type === 'nativeCall') as NativeCallMessage | undefined;
+    expect(call?.extensionId).toBe('web-ext');
+    expect(call?.method).toBe('http.fetch');
+
+    dispatcher.handleNativeResult({
+      type: 'nativeResult',
+      requestId: call!.requestId,
+      ok: true,
+      result: { status: 200 },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const result = emitted.find((m) => m.type === 'webResult') as WebResultMessage | undefined;
+    expect(result?.bridgeId).toBe('w-1');
+    expect(result?.ok).toBe(true);
+    expect(result?.result).toEqual({ status: 200 });
+  });
+
+  test('webAbort rejects the bridged call with an aborted webResult', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], (message) => emitted.push(message));
+    await dispatcher.handleWebCall({
+      type: 'webCall',
+      bridgeId: 'w-2',
+      extensionId: 'web-ext',
+      method: 'http.fetch',
+      params: {},
+    });
+
+    await dispatcher.handleWebAbort({ type: 'webAbort', bridgeId: 'w-2', extensionId: 'web-ext' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const result = emitted.find((m) => m.type === 'webResult') as WebResultMessage | undefined;
+    expect(result?.bridgeId).toBe('w-2');
+    expect(result?.ok).toBe(false);
+    expect(result?.error?.code).toBe('aborted');
+  });
+
+  test('opening a web command emits a fresh webView mount', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], () => {});
+    await dispatcher.handle(
+      {
+        type: 'action',
+        requestId: 'a-1',
+        extensionId: 'web-ext',
+        actionId: '__open__',
+        item: { id: 'test', title: 'Test', actions: [] },
+      },
+      (message) => emitted.push(message),
+    );
+
+    const mount = emitted.find((m) => m.type === 'webView') as WebViewMessage | undefined;
+    expect(mount?.props.query).toBe('');
+    expect(mount?.commandId).toBe('test');
   });
 });

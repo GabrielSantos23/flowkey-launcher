@@ -68,6 +68,7 @@ public partial class MainWindow : Window
     private readonly InstalledExtensionsStore installedExtensionsStore = new(AppLauncherService.DataDirectory);
     private readonly ExtensionStorageStore extensionStorageStore = new(AppLauncherService.DataDirectory);
     private readonly ExtensionCacheStore extensionCacheStore = new(AppLauncherService.DataDirectory);
+    private readonly string extensionsRoot;
     private readonly ExtensionFsService extensionFsService = new();
     private readonly ExtensionPackageManager extensionManager;
     private readonly ExtensionPolicy extensionPolicy;
@@ -235,7 +236,7 @@ public partial class MainWindow : Window
         // Installed third-party extensions always live in the app-data
         // directory (never beside the repo/install tree); FLOWKEY_EXTENSIONS_DIR
         // overrides it for tests and CI.
-        var extensionsRoot = Environment.GetEnvironmentVariable("FLOWKEY_EXTENSIONS_DIR")
+        extensionsRoot = Environment.GetEnvironmentVariable("FLOWKEY_EXTENSIONS_DIR")
             ?? Path.Combine(AppLauncherService.DataDirectory, "extensions");
         Directory.CreateDirectory(extensionsRoot);
         extensionManager = new ExtensionPackageManager(
@@ -263,6 +264,8 @@ public partial class MainWindow : Window
         sidecar.UiPush += OnSidecarUiPush;
         sidecar.WindowCommand += OnSidecarWindowCommand;
         sidecar.LaunchCommand += OnSidecarLaunchCommand;
+        sidecar.WebView += OnSidecarWebView;
+        sidecar.WebResult += OnSidecarWebResult;
         sidecar.Ack += OnSidecarAck;
         sidecar.Error += OnSidecarError;
         sidecar.Log += m => Dispatcher.BeginInvoke(() => SetStatusBar(m.Message));
@@ -1280,6 +1283,7 @@ public partial class MainWindow : Window
 
     private bool PopView()
     {
+        HideWebViewSurface();
         currentPagination = null;
         currentForm = null;
         if (searchState.Depth > 1 && searchState.Pop())
@@ -1511,6 +1515,12 @@ public partial class MainWindow : Window
 
     private void RunPrimaryAction()
     {
+        if (webViewVisible)
+        {
+            // The web view owns interactions; the search box still drives it
+            // via searches, so a stale row selection must not re-open commands.
+            return;
+        }
         DebugLog.Write("RunPrimaryAction");
         if (pendingArgumentCommand is not null && pendingArgumentExtensionId is not null)
         {
@@ -2066,6 +2076,13 @@ public partial class MainWindow : Window
             var first = ready.Extensions.FirstOrDefault();
             SetStatusBar(first is null ? "no extensions" : $"{first.Name} v{first.Version} ready");
             SendSearch(SearchBox.Text);
+            // A settings window open across a sidecar restart would show the
+            // stale extension list — reopen it with the fresh data.
+            if (settingsWindow is { IsLoaded: true })
+            {
+                settingsWindow.Close();
+                OpenSettings();
+            }
         });
     }
 
@@ -2077,6 +2094,8 @@ public partial class MainWindow : Window
     }
 
     private bool viewHoldsLoadingBar;
+    private WebViewHost? webViewHost;
+    private bool webViewVisible;
     private Protocol.UiPagination? currentPagination;
     private string? currentPaginationExtensionId;
     private CommandInfo? pendingArgumentCommand;
@@ -2107,6 +2126,78 @@ public partial class MainWindow : Window
             viewHoldsLoadingBar = false;
             EndOperation();
         }
+    }
+
+    private void OnSidecarWebView(WebViewMessage message)
+    {
+        Dispatcher.BeginInvoke(async () =>
+        {
+            try
+            {
+                EndOperation();
+                webViewVisible = true;
+                ResultsList.Visibility = Visibility.Collapsed;
+                GridHostPanel.Visibility = Visibility.Collapsed;
+                DetailHost.Visibility = Visibility.Collapsed;
+                EmptyView.Visibility = Visibility.Collapsed;
+                PaneHost.Visibility = Visibility.Collapsed;
+                PaneDivider.Visibility = Visibility.Collapsed;
+                WebViewSurface.Visibility = Visibility.Visible;
+                webViewHost ??= new WebViewHost(WebViewContainer);
+                webViewHost.SetThemeCss(WebViewHost.BuildThemeCssFromResources(key => TryFindResource(key)));
+                webViewHost.CallRequested -= OnWebViewCallRequested;
+                webViewHost.CallRequested += OnWebViewCallRequested;
+                webViewHost.AbortRequested -= OnWebViewAbortRequested;
+                webViewHost.AbortRequested += OnWebViewAbortRequested;
+                webViewHost.LoadFailed -= OnWebViewLoadFailed;
+                webViewHost.LoadFailed += OnWebViewLoadFailed;
+                webViewHost.LogEmitted -= OnWebViewLogEmitted;
+                webViewHost.LogEmitted += OnWebViewLogEmitted;
+                DebugLog.Write($"WebView mount ext={message.ExtensionId} cmd={message.CommandId} entry={message.Entry}");
+                await webViewHost.ShowAsync(message, extensionsRoot);
+            }
+            catch (Exception ex)
+            {
+                DebugLog.Write("webview mount failed: " + ex);
+                ShowToast("Web view failed: " + ex.Message);
+            }
+        });
+    }
+
+    private void OnWebViewCallRequested(string bridgeId, string extensionId, string method, string? paramsJson)
+    {
+        var parameters = paramsJson is null
+            ? null
+            : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(paramsJson);
+        sidecar.SendWebCall(bridgeId, extensionId, method, parameters);
+    }
+
+    private void OnWebViewAbortRequested(string bridgeId, string extensionId)
+    {
+        sidecar.SendWebAbort(bridgeId, extensionId);
+    }
+
+    private void OnWebViewLoadFailed(string message)
+    {
+        ShowToast("Web view error: " + message);
+    }
+
+    private void OnWebViewLogEmitted(string message)
+    {
+        DebugLog.Write("webview: " + message);
+        SetStatusBar(message);
+    }
+
+    private void OnSidecarWebResult(WebResultMessage message)
+    {
+        DebugLog.Write($"webResult relay bridgeId={message.BridgeId} ok={message.Ok}");
+        Dispatcher.BeginInvoke(() => webViewHost?.PostWebResult(message));
+    }
+
+    private void HideWebViewSurface()
+    {
+        webViewVisible = false;
+        WebViewSurface.Visibility = Visibility.Collapsed;
     }
 
     private void OnSidecarWindowCommand(WindowCommandMessage message)
@@ -2151,9 +2242,11 @@ public partial class MainWindow : Window
             ApplyViewChrome(message.Tree);
             if (message.Tree is FormTree form)
             {
+                HideWebViewSurface();
                 ShowForm(form, searchState.ExtensionFor(message.RequestId) ?? searchState.Top?.ExtensionId);
                 return;
             }
+            HideWebViewSurface();
             currentForm = null;
             if (message.Tree is GridTree grid)
             {
@@ -2219,9 +2312,11 @@ public partial class MainWindow : Window
             }
             if (message.Tree is FormTree form)
             {
+                HideWebViewSurface();
                 ShowForm(form, message.ExtensionId);
                 return;
             }
+            HideWebViewSurface();
             currentForm = null;
             if (message.Tree is GridTree grid)
             {

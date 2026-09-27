@@ -358,6 +358,35 @@ public class ProtocolFixtureTests
     }
 
     [Fact]
+    public void WebViewAndWebBridgeMessagesFollowWireShape()
+    {
+        var root = Root();
+
+        var mount = root.GetProperty("sidecarToHost").GetProperty("webView").Deserialize<WebViewMessage>(JsonOptions.Default)!;
+        Assert.Equal("webView", mount.Type);
+        Assert.Equal("speedtest", mount.ExtensionId);
+        Assert.Equal("test", mount.CommandId);
+        Assert.Equal("main.web.js", mount.Entry);
+        Assert.Equal("view", mount.Props.Environment.CommandMode);
+        Assert.Equal("C:/notes", mount.Props.Preferences["vaultPath"].GetString());
+
+        var call = root.GetProperty("hostToSidecar").GetProperty("webCall").Deserialize<WebCallMessage>(JsonOptions.Default)!;
+        Assert.Equal("webCall", call.Type);
+        Assert.Equal("w-1", call.BridgeId);
+        Assert.Equal("http.fetch", call.Method);
+        Assert.True(call.Params!["discardBody"].GetBoolean());
+
+        var result = root.GetProperty("sidecarToHost").GetProperty("webResult").Deserialize<WebResultMessage>(JsonOptions.Default)!;
+        Assert.Equal("webResult", result.Type);
+        Assert.True(result.Ok);
+        Assert.Equal(4000000, result.Result!.Value.GetProperty("bytesReceived").GetInt64());
+
+        var abort = root.GetProperty("hostToSidecar").GetProperty("webAbort").Deserialize<WebAbortMessage>(JsonOptions.Default)!;
+        Assert.Equal("webAbort", abort.Type);
+        Assert.Equal("w-1", abort.BridgeId);
+    }
+
+    [Fact]
     public void WindowCommandAndLaunchCommandCarryAttribution()
     {
         var root = Root();

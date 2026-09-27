@@ -217,6 +217,33 @@ public static class ExtensionManifestValidator
                 {
                     Add(errors, $"{field}.disabledByDefault", "format", "command disabledByDefault must be a boolean");
                 }
+                if (command.TryGetProperty("ui", out var ui) && ui.ValueKind != JsonValueKind.Undefined)
+                {
+                    var uiValue = ui.ValueKind == JsonValueKind.String ? ui.GetString() : null;
+                    if (uiValue is not ("web" or "tree"))
+                    {
+                        Add(errors, $"{field}.ui", "format", "command ui must be 'tree' or 'web'");
+                    }
+                    else if (uiValue == "web"
+                        && (!command.TryGetProperty("mode", out var uiMode) || uiMode.GetString() != "view"))
+                    {
+                        Add(errors, $"{field}.ui", "format", "command ui 'web' requires mode 'view'");
+                    }
+                }
+                if (command.TryGetProperty("webEntry", out var webEntry) && webEntry.ValueKind != JsonValueKind.Undefined)
+                {
+                    var webEntryValue = webEntry.ValueKind == JsonValueKind.String ? webEntry.GetString() : null;
+                    if (webEntryValue is null
+                        || webEntryValue.Length == 0
+                        || !System.Text.RegularExpressions.Regex.IsMatch(webEntryValue, "^[A-Za-z0-9][A-Za-z0-9._-]*\\.js$"))
+                    {
+                        Add(errors, $"{field}.webEntry", "format", "command webEntry must be a bundled .js filename (e.g. main.web.js)");
+                    }
+                    else if (command.TryGetProperty("ui", out var webEntryUi) && webEntryUi.ValueKind == JsonValueKind.String && webEntryUi.GetString() != "web")
+                    {
+                        Add(errors, $"{field}.webEntry", "format", "command webEntry requires ui 'web'");
+                    }
+                }
                 if (command.TryGetProperty("interval", out var interval) && interval.ValueKind != JsonValueKind.Undefined)
                 {
                     if (interval.ValueKind != JsonValueKind.Number || !interval.TryGetInt32(out var intervalSeconds))

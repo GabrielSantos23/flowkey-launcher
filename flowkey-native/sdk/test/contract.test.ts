@@ -16,6 +16,10 @@ import {
   type UiPushMessage,
   type UiTree,
   type LaunchCommandMessage,
+  type WebAbortMessage,
+  type WebCallMessage,
+  type WebResultMessage,
+  type WebViewMessage,
   type WindowCommandMessage,
 } from '../src/types';
 
@@ -329,6 +333,34 @@ describe('protocol contract fixture', () => {
     expect(launch.extensionId).toBe('demo-ext');
     expect(launch.commandId).toBe('open');
     expect(launch.query).toBe('notes');
+  });
+
+  test('web bridge messages follow the wire shape', () => {
+    const call: WebCallMessage = protocolFixture.hostToSidecar.webCall;
+    expect(call.type).toBe('webCall');
+    expect(call.bridgeId).toBe('w-1');
+    expect(call.extensionId).toBe('speedtest');
+    expect(call.method).toBe('http.fetch');
+    expect(call.params?.discardBody).toBe(true);
+
+    const abort: WebAbortMessage = protocolFixture.hostToSidecar.webAbort;
+    expect(abort.type).toBe('webAbort');
+    expect(abort.bridgeId).toBe('w-1');
+
+    const mount: WebViewMessage = protocolFixture.sidecarToHost.webView;
+    expect(mount.type).toBe('webView');
+    expect(mount.requestId).toBe('s-9');
+    expect(mount.extensionId).toBe('speedtest');
+    expect(mount.commandId).toBe('test');
+    expect(mount.entry).toBe('main.web.js');
+    expect(mount.props.environment.commandMode).toBe('view');
+
+    const result: WebResultMessage = protocolFixture.sidecarToHost.webResult;
+    expect(result.type).toBe('webResult');
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect((result.result as { bytesReceived?: number }).bytesReceived).toBe(4000000);
+    }
   });
 
   test('toast and alert native calls follow the wire shape', () => {

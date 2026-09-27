@@ -262,6 +262,24 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
           'command disabledByDefault must be a boolean',
         );
       }
+      if (command.ui !== undefined) {
+        if (command.ui !== 'web' && command.ui !== 'tree') {
+          error(`${field}.ui`, 'format', "command ui must be 'tree' or 'web'");
+        } else if (command.ui === 'web' && command.mode !== 'view') {
+          error(`${field}.ui`, 'format', "command ui 'web' requires mode 'view'");
+        }
+      }
+      if (command.webEntry !== undefined) {
+        if (typeof command.webEntry !== 'string' || !ENTRY_PATTERN.test(command.webEntry)) {
+          error(
+            `${field}.webEntry`,
+            'format',
+            'command webEntry must be a bundled .js filename (e.g. main.web.js)',
+          );
+        } else if (command.ui !== undefined && command.ui !== 'web') {
+          error(`${field}.webEntry`, 'format', "command webEntry requires ui 'web'");
+        }
+      }
       if (command.interval !== undefined) {
         if (typeof command.interval !== 'number' || !Number.isInteger(command.interval)) {
           error(

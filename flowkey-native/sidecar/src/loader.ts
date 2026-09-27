@@ -16,6 +16,9 @@ import type {
   HudOptions,
   ExtensionEnvironment,
   Arguments,
+  WebCallMessage,
+  WebAbortMessage,
+  WebViewMessage,
 } from '@flowkey-cli/native-sdk';
 import { resolveEntry, validateManifest, createCapabilities } from '@flowkey-cli/native-sdk';
 import type { ReactExtensionModule } from '@flowkey-cli/react-ui';
@@ -40,6 +43,12 @@ export type LoadedModule = LoadedFunctional | LoadedReact;
 
 function isReactModule(module: LoadedModule): module is LoadedReact {
   return 'component' in module;
+}
+
+function isWebOnlyModule(module: LoadedModule): boolean {
+  return (
+    module.manifest.commands.length > 0 && module.manifest.commands.every((c) => c.ui === 'web')
+  );
 }
 
 const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
@@ -231,8 +240,44 @@ export class Dispatcher {
     this.bridge.handleResult(message);
   }
 
+  private readonly webBridges = new Map<string, string>();
+
+  /** Relays a webview capability call through the normal gated bridge. */
+  handleWebCall(message: Extract<HostMessage, { type: 'webCall' }>): void {
+    const { requestId, promise } = this.bridge.callWithId<unknown>(
+      message.extensionId,
+      message.method,
+      message.params,
+    );
+    this.webBridges.set(message.bridgeId, requestId);
+    void promise.then(
+      (result) => {
+        this.webBridges.delete(message.bridgeId);
+        this.emit({ type: 'webResult', bridgeId: message.bridgeId, ok: true, result });
+      },
+      (error) => {
+        this.webBridges.delete(message.bridgeId);
+        this.emit({
+          type: 'webResult',
+          bridgeId: message.bridgeId,
+          ok: false,
+          error: toProtocolError(error),
+        });
+      },
+    );
+  }
+
+  /** Aborts the in-flight native call behind a webview bridge id. */
+  handleWebAbort(message: Extract<HostMessage, { type: 'webAbort' }>): void {
+    const nativeRequestId = this.webBridges.get(message.bridgeId);
+    if (nativeRequestId) {
+      this.bridge.abort(nativeRequestId);
+    }
+  }
+
   failPendingNativeCalls(error: { code: string; message: string }): void {
     this.roots.destroyAll();
+    this.webBridges.clear();
     this.bridge.failAll(error);
   }
 
@@ -288,6 +333,12 @@ export class Dispatcher {
         if (ext) ext.preferences = message.values;
         break;
       }
+      case 'webCall':
+        this.handleWebCall(message);
+        break;
+      case 'webAbort':
+        this.handleWebAbort(message);
+        break;
       default:
         emit({
           type: 'log',
@@ -319,13 +370,36 @@ export class Dispatcher {
     this.lastCommandId = commandId;
     this.lastFilterValue = filterValue;
     try {
+      const command = commandId ? ext.manifest.commands.find((c) => c.id === commandId) : undefined;
+      if (command?.ui === 'web') {
+        emit({
+          type: 'webView',
+          requestId,
+          extensionId,
+          commandId: commandId ?? '',
+          entry: command.webEntry ?? `${commandId}.web.js`,
+          props: {
+            query,
+            filterValue,
+            preferences: ext.preferences,
+            environment: buildEnvironment(ext, commandId),
+          },
+        });
+        return;
+      }
       if (isReactModule(ext)) {
         if (commandId) {
           const root = this.roots.ensure(extensionId, commandId, ext);
           this.respondFromRoot(root, requestId, emit, { query, filterValue, commandId });
         } else {
           this.roots.deactivateExtension(extensionId);
-          this.renderTransient(ext, requestId, emit, { query, filterValue });
+          if (isWebOnlyModule(ext)) {
+            // Web-only extensions have no tree representation at the root;
+            // the shell's command rows already cover them.
+            emit({ type: 'ui', requestId, tree: { type: 'list', sections: [] } });
+          } else {
+            this.renderTransient(ext, requestId, emit, { query, filterValue });
+          }
         }
         return;
       }
@@ -358,7 +432,12 @@ export class Dispatcher {
     }
     try {
       if (actionId === '__open__') {
-        const commandId = item?.id ?? '';
+        // The shell's root rows use 'cmd:<extensionId>:<commandId>' ids; strip
+        // the prefix so a stale row selection still opens the right command.
+        const rawCommandId = item?.id ?? '';
+        const commandId = rawCommandId.startsWith('cmd:')
+          ? (rawCommandId.split(':')[2] ?? '')
+          : rawCommandId;
         const command = ext.manifest.commands.find((c) => c.id === commandId);
         if (!command) {
           emit({
@@ -367,6 +446,21 @@ export class Dispatcher {
             error: {
               code: 'unknownCommand',
               message: `command '${commandId}' not found in ${extensionId}`,
+            },
+          });
+          return;
+        }
+        if (command.ui === 'web') {
+          emit({
+            type: 'webView',
+            requestId,
+            extensionId,
+            commandId,
+            entry: command.webEntry ?? `${commandId}.web.js`,
+            props: {
+              query: '',
+              preferences: ext.preferences,
+              environment: buildEnvironment(ext, commandId),
             },
           });
           return;

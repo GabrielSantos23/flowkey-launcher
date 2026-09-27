@@ -38,7 +38,8 @@ public sealed class ExtensionPackageInstaller
         IReadOnlyList<string> OAuth,
         IReadOnlyList<string> FsPaths,
         IReadOnlyList<string> UriSchemes,
-        IReadOnlyList<string> ManifestWarnings);
+        IReadOnlyList<string> ManifestWarnings,
+        bool HasWebUi);
 
     public sealed record InstallOutcome(bool Ok, string? ErrorCode, string? ErrorMessage, InstalledExtension? Installed)
     {
@@ -108,6 +109,13 @@ public sealed class ExtensionPackageInstaller
                     error = $"versionConflict: installed version {existing.Version}, package version {version}";
                     return null;
                 }
+                var hasWebUi = root.TryGetProperty("commands", out var planCommands)
+                    && planCommands.ValueKind == JsonValueKind.Array
+                    && planCommands.EnumerateArray().Any(c =>
+                        c.ValueKind == JsonValueKind.Object
+                        && c.TryGetProperty("ui", out var uiElement)
+                        && uiElement.ValueKind == JsonValueKind.String
+                        && uiElement.GetString() == "web");
                 return new InstallPlan(
                     id,
                     root.GetProperty("name").GetString() ?? id,
@@ -130,7 +138,8 @@ public sealed class ExtensionPackageInstaller
                     root.TryGetProperty("uriSchemes", out var uriSchemes) && uriSchemes.ValueKind == JsonValueKind.Array
                         ? ReadStringArray(root, "uriSchemes")
                         : Array.Empty<string>(),
-                    validation.Warnings.Select(w => $"{w.Field}: {w.Message}").ToList());
+                    validation.Warnings.Select(w => $"{w.Field}: {w.Message}").ToList(),
+                    hasWebUi);
             }
         }
         catch (InvalidDataException)

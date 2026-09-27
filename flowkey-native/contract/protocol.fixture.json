@@ -74,6 +74,21 @@
         "code": "hostNotAllowed",
         "message": "host evil.example.com is not declared by extension emoji"
       }
+    },
+    "webCall": {
+      "type": "webCall",
+      "bridgeId": "w-1",
+      "extensionId": "speedtest",
+      "method": "http.fetch",
+      "params": {
+        "url": "https://speed.cloudflare.com/__down?bytes=4000000",
+        "discardBody": true
+      }
+    },
+    "webAbort": {
+      "type": "webAbort",
+      "bridgeId": "w-1",
+      "extensionId": "speedtest"
     }
   },
   "sidecarToHost": {
@@ -282,6 +297,37 @@
       "extensionId": "demo-ext",
       "commandId": "open",
       "query": "notes"
+    },
+    "webView": {
+      "type": "webView",
+      "requestId": "s-9",
+      "extensionId": "speedtest",
+      "commandId": "test",
+      "entry": "main.web.js",
+      "props": {
+        "query": "",
+        "preferences": {
+          "vaultPath": "C:/notes"
+        },
+        "environment": {
+          "extensionId": "speedtest",
+          "extensionName": "Speedtest",
+          "extensionVersion": "0.1.0",
+          "commandId": "test",
+          "commandMode": "view",
+          "isDevelopment": false
+        }
+      }
+    },
+    "webResult": {
+      "type": "webResult",
+      "bridgeId": "w-1",
+      "ok": true,
+      "result": {
+        "status": 200,
+        "headers": {},
+        "bytesReceived": 4000000
+      }
     }
   }
 }

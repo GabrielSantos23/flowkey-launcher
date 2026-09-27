@@ -34,6 +34,8 @@ public sealed class SidecarHost : IDisposable
     public event Action<Protocol.UiPushMessage>? UiPush;
     public event Action<Protocol.WindowCommandMessage>? WindowCommand;
     public event Action<Protocol.LaunchCommandMessage>? LaunchCommand;
+    public event Action<Protocol.WebViewMessage>? WebView;
+    public event Action<Protocol.WebResultMessage>? WebResult;
     public event Action<Protocol.ErrorMessage>? Error;
     public event Action<Protocol.LogMessage>? Log;
     public event Action<string, string, string, Dictionary<string, JsonElement>?>? NativeCallRequested;
@@ -204,6 +206,23 @@ public sealed class SidecarHost : IDisposable
         return requestId;
     }
 
+    public void SendWebCall(
+        string bridgeId, string extensionId, string method, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? parameters)
+    {
+        Send(new Protocol.WebCallMessage
+        {
+            BridgeId = bridgeId,
+            ExtensionId = extensionId,
+            Method = method,
+            Params = parameters is null ? null : new Dictionary<string, System.Text.Json.JsonElement>(parameters),
+        });
+    }
+
+    public void SendWebAbort(string bridgeId, string extensionId)
+    {
+        Send(new Protocol.WebAbortMessage { BridgeId = bridgeId, ExtensionId = extensionId });
+    }
+
     public string SendAction(string extensionId, string actionId, Protocol.UiItem? item)
     {
         requestCounter++;
@@ -332,6 +351,20 @@ public sealed class SidecarHost : IDisposable
                     if (launch is not null)
                     {
                         LaunchCommand?.Invoke(launch);
+                    }
+                    break;
+                case "webView":
+                    var webView = root.Deserialize<Protocol.WebViewMessage>(Protocol.JsonOptions.Default);
+                    if (webView is not null)
+                    {
+                        WebView?.Invoke(webView);
+                    }
+                    break;
+                case "webResult":
+                    var webResult = root.Deserialize<Protocol.WebResultMessage>(Protocol.JsonOptions.Default);
+                    if (webResult is not null)
+                    {
+                        WebResult?.Invoke(webResult);
                     }
                     break;
                 case "ack":

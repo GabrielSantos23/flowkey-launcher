@@ -178,6 +178,61 @@ public sealed class LaunchCommandMessage
     public string? Query { get; set; }
 }
 
+public sealed class WebViewMessage
+{
+    public string Type { get; set; } = "webView";
+    public string RequestId { get; set; } = "";
+    public string ExtensionId { get; set; } = "";
+    public string CommandId { get; set; } = "";
+    /// <summary>Web bundle filename inside the extension package.</summary>
+    public string Entry { get; set; } = "";
+    public WebViewProps Props { get; set; } = new();
+}
+
+public sealed class ExtensionEnvironment
+{
+    public string ExtensionId { get; set; } = "";
+    public string ExtensionName { get; set; } = "";
+    public string ExtensionVersion { get; set; } = "";
+    public string? CommandId { get; set; }
+    public string? CommandMode { get; set; }
+    public bool? IsDevelopment { get; set; }
+}
+
+public sealed class WebViewProps
+{
+    public string Query { get; set; } = "";
+    public string? FilterValue { get; set; }
+    public Dictionary<string, string>? Arguments { get; set; }
+    public Dictionary<string, JsonElement> Preferences { get; set; } = new();
+    public ExtensionEnvironment Environment { get; set; } = new();
+}
+
+public sealed class WebCallMessage
+{
+    public string Type { get; set; } = "webCall";
+    public string BridgeId { get; set; } = "";
+    public string ExtensionId { get; set; } = "";
+    public string Method { get; set; } = "";
+    public Dictionary<string, JsonElement>? Params { get; set; }
+}
+
+public sealed class WebResultMessage
+{
+    public string Type { get; set; } = "webResult";
+    public string BridgeId { get; set; } = "";
+    public bool Ok { get; set; }
+    public JsonElement? Result { get; set; }
+    public ProtocolError? Error { get; set; }
+}
+
+public sealed class WebAbortMessage
+{
+    public string Type { get; set; } = "webAbort";
+    public string BridgeId { get; set; } = "";
+    public string ExtensionId { get; set; } = "";
+}
+
 public sealed class ProtocolError
 {
     public string Code { get; set; } = "";

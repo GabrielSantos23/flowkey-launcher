@@ -25,7 +25,8 @@ public sealed class ConsentDialog : Window
         IReadOnlyList<string> oauthProviders,
         IReadOnlyList<string> fsPaths,
         IReadOnlyList<string> uriSchemes,
-        bool isReconsent)
+        bool isReconsent,
+        bool hasWebUi = false)
     {
         Title = isReconsent ? "Review extension permissions" : "Install extension";
         Width = 460;
@@ -56,6 +57,17 @@ public sealed class ConsentDialog : Window
                 TextWrapping = TextWrapping.Wrap,
             });
         }
+        if (hasWebUi)
+        {
+            root.Children.Add(new TextBlock
+            {
+                Text = "This extension renders its interface in an embedded web view. It has no access beyond its declared capabilities.",
+                FontSize = 12,
+                Foreground = GetBrush("AccentBrush", System.Windows.Media.Brushes.Gray),
+                Margin = new Thickness(0, 8, 0, 0),
+                TextWrapping = TextWrapping.Wrap,
+            });
+        }
         root.Children.Add(new TextBlock
         {
             Text = "Only install extensions from authors you trust. Declared capabilities are enforced by FlowKey after you accept.",
@@ -64,7 +76,6 @@ public sealed class ConsentDialog : Window
             Margin = new Thickness(0, 8, 0, 0),
             TextWrapping = TextWrapping.Wrap,
         });
-
         AddCapabilitySection(root, "Native methods", nativeMethods, "none");
         AddCapabilitySection(root, "Network hosts", httpHosts, "none");
         AddCapabilitySection(root, "Connected accounts (OAuth)", oauthProviders, "none");
@@ -100,9 +111,10 @@ public sealed class ConsentDialog : Window
     /// <summary>Shows the dialog modally; returns true when the user accepted.</summary>
     public static bool Confirm(Window? owner, string extensionName, string version, string? description,
         IReadOnlyList<string> nativeMethods, IReadOnlyList<string> httpHosts, IReadOnlyList<string> oauthProviders,
-        IReadOnlyList<string> fsPaths, IReadOnlyList<string> uriSchemes, bool isReconsent = false)
+        IReadOnlyList<string> fsPaths, IReadOnlyList<string> uriSchemes,
+        bool hasWebUi = false, bool isReconsent = false)
     {
-        var dialog = new ConsentDialog(extensionName, version, description, nativeMethods, httpHosts, oauthProviders, fsPaths, uriSchemes, isReconsent);
+        var dialog = new ConsentDialog(extensionName, version, description, nativeMethods, httpHosts, oauthProviders, fsPaths, uriSchemes, isReconsent, hasWebUi);
         if (owner is not null)
         {
             dialog.Owner = owner;

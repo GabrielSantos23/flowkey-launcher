@@ -138,6 +138,23 @@ file/folder pickers run in the shell.
   receive them as `ctx.arguments`. View commands receive them at open time;
   live search text stays available through the regular query.
 
+## Web extensions (`ui: "web"`)
+
+A command may declare `"ui": "web"` in its manifest (plus `webEntry`, the
+bundled file name, e.g. `main.web.js`). Those commands render as free-form
+React/HTML/CSS inside a WebView2 surface hosted by the shell:
+
+- The web bundle is built by the CLI (`flowkey build`) as an IIFE with
+  `react-dom` bundled — no host shims; the page owns its React.
+- The page runs on `https://app.flowkey.local` (host page) and loads the
+  bundle from `https://extensions.flowkey.local/<id>/<webEntry>` — both
+  virtual hosts mapped to local folders by the shell. Strict CSP, no other
+  origins, navigation blocked.
+- Capability calls (`props.capabilities.*`) are relayed through the sidecar's
+  gated NativeBridge — the same manifest/consent policy as native calls.
+- `props.theme` carries the shell palette as hex tokens; `props.query`,
+  `props.arguments`, `props.preferences` and `props.environment` update live.
+
 ## Deliberately not implemented
 
 Parity items from the Raycast SDK that FlowKey intentionally does not ship:

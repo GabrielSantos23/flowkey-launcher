@@ -42,6 +42,9 @@ public sealed class ToastWindow : Window
         Focusable = false;
         Topmost = true;
         SizeToContent = SizeToContent.WidthAndHeight;
+        // Without this the non-client area of a WindowStyle.None window renders
+        // black behind the rounded border.
+        AllowsTransparency = true;
         Background = System.Windows.Media.Brushes.Transparent;
         SetResourceReference(FontFamilyProperty, "AppFontFamily");
 
@@ -109,8 +112,10 @@ public sealed class ToastWindow : Window
         };
         SourceInitialized += (_, _) =>
         {
+            // No DwmChrome here: the window is a layered (AllowsTransparency)
+            // window, so the border Border owns the rounding and the click
+            // through/no-activation styles do the rest.
             var source = HwndSource.FromHwnd(new WindowInteropHelper(this).Handle);
-            DwmChrome.Apply(source!);
             var style = GetWindowLong(source!.Handle, GWL_EXSTYLE);
             SetWindowLong(source.Handle, GWL_EXSTYLE, style | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT);
         };

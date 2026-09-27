@@ -11,6 +11,8 @@ export interface HttpResponse {
   status: number;
   headers: Record<string, string>;
   body?: string;
+  /** Present when the request was sent with `discardBody: true`. */
+  bytesReceived?: number;
 }
 
 export interface ClipboardWriteContent {
@@ -39,6 +41,11 @@ export interface FetchOptions {
   auth?: string;
   /** Aborts the in-flight request (transport-level, never serialized as a param). */
   signal?: AbortSignal;
+  /**
+   * Skips transferring the response body to the extension; the result carries
+   * `bytesReceived` instead. Use for throughput measurements.
+   */
+  discardBody?: boolean;
 }
 
 /** Result of the shell's `oauth.*` routes (token state is vaulted host-side). */

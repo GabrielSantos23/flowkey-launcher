@@ -66,6 +66,9 @@ public sealed class HttpFetchService
         var headers = parameters is not null && parameters.TryGetValue("headers", out var h) && h.ValueKind == JsonValueKind.Object
             ? h.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ToString())
             : new Dictionary<string, string>();
+        var discardBody = parameters is not null
+            && parameters.TryGetValue("discardBody", out var discardElement)
+            && discardElement.ValueKind == JsonValueKind.True;
         string? body = parameters is not null && parameters.TryGetValue("body", out var b) && b.ValueKind == JsonValueKind.String
             ? b.GetString()
             : null;
@@ -105,12 +108,12 @@ public sealed class HttpFetchService
         }
         else if (headers.TryGetValue("Authorization", out var auth))
         {
-            return await SendOnceAndMapAsync(uri, method, headers, auth, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory);
+            return await SendOnceAndMapAsync(uri, method, headers, auth, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory, discardBody);
         }
 
         if (authed is null)
         {
-            return await SendOnceAndMapAsync(uri, method, headers, null, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory);
+            return await SendOnceAndMapAsync(uri, method, headers, null, body, httpHosts, pinnedHost, timeoutMs, cancellationToken, handlerFactory, discardBody);
         }
 
         using var budgetCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -125,7 +128,7 @@ public sealed class HttpFetchService
         var rateRetried = false;
         for (var attempt = 0; attempt <= MaxAuthAttempts; attempt++)
         {
-            var sent = await SendLoopAsync(uri, method, headers, $"Bearer {token}", body, httpHosts, pinnedHost, timeoutMs, budgetCts.Token, handlerFactory);
+            var sent = await SendLoopAsync(uri, method, headers, $"Bearer {token}", body, httpHosts, pinnedHost, timeoutMs, budgetCts.Token, handlerFactory, discardBody);
             if (sent.Failure is not null)
             {
                 return sent.Failure;
@@ -180,11 +183,12 @@ public sealed class HttpFetchService
         string? pinnedHost,
         int timeoutMs,
         CancellationToken cancellationToken,
-        Func<HttpMessageHandler>? handlerFactory)
+        Func<HttpMessageHandler>? handlerFactory,
+        bool discardBody)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeoutCts.CancelAfter(Math.Max(1, timeoutMs));
-        var sent = await SendLoopAsync(uri, method, headers, authorization, body, httpHosts, pinnedHost, timeoutMs, timeoutCts.Token, handlerFactory);
+        var sent = await SendLoopAsync(uri, method, headers, authorization, body, httpHosts, pinnedHost, timeoutMs, timeoutCts.Token, handlerFactory, discardBody);
         if (sent.Failure is not null)
         {
             return sent.Failure;
@@ -198,8 +202,9 @@ public sealed class HttpFetchService
         {
             status = sent.Status,
             headers = sent.Headers,
-            bodyText = sent.BodyText,
+            bodyText = sent.BodyBytes.HasValue ? null : sent.BodyText,
             truncated = false,
+            bytesReceived = sent.BodyBytes,
         });
         return NativeCallOutcome.Success(result);
     }
@@ -214,7 +219,8 @@ public sealed class HttpFetchService
         string? pinnedHost,
         int timeoutMs,
         CancellationToken cancellationToken,
-        Func<HttpMessageHandler>? handlerFactory)
+        Func<HttpMessageHandler>? handlerFactory,
+        bool discardBody = false)
     {
         using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -312,7 +318,10 @@ public sealed class HttpFetchService
                     {
                         return SendResult.Failed(NativeCallOutcome.Failure("responseTooLarge", $"response exceeds {MaxResponseBytes} bytes"));
                     }
-                    buffer.Write(chunk, 0, read);
+                    if (!discardBody)
+                    {
+                        buffer.Write(chunk, 0, read);
+                    }
                 }
 
                 var responseHeaders = response.Headers.ToDictionary(
@@ -323,6 +332,10 @@ public sealed class HttpFetchService
                     responseHeaders[p.Key] = string.Join(", ", p.Value);
                 }
 
+                if (discardBody)
+                {
+                    return new SendResult((int)response.StatusCode, responseHeaders, string.Empty, BodyBytes: total);
+                }
                 return new SendResult((int)response.StatusCode, responseHeaders, Encoding.UTF8.GetString(buffer.ToArray()));
             }
         }
@@ -383,7 +396,7 @@ public sealed class HttpFetchService
         throw new HttpRequestException("no allowed address to connect to");
     }
 
-    private sealed record SendResult(int Status, Dictionary<string, string> Headers, string BodyText, NativeCallOutcome? Failure = null)
+    private sealed record SendResult(int Status, Dictionary<string, string> Headers, string BodyText, NativeCallOutcome? Failure = null, long? BodyBytes = null)
     {
         public static SendResult Failed(NativeCallOutcome outcome) => new(0, new Dictionary<string, string>(), "", outcome);
     }

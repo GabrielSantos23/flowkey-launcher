@@ -576,9 +576,11 @@ public partial class SettingsWindow : Window
             showToast("Install failed: " + inspectError);
             return;
         }
+        var hasWebUi = plan.HasWebUi;
         var accepted = ConsentDialog.Confirm(
             this, plan.Name, plan.Version, plan.Description,
-            plan.NativeMethods, plan.HttpHosts, plan.OAuth, plan.FsPaths, plan.UriSchemes, isReconsent: false);
+            plan.NativeMethods, plan.HttpHosts, plan.OAuth, plan.FsPaths, plan.UriSchemes,
+            hasWebUi, isReconsent: false);
         if (!accepted)
         {
             return;

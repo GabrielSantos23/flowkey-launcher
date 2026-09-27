@@ -18,6 +18,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Content Include="Assets\Web\**" CopyToOutputDirectory="PreserveNewest" />
     <Resource Include="Assets\Fonts\Inter-Regular.ttf" />
     <Resource Include="Assets\Fonts\Inter-Medium.ttf" />
     <Resource Include="Assets\Fonts\Inter-SemiBold.ttf" />
@@ -31,6 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <PackageReference Include="Velopack" Version="1.2.158" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
   </ItemGroup>

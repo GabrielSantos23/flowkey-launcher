@@ -37,7 +37,9 @@
             "icon": "search",
             "iconColor": "#3B82F6",
             "subtitle": "Notes & vaults",
-            "disabledByDefault": true
+            "disabledByDefault": true,
+            "ui": "web",
+            "webEntry": "main.web.js"
           },
           {
             "id": "run-job",
@@ -587,6 +589,46 @@
         "httpHosts": []
       },
       "expectedField": "commands[0].interval",
+      "expectedCode": "format"
+    },
+    {
+      "name": "web-ui-on-background-command",
+      "manifest": {
+        "id": "bad-web-ui",
+        "name": "Bad Web Ui",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "tick",
+            "title": "Tick",
+            "mode": "background",
+            "ui": "web"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].ui",
+      "expectedCode": "format"
+    },
+    {
+      "name": "web-entry-path-traversal",
+      "manifest": {
+        "id": "bad-web-entry",
+        "name": "Bad Web Entry",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "open",
+            "title": "Open",
+            "ui": "web",
+            "webEntry": "../evil.js"
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].webEntry",
       "expectedCode": "format"
     }
   ]

@@ -30,12 +30,30 @@ export class NativeBridge {
     params?: Record<string, unknown>,
     options?: NativeCallOptions,
   ): Promise<T> {
+    const { promise } = this.callWithId<T>(extensionId, method, params, options);
+    return promise;
+  }
+
+  /**
+   * Like `call`, but also exposes the minted native request id so callers can
+   * correlate out-of-band control messages (e.g. webview aborts) with the
+   * in-flight call.
+   */
+  callWithId<T = unknown>(
+    extensionId: string,
+    method: string,
+    params?: Record<string, unknown>,
+    options?: NativeCallOptions,
+  ): { requestId: string; promise: Promise<T> } {
     const signal = options?.signal;
     const requestId = `n${this.nextRequestId++}`;
     if (signal?.aborted) {
-      return Promise.reject({ code: 'aborted', message: `native method ${method} aborted` });
+      return {
+        requestId,
+        promise: Promise.reject({ code: 'aborted', message: `native method ${method} aborted` }),
+      };
     }
-    return new Promise<T>((resolve, reject) => {
+    const promise = new Promise<T>((resolve, reject) => {
       let settled = false;
       const settle = (fn: () => void) => {
         if (settled) return;
@@ -69,6 +87,15 @@ export class NativeBridge {
       };
       this.emit(message);
     });
+    return { requestId, promise };
+  }
+
+  /** Aborts an in-flight call by its native request id. Returns false when already settled. */
+  abort(requestId: string): boolean {
+    const pending = this.pending.get(requestId);
+    if (!pending) return false;
+    pending.reject({ code: 'aborted', message: 'native call aborted' });
+    return true;
   }
 
   handleResult(message: NativeResultMessage): void {

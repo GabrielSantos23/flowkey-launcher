@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src https://extensions.flowkey.local https://app.flowkey.local; style-src 'unsafe-inline' https://extensions.flowkey.local https://app.flowkey.local; img-src data: https://extensions.flowkey.local; font-src https://extensions.flowkey.local;" />
+  <style>
+    html, body { margin: 0; padding: 0; background: var(--fk-window-background); color: var(--fk-text-primary); }
+    body { font-family: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif; font-size: 14px; }
+    :root { --fk-radius: 10px; }
+    #root { min-height: 100vh; }
+    #load-error { display: none; padding: 24px; color: var(--fk-text-secondary); }
+  </style>
+  <style id="fk-theme"></style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="load-error"></div>
+  <script src="webhost.js"></script>
+</body>
+</html>

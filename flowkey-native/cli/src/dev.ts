@@ -1,7 +1,7 @@
 import { cpSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { context } from 'esbuild';
-import { esbuildConfig, writeDistManifest } from './build';
+import { buildWebBundles, esbuildConfig, writeDistManifest } from './build';
 import {
   findSourceEntry,
   loadManifest,
@@ -29,6 +29,7 @@ export async function devWatch(options: { manifest?: string; target?: string }):
   const ctx = await context(esbuildConfig(sourceEntry, join(distDir, entryFile), false));
   await ctx.rebuild();
   writeDistManifest(loaded, distDir, entryFile);
+  await buildWebBundles(loaded, distDir, false, (message: string) => console.log(message));
   install();
   console.log('watching for changes… (Ctrl+C to stop)');
   await ctx.watch();
