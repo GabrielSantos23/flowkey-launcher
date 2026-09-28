@@ -380,12 +380,18 @@
     window.dispatchEvent(new MessageEvent('flowkey-message', { data: data }));
   });
 
+  // The shell maps extensions.flowkey.local to the mounted extension's bundle
+  // folder (installed package dir, or the first-party repo dist during dev),
+  // so the entry loads straight from the host root. Every extension bundles
+  // its web UI under the same file name (app.web.js), so the extension id
+  // rides in the query string: the URL is the HTTP cache key, and a shared
+  // cache would otherwise hand one extension's bundle to another.
   var script = document.createElement('script');
   script.src =
     'https://extensions.flowkey.local/' +
-    encodeURIComponent(extensionId) +
-    '/' +
-    encodeURIComponent(entry);
+    encodeURIComponent(entry) +
+    '?ext=' +
+    encodeURIComponent(extensionId);
   script.onerror = function () {
     showLoadError('Failed to load the extension interface (' + extensionId + '/' + entry + ').');
     window.flowkeyPost({

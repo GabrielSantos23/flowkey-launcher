@@ -89,6 +89,8 @@ public partial class MainWindow : Window
     private SettingsWindow? settingsWindow;
     private ActionPanel? actionPanel;
     private HudWindow? hudWindow;
+    /// <summary>The value the search-bar filter dropdown currently shows.</summary>
+    private string? currentFilterValue;
     private ToastWindow? toastWindow;
     private const int CommandHotkeyBase = 0x4B00;
     private readonly Dictionary<int, (string ExtensionId, string CommandId)> commandHotkeyIds = new();
@@ -329,6 +331,10 @@ public partial class MainWindow : Window
         if (searchState.CurrentRows.Count == 0)
         {
             UpdateEmptyView("FlowKey", "Type to search, or press Escape to hide");
+        }
+        if (footerWebViewHost is null)
+        {
+            _ = InitializeFooterChromeAsync();
         }
     }
 
@@ -738,6 +744,62 @@ public partial class MainWindow : Window
         {
             return;
         }
+        if (webViewVisible)
+        {
+            if (webViewHost is not null && webViewHost.ContainsKeyboardFocus)
+            {
+                // The web page owns keyboard interactions (list navigation,
+                // enter, ctrl+k palette, escape back-stack) while it has focus.
+                return;
+            }
+            // Focus sits in the launcher search box: forward chrome-level
+            // interactions into the page, mirroring the tree-view shortcuts.
+            // Home/End stay with the text box (caret movement); the page owns
+            // its own Home/End while it holds focus.
+            switch (e.Key)
+            {
+                case Key.Down:
+                    PostWebViewPageAction("moveDown");
+                    e.Handled = true;
+                    break;
+                case Key.Up:
+                    PostWebViewPageAction("moveUp");
+                    e.Handled = true;
+                    break;
+                case Key.PageDown:
+                    PostWebViewPageAction("pageDown");
+                    e.Handled = true;
+                    break;
+                case Key.PageUp:
+                    PostWebViewPageAction("pageUp");
+                    e.Handled = true;
+                    break;
+                case Key.Enter:
+                    PostWebViewPageAction("primary");
+                    e.Handled = true;
+                    break;
+                case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                    PostWebViewPageAction("openPalette");
+                    e.Handled = true;
+                    break;
+                case Key.Escape:
+                    if (webViewState?.PaletteOpen == true)
+                    {
+                        PostWebViewPageAction("closePalette");
+                    }
+                    else if (webViewState?.CanGoBack == true)
+                    {
+                        PostWebViewPageAction("goBack");
+                    }
+                    else
+                    {
+                        PerformEscape();
+                    }
+                    e.Handled = true;
+                    break;
+            }
+            return;
+        }
         if (GridHostPanel.Visibility == Visibility.Visible)
         {
             if (HandleGridKeys(e))
@@ -868,52 +930,203 @@ public partial class MainWindow : Window
 
     private void UpdateFooter()
     {
-        var top = searchState.Top;
-        if (searchState.Depth > 1 && top?.ExtensionId is not null)
+        var state = BuildFooterState();
+        if (footerWebViewReady && footerWebViewHost is not null)
         {
-            var extension = readyExtensions.FirstOrDefault(e => e.Id == top.ExtensionId);
-            var commandTitle = top.CommandId is null
-                ? null
-                : extension?.Commands.FirstOrDefault(c => c.Id == top.CommandId)?.Title;
-            var label = commandTitle ?? extension?.Name ?? "";
-            var selectedTitle = SelectedItemTitleForFooter();
-            if (!string.IsNullOrEmpty(selectedTitle))
-            {
-                label += " – " + selectedTitle;
-            }
-            var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-            panel.Children.Add(CreateExtensionIcon(extension));
-            var name = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, FontWeight = FontWeights.SemiBold };
-            name.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
-            name.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            name.SetResourceReference(FrameworkElement.MarginProperty, "IconMargin");
-            panel.Children.Add(name);
-            FooterLeft.Content = panel;
+            footerWebViewHost.PostState(FooterProtocol.SerializeState(state));
+            return;
         }
-        else
-        {
-            var settingsButton = new System.Windows.Controls.Border
-            {
-                Background = System.Windows.Media.Brushes.Transparent,
-                Padding = new Thickness(6, 2, 6, 2),
-                Margin = new Thickness(-6, -2, 0, -2),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = "Settings",
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            var glyph = new TextBlock { Text = "\uE700", VerticalAlignment = VerticalAlignment.Center };
-            glyph.SetResourceReference(TextBlock.FontFamilyProperty, "GlyphFontFamily");
-            glyph.SetResourceReference(TextBlock.FontSizeProperty, "GlyphFontSize");
-            glyph.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
-            settingsButton.Child = glyph;
-            settingsButton.MouseLeftButtonUp += (_, _) => OpenSettings();
-            FooterLeft.Content = settingsButton;
-        }
+        ApplyFooterStateToNative(state);
+    }
 
-        var primary = SelectedPrimaryActionTitle();
-        FooterPrimaryAction.Text = primary ?? "";
-        FooterPrimaryAction.Visibility = primary is null ? Visibility.Collapsed : Visibility.Visible;
-        FooterEnterKeycap.Visibility = primary is null ? Visibility.Collapsed : Visibility.Visible;
+    private FooterState BuildFooterState()
+    {
+        var top = searchState.Top;
+        ReadyExtension? readyExtension = null;
+        FooterExtensionInfo? topExtension = null;
+        if (top?.ExtensionId is not null)
+        {
+            readyExtension = readyExtensions.FirstOrDefault(e => e.Id == top.ExtensionId);
+            if (readyExtension is not null)
+            {
+                topExtension = new FooterExtensionInfo(
+                    readyExtension.Id,
+                    readyExtension.Name,
+                    readyExtension.Commands.ToDictionary(c => c.Id, c => c.Title));
+            }
+        }
+        return FooterStateBuilder.Build(new FooterInput(
+            webViewVisible,
+            webViewState,
+            searchState.Depth,
+            top?.ExtensionId,
+            topExtension,
+            top?.CommandId,
+            FooterIconFor(readyExtension),
+            SelectedPrimaryActionTitle(),
+            SelectedItemTitleForFooter(),
+            footerToast));
+    }
+
+    /// <summary>Rasterizes (and caches) the extension icon into a payload the footer surface can render.</summary>
+    private FooterIconState? FooterIconFor(ReadyExtension? extension)
+    {
+        if (extension is null)
+        {
+            return null;
+        }
+        var key = extension.Id + "|" + (extension.Icon ?? "");
+        if (footerIconCache.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+        var icon = Rendering.FooterIconRenderer.FromElement(CreateExtensionIcon(extension));
+        if (icon is not null)
+        {
+            footerIconCache[key] = icon;
+        }
+        return icon;
+    }
+
+    /// <summary>
+    /// Native fallback renderer for the footer state — used until the WebView
+    /// footer page reports ready, and permanently when WebView2 is unavailable.
+    /// </summary>
+    private void ApplyFooterStateToNative(FooterState state)
+    {
+        FooterLeft.Content = state.Left.Kind == "command"
+            ? BuildNativeCommandIdentity(state.Left)
+            : BuildNativeSettingsButton();
+        // The gear-only pill gets symmetric padding so the button sits centered.
+        FooterLeftPill.Padding = state.Left.Kind == "command"
+            ? (System.Windows.Thickness)FindResource("FooterPillPadding")
+            : (System.Windows.Thickness)FindResource("FooterPillIconPadding");
+        // The right pill only exists while it has something to say.
+        FooterRightPill.Visibility =
+            state.PrimaryTitle is not null || state.ShowActionsHint ? Visibility.Visible : Visibility.Collapsed;
+        FooterPrimaryAction.Text = state.PrimaryTitle ?? "";
+        FooterPrimaryAction.Visibility =
+            state.PrimaryTitle is null ? Visibility.Collapsed : Visibility.Visible;
+        FooterEnterKeycap.Visibility =
+            state.PrimaryTitle is null ? Visibility.Collapsed : Visibility.Visible;
+        FooterActionsHint.Visibility = state.ShowActionsHint ? Visibility.Visible : Visibility.Collapsed;
+        ApplyFooterToastToNative(state.Toast);
+    }
+
+    private FrameworkElement BuildNativeCommandIdentity(FooterLeftState left)
+    {
+        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        if (Rendering.FooterIconRenderer.ToNativeElement(left.Icon, key => TryFindResource(key)) is { } icon)
+        {
+            panel.Children.Add(icon);
+        }
+        var name = new TextBlock
+        {
+            Text = left.Title ?? "",
+            VerticalAlignment = VerticalAlignment.Center,
+            FontWeight = FontWeights.SemiBold,
+        };
+        name.SetResourceReference(TextBlock.FontSizeProperty, "FooterFontSize");
+        name.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+        name.SetResourceReference(FrameworkElement.MarginProperty, "IconMargin");
+        panel.Children.Add(name);
+        return panel;
+    }
+
+    private FrameworkElement BuildNativeSettingsButton()
+    {
+        var settingsButton = new System.Windows.Controls.Border
+        {
+            Background = System.Windows.Media.Brushes.Transparent,
+            Padding = new Thickness(2, 2, 2, 2),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "Settings",
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var glyph = new TextBlock { Text = "\uE700", VerticalAlignment = VerticalAlignment.Center };
+        glyph.SetResourceReference(TextBlock.FontFamilyProperty, "GlyphFontFamily");
+        glyph.SetResourceReference(TextBlock.FontSizeProperty, "GlyphFontSize");
+        glyph.SetResourceReference(TextBlock.ForegroundProperty, "TextSecondaryBrush");
+        settingsButton.Child = glyph;
+        settingsButton.MouseLeftButtonUp += (_, _) => OpenSettings();
+        return settingsButton;
+    }
+
+    private void ApplyFooterToastToNative(FooterToastState? toast)
+    {
+        if (toast is null)
+        {
+            FooterToastHost.Visibility = Visibility.Collapsed;
+            FooterLeft.Visibility = Visibility.Visible;
+            return;
+        }
+        FooterToastTitle.Text = toast.Title;
+        FooterToastDetail.Text = toast.Detail ?? "";
+        FooterToastDetail.Visibility = string.IsNullOrEmpty(toast.Detail) ? Visibility.Collapsed : Visibility.Visible;
+        FooterToastDot.Visibility = toast.IsError ? Visibility.Visible : Visibility.Collapsed;
+        FooterToastHost.Background = toast.IsError
+            ? (System.Windows.Media.Brush)FindResource("FooterToastErrorBrush")
+            : (System.Windows.Media.Brush)FindResource("ActionPanelBackgroundBrush");
+        FooterToastHost.Visibility = Visibility.Visible;
+        FooterLeft.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Mounts the WebView-rendered footer chrome (same pipeline as web
+    /// extensions: host page on app.flowkey.local, theme CSS, postMessage
+    /// state). Until the page reports ready — and permanently when the
+    /// WebView2 runtime is missing — the native XAML footer keeps rendering.
+    /// </summary>
+    private async Task InitializeFooterChromeAsync()
+    {
+        if (!WebViewHost.RuntimeAvailable())
+        {
+            DebugLog.Write("footer: WebView2 runtime missing, keeping native footer");
+            return;
+        }
+        try
+        {
+            footerWebViewHost = new FooterWebViewHost(FooterWebViewContainer);
+            footerWebViewHost.Ready += OnFooterWebViewReady;
+            footerWebViewHost.Failed += OnFooterWebViewFailed;
+            footerWebViewHost.ActionRequested += OnFooterWebViewAction;
+            footerWebViewHost.LogEmitted += message => DebugLog.Write("footer page: " + message);
+            footerWebViewHost.SetThemeCss(FooterTheme.BuildCss(key => TryFindResource(key)));
+            await footerWebViewHost.InitializeAsync();
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("footer chrome init failed: " + ex);
+        }
+    }
+
+    private void OnFooterWebViewReady()
+    {
+        footerWebViewReady = true;
+        FooterWebViewContainer.Visibility = Visibility.Visible;
+        FooterNativeContent.Visibility = Visibility.Collapsed;
+        UpdateFooter();
+    }
+
+    private void OnFooterWebViewFailed(string message)
+    {
+        DebugLog.Write("footer webview failed: " + message);
+        if (!footerWebViewReady)
+        {
+            return;
+        }
+        footerWebViewReady = false;
+        FooterWebViewContainer.Visibility = Visibility.Collapsed;
+        FooterNativeContent.Visibility = Visibility.Visible;
+        UpdateFooter();
+    }
+
+    private void OnFooterWebViewAction(string action)
+    {
+        if (action == "settings")
+        {
+            OpenSettings();
+        }
     }
 
     private string? SelectedPrimaryActionTitle()
@@ -945,6 +1158,11 @@ public partial class MainWindow : Window
 
     private string? SelectedItemTitleForFooter()
     {
+        if (webViewVisible)
+        {
+            // the mounted page names its own selection (the focused emoji, say)
+            return webViewState?.SelectionTitle;
+        }
         if (GridHostPanel.Visibility == Visibility.Visible)
         {
             return gridIndex >= 0 && gridIndex < gridItems.Count ? gridItems[gridIndex].Title : null;
@@ -1327,7 +1545,20 @@ public partial class MainWindow : Window
         }
     }
 
-    private void OnBackButtonClick(object sender, MouseButtonEventArgs e) => PerformEscape();
+    private void OnBackButtonClick(object sender, MouseButtonEventArgs e)
+    {
+        if (webViewVisible && webViewState?.PaletteOpen == true)
+        {
+            PostWebViewPageAction("closePalette");
+            return;
+        }
+        if (webViewVisible && webViewState?.CanGoBack == true)
+        {
+            PostWebViewPageAction("goBack");
+            return;
+        }
+        PerformEscape();
+    }
 
     private void OnListDoubleClick(object sender, MouseButtonEventArgs e) => RunPrimaryAction();
 
@@ -2096,6 +2327,11 @@ public partial class MainWindow : Window
     private bool viewHoldsLoadingBar;
     private WebViewHost? webViewHost;
     private bool webViewVisible;
+    private WebViewProtocol.WebViewState? webViewState;
+    private FooterWebViewHost? footerWebViewHost;
+    private bool footerWebViewReady;
+    private FooterToastState? footerToast;
+    private readonly Dictionary<string, FooterIconState> footerIconCache = new(StringComparer.Ordinal);
     private Protocol.UiPagination? currentPagination;
     private string? currentPaginationExtensionId;
     private CommandInfo? pendingArgumentCommand;
@@ -2128,6 +2364,47 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Chrome state reported by the mounted web page: drives the footer hints,
+    /// the search-bar filter dropdown and what the back button does.
+    /// </summary>
+    private void OnWebViewViewState(string extensionId, string json)
+    {
+        Dispatcher.BeginInvoke(() =>
+        {
+            webViewState = WebViewProtocol.ParseViewState(json);
+            if (webViewState is null)
+            {
+                DebugLog.Write("webview viewState parse failed");
+                return;
+            }
+            DebugLog.Write(
+                "webview viewState primary=" + (webViewState.PrimaryTitle ?? "")
+                + " canGoBack=" + webViewState.CanGoBack
+                + " hasActions=" + webViewState.HasActions
+                + " filters=" + (webViewState.Filters?.Count ?? 0));
+            var filter = webViewState.Filters is { Count: > 0 }
+                ? new Protocol.UiFilter { Options = webViewState.Filters }
+                : null;
+            // The page keeps running while its surface is hidden (timer-driven
+            // screens re-report); a native view must not grow a filter dropdown.
+            UpdateFilterDropdown(webViewVisible ? filter : null);
+            // a web page names its own search box ("Search Emoji & Symbols...")
+            if (webViewVisible && !string.IsNullOrWhiteSpace(webViewState.SearchPlaceholder))
+            {
+                SearchPlaceholder.Text = webViewState.SearchPlaceholder;
+            }
+            UpdateFooter();
+        });
+    }
+
+    /// <summary>Forwards a chrome interaction (enter/ctrl+k/back) into the page.</summary>
+    private void PostWebViewPageAction(string action)
+    {
+        DebugLog.Write("webview pageAction=" + action);
+        webViewHost?.PostPageAction(action);
+    }
+
     private void OnSidecarWebView(WebViewMessage message)
     {
         Dispatcher.BeginInvoke(async () =>
@@ -2136,6 +2413,14 @@ public partial class MainWindow : Window
             {
                 EndOperation();
                 webViewVisible = true;
+                // Props-only updates re-render the same mounted page; pages
+                // dedup their viewState posts, so resetting the chrome state
+                // here would leave the footer hints dark until the page's next
+                // real chrome change. Reset only when a different page loads.
+                if (webViewHost is null || !webViewHost.IsShowing(message.ExtensionId, message.Entry))
+                {
+                    webViewState = null;
+                }
                 ResultsList.Visibility = Visibility.Collapsed;
                 GridHostPanel.Visibility = Visibility.Collapsed;
                 DetailHost.Visibility = Visibility.Collapsed;
@@ -2153,8 +2438,14 @@ public partial class MainWindow : Window
                 webViewHost.LoadFailed += OnWebViewLoadFailed;
                 webViewHost.LogEmitted -= OnWebViewLogEmitted;
                 webViewHost.LogEmitted += OnWebViewLogEmitted;
+                webViewHost.ViewStateEmitted -= OnWebViewViewState;
+                webViewHost.ViewStateEmitted += OnWebViewViewState;
                 DebugLog.Write($"WebView mount ext={message.ExtensionId} cmd={message.CommandId} entry={message.Entry}");
-                await webViewHost.ShowAsync(message, extensionsRoot);
+                var firstPartyExtensionsRoot = repoRoot is null
+                    ? null
+                    : System.IO.Path.Combine(repoRoot, "extensions");
+                await webViewHost.ShowAsync(message, extensionsRoot, firstPartyExtensionsRoot);
+                UpdateFooter();
             }
             catch (Exception ex)
             {
@@ -2164,12 +2455,12 @@ public partial class MainWindow : Window
         });
     }
 
-    private void OnWebViewCallRequested(string bridgeId, string extensionId, string method, string? paramsJson)
+    private void OnWebViewCallRequested(string bridgeId, string extensionId, string method, string? paramsJson, int? timeoutMs)
     {
         var parameters = paramsJson is null
             ? null
             : JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(paramsJson);
-        sidecar.SendWebCall(bridgeId, extensionId, method, parameters);
+        sidecar.SendWebCall(bridgeId, extensionId, method, parameters, timeoutMs);
     }
 
     private void OnWebViewAbortRequested(string bridgeId, string extensionId)
@@ -2197,7 +2488,17 @@ public partial class MainWindow : Window
     private void HideWebViewSurface()
     {
         webViewVisible = false;
+        // The page stays mounted while hidden and keeps its chrome; the last
+        // reported state is restored as soon as the same page is shown again.
         WebViewSurface.Visibility = Visibility.Collapsed;
+        UpdateFilterDropdown(null);
+        // a placeholder the page supplied belongs to that page, not to the root
+        if (webViewState?.SearchPlaceholder is { } placeholder)
+        {
+            SearchPlaceholder.Text = "Type to search.";
+            DebugLog.Write("webview placeholder reset after hide: " + placeholder);
+        }
+        UpdateFooter();
     }
 
     private void OnSidecarWindowCommand(WindowCommandMessage message)
@@ -2374,6 +2675,7 @@ public partial class MainWindow : Window
         var current = filter.Options.FirstOrDefault(o => o.Value == (searchState.Top?.FilterValue ?? "all"))
             ?? filter.Options.FirstOrDefault();
         FilterLabel.Text = current?.Label ?? "";
+        currentFilterValue = current?.Value;
         if (searchState.Top is { } top)
         {
             top.FilterValue = current?.Value;
@@ -2407,6 +2709,16 @@ public partial class MainWindow : Window
     private void OnFilterButtonClick(object sender, MouseButtonEventArgs e)
     {
         FilterPopup.IsOpen = !FilterPopup.IsOpen;
+        if (!FilterPopup.IsOpen || currentFilterValue is null)
+        {
+            return;
+        }
+        // a long option list (an extension's language picker, say) opens on the
+        // active option instead of at the top
+        FilterList.ScrollIntoView(
+            FilterList.Items
+                .Cast<Protocol.UiFilterOption>()
+                .FirstOrDefault(option => option.Value == currentFilterValue));
     }
 
     private void OnFilterListClick(object sender, MouseButtonEventArgs e)
@@ -3670,25 +3982,25 @@ public partial class MainWindow : Window
 
     public void ShowToast(string message, string? detail, bool isError)
     {
-        FooterToastTitle.Text = message;
-        FooterToastDetail.Text = detail ?? "";
-        FooterToastDetail.Visibility = string.IsNullOrEmpty(detail) ? Visibility.Collapsed : Visibility.Visible;
-        FooterToastDot.Visibility = isError ? Visibility.Visible : Visibility.Collapsed;
-        FooterToastHost.Background = isError ? (System.Windows.Media.Brush)FindResource("FooterToastErrorBrush") : null;
-        FooterToastHost.Visibility = Visibility.Visible;
-        FooterLeft.Visibility = Visibility.Collapsed;
-        if (footerToastTimer is null)
+        // Some callers (update service, sidecar events) may fire off the UI
+        // thread; the toast state and its timer belong to the dispatcher.
+        Dispatcher.BeginInvoke(() =>
         {
-            footerToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
-            footerToastTimer.Tick += (_, _) =>
+            footerToast = new FooterToastState(message, detail, isError);
+            if (footerToastTimer is null)
             {
-                footerToastTimer.Stop();
-                FooterToastHost.Visibility = Visibility.Collapsed;
-                FooterLeft.Visibility = Visibility.Visible;
-            };
-        }
-        footerToastTimer.Stop();
-        footerToastTimer.Start();
+                footerToastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+                footerToastTimer.Tick += (_, _) =>
+                {
+                    footerToastTimer.Stop();
+                    footerToast = null;
+                    UpdateFooter();
+                };
+            }
+            footerToastTimer.Stop();
+            footerToastTimer.Start();
+            UpdateFooter();
+        });
     }
 
     private DispatcherTimer? footerToastTimer;

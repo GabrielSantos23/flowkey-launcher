@@ -9,9 +9,15 @@ This file answers one question: **given what you are building, what do you use?*
 
 FlowKey's UI is native WPF. Extension UI arrives as a serialized tree rendered
 by the shell; the shell's own surfaces (launcher window, settings, action
-panel, HUD) are XAML. Everything visual lives in
+panel, HUD) are XAML. The one exception is the launcher **footer**: it renders
+in a WebView2 chrome page fed by shell-pushed state (`Native/FooterStateBuilder`
+→ `Native/FooterProtocol` → `Assets/Web/footerhost.html`), with the native XAML
+footer as its automatic fallback — the two must stay visually identical.
+Everything visual lives in
 `flowkey-native/shell/src/Shell/Theme.xaml` as keyed resources — never
-hardcode a color, size, or radius in code-behind or XAML.
+hardcode a color, size, or radius in code-behind, XAML, or the footer page
+(footer CSS consumes `--fk-*` vars built from those same resources by
+`Native/FooterTheme`).
 
 ## 1. Theme resources — the lookup tables
 

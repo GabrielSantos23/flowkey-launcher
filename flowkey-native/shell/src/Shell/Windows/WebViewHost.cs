@@ -24,12 +24,15 @@ public sealed class WebViewHost : IDisposable
     private string? currentEntry;
     private WebViewMessage? lastMount;
     private string themeCss = string.Empty;
+    private readonly string artworkCacheRoot = Path.Combine(IconUriPolicy.IconCacheRoot, "images");
 
-    /// <summary>bridgeId / extensionId / method / params JSON for a webview capability call.</summary>
-    public event Action<string, string, string, string?>? CallRequested;
+    /// <summary>bridgeId / extensionId / method / params JSON / timeoutMs for a webview capability call.</summary>
+    public event Action<string, string, string, string?, int?>? CallRequested;
     public event Action<string>? LogEmitted;
     public event Action<string, string>? AbortRequested;
     public event Action<string>? LoadFailed;
+    /// <summary>The mounted page reported new chrome state (primary action, filters, back-stack).</summary>
+    public event Action<string, string>? ViewStateEmitted;
 
     public WebViewHost(Grid container)
     {
@@ -69,7 +72,7 @@ public sealed class WebViewHost : IDisposable
         return WebViewProtocol.BuildThemeCss(tokens);
     }
 
-    public async Task ShowAsync(WebViewMessage message, string extensionsRoot)
+    public async Task ShowAsync(WebViewMessage message, string extensionsRoot, string? firstPartyExtensionsRoot)
     {
         lastMount = message;
         themeCss ??= string.Empty;
@@ -81,12 +84,23 @@ public sealed class WebViewHost : IDisposable
                 ShowFallback("The WebView2 runtime is missing. Install the Evergreen WebView2 Runtime to use web extensions.");
                 return;
             }
-            await InitializeAsync(extensionsRoot);
+            await InitializeAsync();
         }
         if (webView is null)
         {
             return;
         }
+        var core = webView.CoreWebView2;
+        var bundleFolder = WebViewProtocol.ResolveExtensionBundleFolder(
+            message.ExtensionId,
+            message.Entry,
+            extensionsRoot,
+            firstPartyExtensionsRoot,
+            File.Exists);
+        core.SetVirtualHostNameToFolderMapping(
+            WebViewProtocol.ExtensionsHost,
+            bundleFolder,
+            CoreWebView2HostResourceAccessKind.Allow);
         if (currentExtensionId != message.ExtensionId || currentEntry != message.Entry)
         {
             currentExtensionId = message.ExtensionId;
@@ -98,6 +112,21 @@ public sealed class WebViewHost : IDisposable
             PostProps(message);
         }
     }
+
+    /// <summary>
+    /// True when the mounted page already is this extension/entry, so an
+    /// incoming webView message is a props-only update (no reload). The shell
+    /// keeps the page's reported chrome state in that case: pages dedup their
+    /// viewState posts, so a reset would never be refreshed.
+    /// </summary>
+    public bool IsShowing(string extensionId, string entry) =>
+        currentExtensionId == extensionId && currentEntry == entry;
+
+    /// <summary>
+    /// True when keyboard focus sits inside the WebView2 surface, so the page
+    /// owns arrow/enter/escape/shortcut handling at the window level.
+    /// </summary>
+    public bool ContainsKeyboardFocus => webView is { IsKeyboardFocusWithin: true };
 
     public void Hide()
     {
@@ -119,8 +148,19 @@ public sealed class WebViewHost : IDisposable
     public void PostWebResult(WebResultMessage message)
     {
         LogEmitted?.Invoke($"posting webResult bridgeId={message.BridgeId} ok={message.Ok}");
-        Post(WebViewProtocol.SerializeResult(message));
+        Post(WebViewProtocol.SerializeResult(message, artworkCacheRoot));
     }
+
+    /// <summary>
+    /// Asks the mounted page to run one of its chrome-driven interactions:
+    /// "primary" (footer ↵), "openPalette" (footer Ctrl+K), "goBack"
+    /// (back button / escape) or a scroll step ("moveUp"/"moveDown"/"pageUp"/
+    /// "pageDown", which drive row selection or the page's scroll region) —
+    /// used while keyboard focus sits in the launcher search box, where the
+    /// page cannot see the keystrokes.
+    /// </summary>
+    public void PostPageAction(string action) =>
+        Post(JsonSerializer.Serialize(new { type = "pageAction", action }));
 
     private void Post(string json)
     {
@@ -130,7 +170,7 @@ public sealed class WebViewHost : IDisposable
         }
     }
 
-    private async Task InitializeAsync(string extensionsRoot)
+    private async Task InitializeAsync()
     {
         initialized = true;
         try
@@ -150,16 +190,26 @@ public sealed class WebViewHost : IDisposable
             this.webView = webView;
 
             var core = webView.CoreWebView2;
-            core.SetVirtualHostNameToFolderMapping(
-                WebViewProtocol.ExtensionsHost,
-                extensionsRoot,
-                CoreWebView2HostResourceAccessKind.Allow);
             var appWebFolder = Path.Combine(AppContext.BaseDirectory, "Assets", "Web");
             Directory.CreateDirectory(appWebFolder);
             core.SetVirtualHostNameToFolderMapping(
                 WebViewProtocol.AppHost,
                 appWebFolder,
                 CoreWebView2HostResourceAccessKind.Allow);
+            // Cached artwork (the shell's own image.fetch output) is served to
+            // the page over a virtual host; file: URIs are unreadable there.
+            try
+            {
+                Directory.CreateDirectory(artworkCacheRoot);
+                core.SetVirtualHostNameToFolderMapping(
+                    WebViewProtocol.ArtHost,
+                    artworkCacheRoot,
+                    CoreWebView2HostResourceAccessKind.Allow);
+            }
+            catch (Exception ex)
+            {
+                LogEmitted?.Invoke("artwork host mapping failed: " + ex.Message);
+            }
             core.Settings.AreDevToolsEnabled =
                 Environment.GetEnvironmentVariable("FLOWKEY_LOG") == "1";
             core.Settings.AreDefaultContextMenusEnabled = false;
@@ -184,10 +234,22 @@ public sealed class WebViewHost : IDisposable
                         }
                         break;
                     case WebViewProtocol.WebMessageType.Call:
-                        CallRequested?.Invoke(parsed.BridgeId, parsed.ExtensionId, parsed.Method, parsed.ParamsJson);
+                        CallRequested?.Invoke(
+                            parsed.BridgeId,
+                            parsed.ExtensionId,
+                            parsed.Method,
+                            parsed.ParamsJson,
+                            parsed.TimeoutMs);
                         break;
                     case WebViewProtocol.WebMessageType.Abort:
                         AbortRequested?.Invoke(parsed.BridgeId, parsed.ExtensionId);
+                        break;
+                    case WebViewProtocol.WebMessageType.Unknown when
+                        args.WebMessageAsJson.Contains("\"viewState\"", StringComparison.Ordinal):
+                        if (currentExtensionId is not null)
+                        {
+                            ViewStateEmitted?.Invoke(currentExtensionId, args.WebMessageAsJson);
+                        }
                         break;
                 }
             };

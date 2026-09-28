@@ -39,10 +39,18 @@
   <SolidColorBrush x:Key="CellSelectedOutlineBrush" Color="#FFFFFF" />
   <SolidColorBrush x:Key="ActionPanelBackgroundBrush" Color="#1E1E1E" />
 
+  <!-- shadcn-style scroll fade: content dissolves at the bottom edge, behind
+       the floating footer pills (mask relative to each content host). -->
+  <LinearGradientBrush x:Key="ContentFadeMask" StartPoint="0,0" EndPoint="0,1">
+    <GradientStop Color="#FFFFFFFF" Offset="0.84" />
+    <GradientStop Color="#00FFFFFF" Offset="1" />
+  </LinearGradientBrush>
+
   <CornerRadius x:Key="WindowCornerRadius">10</CornerRadius>
   <CornerRadius x:Key="RowCornerRadius">8</CornerRadius>
   <CornerRadius x:Key="KeycapCornerRadius">5</CornerRadius>
   <CornerRadius x:Key="CellCornerRadius">10</CornerRadius>
+  <CornerRadius x:Key="FooterPillCornerRadius">16</CornerRadius>
 
   <sys:Double x:Key="SearchFontSize">16</sys:Double>
   <sys:Double x:Key="TitleFontSize">14</sys:Double>
@@ -73,6 +81,7 @@
   <sys:Double x:Key="CellWidth">62</sys:Double>
   <sys:Double x:Key="CellHeight">56</sys:Double>
   <sys:Double x:Key="CellIconSize">34</sys:Double>
+  <sys:Double x:Key="FooterPillHeight">32</sys:Double>
 
   <Thickness x:Key="RowPadding">12,0</Thickness>
   <Thickness x:Key="HeaderMargin">4,10,0,4</Thickness>
@@ -86,8 +95,9 @@
   <Thickness x:Key="DetailMargin">0,0,0,6</Thickness>
   <Thickness x:Key="CellMargin">1</Thickness>
   <Thickness x:Key="EmptyDescriptionMargin">0,4,0,0</Thickness>
-  <Thickness x:Key="FooterLeftPadding">16,0,0,0</Thickness>
-  <Thickness x:Key="FooterRightPadding">0,0,16,0</Thickness>
+  <Thickness x:Key="FooterPillPadding">12,0,16,0</Thickness>
+  <Thickness x:Key="FooterPillIconPadding">12,0,12,0</Thickness>
+  <Thickness x:Key="FooterPillMargin">12,0,12,8</Thickness>
   <Thickness x:Key="KeycapPadding">6,2</Thickness>
   <Thickness x:Key="KeycapMargin">8,0,0,0</Thickness>
   <Thickness x:Key="KeycapSpacing">0,0,4,0</Thickness>

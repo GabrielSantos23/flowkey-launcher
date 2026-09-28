@@ -138,6 +138,9 @@
                        BorderThickness="0"
                        Background="Transparent"
                        Foreground="{DynamicResource TextPrimaryBrush}"
+                       MaxHeight="300"
+                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                        SelectionChanged="OnFilterListSelectionChanged"
                        PreviewMouseLeftButtonDown="OnFilterListClick">
                 <ListBox.ItemContainerStyle>
@@ -223,7 +226,11 @@
       </Border>
     </StackPanel>
 
-    <Grid Grid.Row="1">
+    <!-- The list spans into the footer row so rows flow behind the floating
+         pills; the mask dissolves the content at the window's bottom edge. -->
+    <Grid Grid.Row="1"
+          Grid.RowSpan="2"
+          OpacityMask="{DynamicResource ContentFadeMask}">
       <Grid.ColumnDefinitions>
         <ColumnDefinition x:Name="ListColumn" Width="*" />
         <ColumnDefinition Width="Auto" />
@@ -532,6 +539,8 @@
 
     <ScrollViewer x:Name="DetailHost"
              Grid.Row="1"
+             Grid.RowSpan="2"
+             OpacityMask="{DynamicResource ContentFadeMask}"
              rendering:SmoothScroll.Enabled="True"
              Margin="{DynamicResource DetailMargin}"
              VerticalScrollBarVisibility="Auto"
@@ -546,6 +555,8 @@
 
     <DockPanel x:Name="GridHostPanel"
              Grid.Row="1"
+             Grid.RowSpan="2"
+             OpacityMask="{DynamicResource ContentFadeMask}"
              Background="Transparent"
              Visibility="Collapsed">
       <TextBlock x:Name="GridTitleText"
@@ -664,63 +675,97 @@
       <TextBlock x:Name="EmptyDescription" FontSize="{DynamicResource EmptyDescriptionFontSize}" Foreground="{DynamicResource TextTertiaryBrush}" TextAlignment="Center" Margin="{DynamicResource EmptyDescriptionMargin}" />
     </StackPanel>
 
-    <Border Grid.Row="2" Height="{DynamicResource FooterHeight}" BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Background="Transparent" MouseLeftButtonDown="OnFooterDragMove">
+    <!-- Floating pill footer (no contrast bar): native fallback layout below;
+         the WebView-rendered pills live in FooterWebViewContainer. -->
+    <Border Grid.Row="2" Height="{DynamicResource FooterHeight}" Background="Transparent" MouseLeftButtonDown="OnFooterDragMove">
       <Grid>
-        <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="*" />
-          <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-        <ContentControl x:Name="FooterLeft" Grid.Column="0" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="{DynamicResource FooterLeftPadding}" />
-        <StackPanel x:Name="FooterRight" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="{DynamicResource FooterRightPadding}">
-          <TextBlock x:Name="FooterPrimaryAction"
-                     FontSize="{DynamicResource FooterFontSize}"
-                     FontWeight="SemiBold"
-                     Foreground="{DynamicResource TextPrimaryBrush}"
-                     VerticalAlignment="Center" />
-          <Border x:Name="FooterEnterKeycap"
-                  Style="{StaticResource KeycapStyle}"
-                  Background="{DynamicResource EnterKeycapBackgroundBrush}"
-                  Margin="{DynamicResource KeycapMargin}">
-            <TextBlock Style="{StaticResource KeycapText}" Text="&#x21B5;" />
+        <Grid x:Name="FooterNativeContent">
+          <Border x:Name="FooterLeftPill"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Bottom"
+                  Height="{DynamicResource FooterPillHeight}"
+                  CornerRadius="{DynamicResource FooterPillCornerRadius}"
+                  Background="{DynamicResource ActionPanelBackgroundBrush}"
+                  BorderBrush="{DynamicResource KeycapBorderBrush}"
+                  BorderThickness="1"
+                  Padding="{DynamicResource FooterPillPadding}"
+                  Margin="{DynamicResource FooterPillMargin}">
+            <ContentControl x:Name="FooterLeft" VerticalAlignment="Center" HorizontalAlignment="Left" />
           </Border>
-          <Border Width="1" Height="{DynamicResource FooterDividerHeight}" Background="{DynamicResource KeycapBorderBrush}" Margin="{DynamicResource FooterDividerMargin}" VerticalAlignment="Center" />
-          <TextBlock Text="Actions"
-                     FontSize="{DynamicResource FooterFontSize}"
-                     Foreground="{DynamicResource TextSecondaryBrush}"
-                     VerticalAlignment="Center" Margin="{DynamicResource ActionsLabelMargin}" />
-          <Border Style="{StaticResource KeycapStyle}" Margin="{DynamicResource KeycapSpacing}">
-            <TextBlock Style="{StaticResource KeycapText}" Text="Ctrl" />
+          <Border x:Name="FooterRightPill"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Bottom"
+                  Height="{DynamicResource FooterPillHeight}"
+                  CornerRadius="{DynamicResource FooterPillCornerRadius}"
+                  Background="{DynamicResource ActionPanelBackgroundBrush}"
+                  BorderBrush="{DynamicResource KeycapBorderBrush}"
+                  BorderThickness="1"
+                  Padding="{DynamicResource FooterPillPadding}"
+                  Margin="{DynamicResource FooterPillMargin}">
+            <StackPanel x:Name="FooterRight" Orientation="Horizontal" VerticalAlignment="Center">
+              <TextBlock x:Name="FooterPrimaryAction"
+                         FontSize="{DynamicResource FooterFontSize}"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         VerticalAlignment="Center" />
+              <Border x:Name="FooterEnterKeycap"
+                      Style="{StaticResource KeycapStyle}"
+                      Background="{DynamicResource EnterKeycapBackgroundBrush}"
+                      Margin="{DynamicResource KeycapMargin}">
+                <TextBlock Style="{StaticResource KeycapText}" Text="&#x21B5;" />
+              </Border>
+              <StackPanel x:Name="FooterActionsHint" Orientation="Horizontal">
+                <Border Width="1" Height="{DynamicResource FooterDividerHeight}" Background="{DynamicResource KeycapBorderBrush}" Margin="{DynamicResource FooterDividerMargin}" VerticalAlignment="Center" />
+                <TextBlock Text="Actions"
+                           FontSize="{DynamicResource FooterFontSize}"
+                           Foreground="{DynamicResource TextSecondaryBrush}"
+                           VerticalAlignment="Center" Margin="{DynamicResource ActionsLabelMargin}" />
+                <Border Style="{StaticResource KeycapStyle}" Margin="{DynamicResource KeycapSpacing}">
+                  <TextBlock Style="{StaticResource KeycapText}" Text="Ctrl" />
+                </Border>
+                <Border Style="{StaticResource KeycapStyle}">
+                  <TextBlock Style="{StaticResource KeycapText}" Text="K" />
+                </Border>
+              </StackPanel>
+            </StackPanel>
           </Border>
-          <Border Style="{StaticResource KeycapStyle}">
-            <TextBlock Style="{StaticResource KeycapText}" Text="K" />
+          <Border x:Name="FooterToastHost"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Bottom"
+                  Height="{DynamicResource FooterPillHeight}"
+                  CornerRadius="{DynamicResource FooterPillCornerRadius}"
+                  Background="{DynamicResource ActionPanelBackgroundBrush}"
+                  BorderBrush="{DynamicResource KeycapBorderBrush}"
+                  BorderThickness="1"
+                  Padding="{DynamicResource FooterPillPadding}"
+                  Margin="{DynamicResource FooterPillMargin}"
+                  IsHitTestVisible="False"
+                  Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" MaxWidth="470">
+              <Ellipse x:Name="FooterToastDot"
+                       Width="7"
+                       Height="7"
+                       Fill="{StaticResource FooterToastDotBrush}"
+                       VerticalAlignment="Center" />
+              <TextBlock x:Name="FooterToastTitle"
+                         Margin="9,0,0,0"
+                         FontSize="{DynamicResource FooterFontSize}"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource TextPrimaryBrush}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock x:Name="FooterToastDetail"
+                         Margin="8,0,0,0"
+                         FontSize="{DynamicResource FooterFontSize}"
+                         Foreground="{DynamicResource TextSecondaryBrush}"
+                         VerticalAlignment="Center"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
           </Border>
-        </StackPanel>
-        <Border x:Name="FooterToastHost"
-                Grid.Column="0"
-                Grid.ColumnSpan="2"
-                IsHitTestVisible="False"
-                Visibility="Collapsed">
-          <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="16,0,0,0" MaxWidth="470">
-            <Ellipse x:Name="FooterToastDot"
-                     Width="7"
-                     Height="7"
-                     Fill="{StaticResource FooterToastDotBrush}"
-                     VerticalAlignment="Center" />
-            <TextBlock x:Name="FooterToastTitle"
-                       Margin="9,0,0,0"
-                       FontSize="{DynamicResource FooterFontSize}"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" />
-            <TextBlock x:Name="FooterToastDetail"
-                       Margin="8,0,0,0"
-                       FontSize="{DynamicResource FooterFontSize}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       VerticalAlignment="Center"
-                       TextTrimming="CharacterEllipsis" />
-          </StackPanel>
-        </Border>
+        </Grid>
+        <!-- WebView-rendered footer pills (same pipeline as web extensions);
+             the native pills above stay as the fallback until it reports ready. -->
+        <Grid x:Name="FooterWebViewContainer" Visibility="Collapsed" />
       </Grid>
     </Border>
 

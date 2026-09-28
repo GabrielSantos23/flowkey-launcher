@@ -1,0 +1,213 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src https://app.flowkey.local; style-src 'unsafe-inline' https://app.flowkey.local; img-src data: https://app.flowkey.local;"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: transparent;
+      }
+      /* The hidden attribute must always win: several elements below set
+       display in author CSS, which would otherwise defeat [hidden] and leave
+       stale content (toasts, keycaps) painted forever. */
+      [hidden] {
+        display: none !important;
+      }
+      body {
+        font-family: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif;
+        overflow: hidden;
+      }
+      /* Border-box keeps the pills' 1px border inside their fixed height,
+         otherwise the strip's overflow:hidden clips the top border away. */
+      #footer,
+      #left,
+      #right,
+      #toast {
+        box-sizing: border-box;
+      }
+      /* The footer strip is the window drag surface, exactly like the native
+       fallback; only interactive children opt out via no-drag. The pills hug
+       their content and float at the bottom corners; the center stays empty. */
+      #footer {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        app-region: drag;
+        -webkit-app-region: drag;
+        user-select: none;
+        cursor: default;
+        overflow: hidden;
+      }
+      #left,
+      #right {
+        display: flex;
+        align-items: center;
+        flex: none;
+        height: var(--fk-footer-pill-height, 32px);
+        border-radius: var(--fk-footer-pill-corner-radius, 16px);
+        background: var(--fk-action-panel-background, #1e1e1e);
+        border: 1px solid var(--fk-keycap-border, #4b4b4b);
+        padding: var(--fk-footer-pill-padding, 0px 16px 0px 12px);
+        margin: var(--fk-footer-pill-margin, 0px 12px 8px 12px);
+      }
+      #left {
+        min-width: 0;
+      }
+      .title {
+        font-size: var(--fk-footer-font-size, 13px);
+        font-weight: 600;
+        color: var(--fk-text-secondary, #a6a6a6);
+        margin: var(--fk-icon-margin, 0px 10px 0px 0px);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 40vw;
+      }
+      .icon {
+        height: var(--fk-footer-icon-size, 16px);
+        flex: none;
+        display: block;
+      }
+      .icon-emoji {
+        font-size: var(--fk-footer-icon-size, 16px);
+        line-height: var(--fk-footer-icon-size, 16px);
+      }
+      #left.settings {
+        padding: var(--fk-footer-pill-icon-padding, 0px 12px 0px 12px);
+      }
+      #settings {
+        app-region: no-drag;
+        -webkit-app-region: no-drag;
+        display: flex;
+        align-items: center;
+        padding: 2px 6px 2px 6px;
+        background: transparent;
+        border: none;
+        color: var(--fk-text-secondary, #a6a6a6);
+        font-family: 'Segoe Fluent Icons', 'Segoe MDL2 Assets';
+        font-size: var(--fk-glyph-font-size, 12px);
+        cursor: pointer;
+      }
+      #primary {
+        font-size: var(--fk-footer-font-size, 13px);
+        font-weight: 600;
+        color: var(--fk-text-primary, #ffffff);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 40vw;
+      }
+      .keycap {
+        display: inline-block;
+        padding: var(--fk-keycap-padding, 2px 6px 2px 6px);
+        background: var(--fk-keycap-background, #353535);
+        border: 1px solid var(--fk-keycap-border, #4b4b4b);
+        border-radius: var(--fk-keycap-corner-radius, 5px);
+        font-size: var(--fk-keycap-font-size, 11px);
+        line-height: 1.2;
+        color: var(--fk-text-primary, #ffffff);
+      }
+      .keycap.enter {
+        margin: var(--fk-keycap-margin, 0px 0px 0px 8px);
+        background: var(--fk-enter-keycap-background, #1f1f1f);
+      }
+      .keycap.spacing {
+        margin: var(--fk-keycap-spacing, 0px 4px 0px 0px);
+      }
+      #actions-hint {
+        display: flex;
+        align-items: center;
+      }
+      .divider {
+        display: block;
+        width: 1px;
+        height: var(--fk-footer-divider-height, 16px);
+        background: var(--fk-keycap-border, #4b4b4b);
+        margin: var(--fk-footer-divider-margin, 12px 12px 12px 12px);
+      }
+      .actions-label {
+        font-size: var(--fk-footer-font-size, 13px);
+        color: var(--fk-text-secondary, #a6a6a6);
+        margin: var(--fk-actions-label-margin, 0px 6px 0px 0px);
+      }
+      /* The toast replaces the left pill (same footprint) and never
+         intercepts the drag surface underneath. */
+      #toast {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        height: var(--fk-footer-pill-height, 32px);
+        border-radius: var(--fk-footer-pill-corner-radius, 16px);
+        background: var(--fk-action-panel-background, #1e1e1e);
+        border: 1px solid var(--fk-keycap-border, #4b4b4b);
+        padding: var(--fk-footer-pill-padding, 0px 16px 0px 12px);
+        margin: var(--fk-footer-pill-margin, 0px 12px 8px 12px);
+        pointer-events: none;
+        overflow: hidden;
+      }
+      #toast.error {
+        background: var(--fk-footer-toast-error, transparent);
+      }
+      #toast .content {
+        display: flex;
+        align-items: center;
+        max-width: 470px;
+        overflow: hidden;
+      }
+      #toast .dot {
+        display: block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--fk-footer-toast-dot, #ff5c5c);
+        flex: none;
+      }
+      #toast .title {
+        font-size: var(--fk-footer-font-size, 13px);
+        font-weight: 600;
+        color: var(--fk-text-primary, #ffffff);
+        margin-left: 9px;
+      }
+      #toast .detail {
+        font-size: var(--fk-footer-font-size, 13px);
+        font-weight: 400;
+        color: var(--fk-text-secondary, #a6a6a6);
+        margin-left: 8px;
+      }
+    </style>
+    <style id="fk-theme"></style>
+  </head>
+  <body>
+    <div id="footer">
+      <div id="left"></div>
+      <div id="right">
+        <span id="primary" hidden></span>
+        <span class="keycap enter" id="enter" hidden>&#x21B5;</span>
+        <span id="actions-hint" hidden>
+          <span class="divider"></span>
+          <span class="actions-label">Actions</span>
+          <span class="keycap spacing">Ctrl</span>
+          <span class="keycap">K</span>
+        </span>
+      </div>
+      <div id="toast" hidden>
+        <span class="content">
+          <span class="dot" id="toast-dot" hidden></span>
+          <span class="title" id="toast-title"></span>
+          <span class="detail" id="toast-detail" hidden></span>
+        </span>
+      </div>
+    </div>
+    <script src="footerhost.js"></script>
+  </body>
+</html>

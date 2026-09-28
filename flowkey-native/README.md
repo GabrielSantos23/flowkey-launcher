@@ -122,6 +122,19 @@ bundle is imported), so hooks and UI serialization always share the host's
 single module instances. See `docs/extension-quickstart.md` for the full
 tutorial and `docs/extension-format.md` for the package spec.
 
+## Shell chrome surfaces
+
+Shell chrome (search bar, list/grid/detail hosts, footer) is native WPF — with
+one exception: the launcher **footer** renders inside a WebView2 surface using
+the same pipeline as `ui: "web"` extension commands (a shell-owned host page on
+`app.flowkey.local`, `--fk-*` theme CSS from `Native/FooterTheme`, state pushed
+as JSON by `Native/FooterProtocol` from the testable `Native/FooterStateBuilder`).
+The footer page (`Assets/Web/footerhost.html`) is a pure renderer and never
+loads extension content; the native XAML footer stays as the automatic fallback
+whenever the WebView2 runtime is missing or the page fails. Window dragging
+from the footer background rides WebView2's non-client region support
+(`IsNonClientRegionSupportEnabled` + CSS `app-region: drag`).
+
 ## Bun requirement
 
 The sidecar requires [bun](https://bun.sh) on PATH. If the shell cannot find
