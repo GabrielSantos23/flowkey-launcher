@@ -14,7 +14,6 @@ import { FREQUENT_SEED, isFrequent, toggleFrequent } from '../frequent';
 import type { EmojiAction, ViewController } from './context';
 import { loadFrequent, saveFrequent } from './frequent-store';
 import { Icon } from './icons';
-import { ActionPalette } from './palette';
 import {
   scrollIntentForKey,
   scrollIntentForPageAction,
@@ -35,13 +34,6 @@ function postToHost(message: Record<string, unknown>): void {
     window as unknown as { flowkey?: { post(message: Record<string, unknown>): void } }
   ).flowkey;
   flowkey?.post(message);
-}
-
-function visibleActions(actions: EmojiAction[], filter: string): EmojiAction[] {
-  const needle = filter.trim().toLowerCase();
-  return needle.length === 0
-    ? actions
-    : actions.filter((action) => action.title.toLowerCase().includes(needle));
 }
 
 /** One emoji tile; the ring marks the selection the chrome acts on. */
@@ -117,9 +109,6 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
     glyph: null,
     index: -1,
   });
-  const [paletteOpen, setPaletteOpen] = useState(false);
-  const [paletteFilter, setPaletteFilter] = useState('');
-  const [paletteSelectedId, setPaletteSelectedId] = useState<string | null>(null);
   const [status, setStatus] = useState<{ text: string; error: boolean } | null>(null);
   // the user's own list, seeded with the curated set until storage answers
   const [frequent, setFrequent] = useState<string[]>([...FREQUENT_SEED]);
@@ -268,10 +257,16 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
 
   // ---- shell reporting ------------------------------------------------------
 
+  // The shell's native Ctrl+K action panel renders these; committing one
+  // comes back as a paletteAction message below.
+  const paletteActions = useMemo(
+    () => actions.map(({ id, title, icon }) => ({ id, title, icon })),
+    [actions],
+  );
   const stateKey = JSON.stringify({
     primaryTitle: controller.primaryTitle,
     hasActions: actions.length > 0,
-    paletteOpen,
+    actions: paletteActions,
     filters,
     selectionTitle: current ? selectionTitle(current) : null,
     searchPlaceholder: SEARCH_PLACEHOLDER,
@@ -285,7 +280,7 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
       primaryTitle: controller.primaryTitle,
       canGoBack: false,
       hasActions: actions.length > 0,
-      paletteOpen,
+      actions: paletteActions,
       // the shell renders these in the search-bar dropdown and sends the chosen
       // category back as `filterValue`
       filters,
@@ -297,60 +292,34 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
 
   // ---- chrome interactions forwarded by the shell ---------------------------
 
-  const paletteStateRef = useRef({ open: false, filter: '', selectedId: null as string | null });
-  paletteStateRef.current = {
-    open: paletteOpen,
-    filter: paletteFilter,
-    selectedId: paletteSelectedId,
-  };
-
   useEffect(() => {
     // the same message object arrives via both channels — run each once
     const seen = new WeakSet<object>();
     const handler = (event: Event): void => {
       const data = (event as MessageEvent).data as
         { type?: string; action?: string } | null | undefined;
-      if (data?.type !== 'pageAction') return;
+      if (data?.type !== 'pageAction' && data?.type !== 'paletteAction') return;
       if (seen.has(data)) return;
       seen.add(data);
       const active = controllerRef.current;
-      const palette = paletteStateRef.current;
-      if (data.action === 'closePalette') {
-        setPaletteOpen(false);
-        return;
-      }
-      if (data.action === 'openPalette') {
-        setPaletteFilter('');
-        setPaletteSelectedId(active?.actions[0]?.id ?? null);
-        setPaletteOpen(true);
+      // the shell's native action panel committed one of the actions this
+      // page reported in viewState
+      if (data.type === 'paletteAction') {
+        const action = (active?.actions ?? []).find((entry) => entry.id === data.action);
+        if (action) void action.run();
         return;
       }
       if (data.action === 'moveDown' || data.action === 'moveUp') {
-        if (palette.open) {
-          const visible = visibleActions(active?.actions ?? [], palette.filter);
-          if (visible.length === 0) return;
-          const delta = data.action === 'moveDown' ? 1 : -1;
-          const at = visible.findIndex((action) => action.id === palette.selectedId);
-          setPaletteSelectedId(visible[(at + delta + visible.length) % visible.length].id);
-          return;
-        }
         // the shell's up/down move a whole row, the way a grid should
         if (active) active.move(0, data.action === 'moveDown' ? 1 : -1);
         return;
       }
       if (data.action === 'primary') {
-        if (palette.open) {
-          const visible = visibleActions(active?.actions ?? [], palette.filter);
-          const action = visible.find((entry) => entry.id === palette.selectedId) ?? visible[0];
-          setPaletteOpen(false);
-          if (action) void action.run();
-          return;
-        }
         active?.primary();
         return;
       }
       const intent = scrollIntentForPageAction(data.action ?? '');
-      if (intent !== null && !palette.open) active?.scroll(intent);
+      if (intent !== null) active?.scroll(intent);
     };
     // direct webview listener: props/results prove this channel delivers
     const webview = (
@@ -376,42 +345,15 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const target = event.target as HTMLElement | null;
-      // a focused control (the palette filter) owns its own keys
+      // a focused control owns its own keys
       const inField = !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA');
       const active = controllerRef.current;
 
-      if (paletteOpen) {
-        const visible = visibleActions(active?.actions ?? [], paletteFilter);
-        if (event.key === 'Escape') {
-          setPaletteOpen(false);
-          event.preventDefault();
-          return;
-        }
-        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-          if (visible.length === 0) return;
-          event.preventDefault();
-          const delta = event.key === 'ArrowDown' ? 1 : -1;
-          const at = visible.findIndex((action) => action.id === paletteSelectedId);
-          setPaletteSelectedId(visible[(at + delta + visible.length) % visible.length].id);
-          return;
-        }
-        if (event.key === 'Enter') {
-          const action = visible.find((entry) => entry.id === paletteSelectedId) ?? visible[0];
-          if (action) {
-            event.preventDefault();
-            setPaletteOpen(false);
-            void action.run();
-          }
-          return;
-        }
-        return; // palette filter typing flows through
-      }
-
       if (event.ctrlKey || event.metaKey) {
         if ((event.key === 'k' || event.key === 'K') && active) {
-          setPaletteFilter('');
-          setPaletteSelectedId(active.actions[0]?.id ?? null);
-          setPaletteOpen(true);
+          // the webview swallows keystrokes, so the shell cannot see this
+          // press: ask the shell to open its native action panel
+          postToHost({ type: 'openPalette' });
           event.preventDefault();
         }
         return;
@@ -435,9 +377,6 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
         event.preventDefault();
         active?.primary();
         return;
-      }
-      if (event.key === 'Escape') {
-        setPaletteOpen(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -505,25 +444,6 @@ export function EmojiWebApp(props: WebCommandProps): ReactNode {
           ? createElement('div', { className: 'em-hint' }, hint)
           : null,
     ),
-    paletteOpen
-      ? createElement(ActionPalette, {
-          filter: paletteFilter,
-          onFilterChange: (value) => {
-            setPaletteFilter(value);
-            setPaletteSelectedId(
-              visibleActions(controllerRef.current?.actions ?? [], value)[0]?.id ?? null,
-            );
-          },
-          actions: visibleActions(controller.actions, paletteFilter),
-          selectedId: paletteSelectedId,
-          onSelect: setPaletteSelectedId,
-          onRun: (action) => {
-            setPaletteOpen(false);
-            void action.run();
-          },
-          onClose: () => setPaletteOpen(false),
-        })
-      : null,
   );
 }
 

@@ -13,7 +13,6 @@
         Background="{DynamicResource WindowBackgroundBrush}"
         FontFamily="{DynamicResource AppFontFamily}"
         Visibility="Hidden"
-        Deactivated="OnDeactivated"
         PreviewKeyDown="OnWindowPreviewKeyDown"
         SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded">

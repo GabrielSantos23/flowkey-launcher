@@ -248,6 +248,7 @@ export class Dispatcher {
       message.extensionId,
       message.method,
       message.params,
+      message.timeoutMs === undefined ? undefined : { timeoutMs: message.timeoutMs },
     );
     this.webBridges.set(message.bridgeId, requestId);
     void promise.then(

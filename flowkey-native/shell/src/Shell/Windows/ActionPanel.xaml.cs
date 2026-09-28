@@ -16,9 +16,23 @@ public partial class ActionPanel : Window
     private bool selfDismissed;
     private List<ActionRow> allRows = new();
 
-    public UiAction? SelectedAction => (ActionsList.SelectedItem as ActionRow)?.Action;
+    /// <summary>
+    /// One palette entry, independent of where it came from: sidecar UiActions
+    /// (native list/grid/detail rows) or a web page's reported viewState
+    /// actions. <paramref name="IconName"/> is a Lucide name; when null the
+    /// icon is derived from the action id.
+    /// </summary>
+    public sealed record PanelAction(
+        string Id,
+        string Title,
+        string? IconName = null,
+        string? Style = null,
+        bool Primary = false,
+        string? Push = null);
 
-    public event Action<UiAction>? Committed;
+    public PanelAction? SelectedAction => (ActionsList.SelectedItem as ActionRow)?.Action;
+
+    public event Action<PanelAction>? Committed;
 
     public event Action? FocusLostToOtherApp;
 
@@ -27,7 +41,7 @@ public partial class ActionPanel : Window
         InitializeComponent();
     }
 
-    public void Open(IReadOnlyList<UiAction> actions, string title, double launcherRight, double launcherBottom, double footerHeight)
+    public void Open(IReadOnlyList<PanelAction> actions, string title, double launcherRight, double launcherBottom, double footerHeight)
     {
         allRows = actions.Select(a => new ActionRow(a)).ToList();
         PanelTitle.Text = title;
@@ -160,18 +174,20 @@ public partial class ActionPanel : Window
 
     public sealed class ActionRow
     {
-        public ActionRow(UiAction action)
+        public ActionRow(PanelAction action)
         {
             Action = action;
-            Icon = LucideIcon.Load(ActionIconName(action.Id));
+            Icon = string.IsNullOrWhiteSpace(action.IconName)
+                ? LucideIcon.Load(ActionIconName(action.Id))
+                : LucideIcon.Load(action.IconName);
             var destructive = string.Equals(action.Style, "destructive", StringComparison.Ordinal);
             var brushKey = destructive ? "DangerBrush" : "TextPrimaryBrush";
             IconBrush = (Brush)Application.Current.FindResource(brushKey);
             TitleBrush = IconBrush;
-            EnterKeycapVisibility = action.Primary == true ? Visibility.Visible : Visibility.Collapsed;
+            EnterKeycapVisibility = action.Primary ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        public UiAction Action { get; }
+        public PanelAction Action { get; }
         public Geometry? Icon { get; }
         public Brush IconBrush { get; }
         public Brush TitleBrush { get; }

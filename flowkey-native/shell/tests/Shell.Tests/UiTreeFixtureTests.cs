@@ -374,6 +374,7 @@ public class ProtocolFixtureTests
         Assert.Equal("webCall", call.Type);
         Assert.Equal("w-1", call.BridgeId);
         Assert.Equal("http.fetch", call.Method);
+        Assert.Equal(20000, call.TimeoutMs);
         Assert.True(call.Params!["discardBody"].GetBoolean());
 
         var result = root.GetProperty("sidecarToHost").GetProperty("webResult").Deserialize<WebResultMessage>(JsonOptions.Default)!;

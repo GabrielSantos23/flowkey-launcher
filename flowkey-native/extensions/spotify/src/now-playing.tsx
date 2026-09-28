@@ -4,8 +4,8 @@ import { Action, ActionPanel, Detail, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient } from './api/client';
 import type { SpotifyPlaybackState, SpotifyTrack } from './api/types';
 import { formatMs } from './format';
+import { describeError, isAborted } from './search-model';
 import { loadArtwork } from './store';
-import { describeError, isAborted } from './search';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -45,10 +45,8 @@ function nowPlayingActions({
       <Action
         title={state.is_playing ? 'Pause' : 'Play'}
         primary
-        onAction={run(
-          'toggle',
-          state.is_playing ? 'Paused' : 'Playing',
-          () => (state.is_playing ? client.pause() : client.play({})),
+        onAction={run('toggle', state.is_playing ? 'Paused' : 'Playing', () =>
+          state.is_playing ? client.pause() : client.play({}),
         )}
       />
       <Action title="Next" onAction={run('next', 'Skipped to next track', () => client.next())} />
@@ -70,9 +68,7 @@ function nowPlayingActions({
       />
       <Action
         title={state.shuffle_state ? 'Shuffle Off' : 'Shuffle On'}
-        onAction={run('shuffle', 'Updated shuffle', () =>
-          client.setShuffle(!state.shuffle_state),
-        )}
+        onAction={run('shuffle', 'Updated shuffle', () => client.setShuffle(!state.shuffle_state))}
       />
       <Action
         title={`Repeat: ${state.repeat_state}`}
@@ -85,9 +81,7 @@ function nowPlayingActions({
       <Action
         title="Copy Track Link"
         onAction={async () => {
-          await client.copyText(
-            `https://open.spotify.com/track/${track.id}`,
-          );
+          await client.copyText(`https://open.spotify.com/track/${track.id}`);
           setNotice('Copied track link');
         }}
       />
@@ -104,10 +98,11 @@ function nowPlayingActions({
   );
 }
 
-
 export function NowPlayingCommand({ native, signal }: CommandProps): ReactNode {
   const client = useMemo(() => new SpotifyClient(native.call), [native]);
-  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>('checking');
+  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>(
+    'checking',
+  );
   const [authMessage, setAuthMessage] = useState('');
   const [state, setState] = useState<SpotifyPlaybackState | null>(null);
   const [loadError, setLoadError] = useState('');
@@ -213,8 +208,7 @@ export function NowPlayingCommand({ native, signal }: CommandProps): ReactNode {
         <List.EmptyView
           title="Connect Spotify"
           description={
-            authMessage ||
-            'Run the Spotify Search command and connect to authorize FlowKey first.'
+            authMessage || 'Run the Spotify Search command and connect to authorize FlowKey first.'
           }
         />
       </List>
@@ -270,11 +264,11 @@ export function NowPlayingCommand({ native, signal }: CommandProps): ReactNode {
         />
         <Detail.Metadata.Field label="Artists" value={artists} />
         <Detail.Metadata.Field label="Album" value={track.album?.name ?? 'Unknown album'} />
+        <Detail.Metadata.Field label="Liked" value={liked === null ? '…' : liked ? 'Yes' : 'No'} />
         <Detail.Metadata.Field
-          label="Liked"
-          value={liked === null ? '…' : liked ? 'Yes' : 'No'}
+          label="Device"
+          value={state.device ? state.device.name : 'Unknown'}
         />
-        <Detail.Metadata.Field label="Device" value={state.device ? state.device.name : 'Unknown'} />
       </Detail.Metadata>
     </Detail>
   );

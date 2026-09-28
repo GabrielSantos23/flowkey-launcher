@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { TranslateError, deriveToken, parseTranslationResponse, translate, type NativeCallFn } from '../src/api/client';
+import {
+  TranslateError,
+  deriveToken,
+  parseTranslationResponse,
+  translate,
+  type NativeCallFn,
+} from '../src/api/client';
 
 interface RecordedCall {
   method: string;
@@ -90,7 +96,9 @@ describe('translate client', () => {
     expect(result.langTo).toBe('en');
     expect(calls).toHaveLength(1);
     expect(calls[0].method).toBe('http.fetch');
-    expect(String(calls[0].params?.url)).toContain('https://translate.google.com/translate_a/single?');
+    expect(String(calls[0].params?.url)).toContain(
+      'https://translate.google.com/translate_a/single?',
+    );
     expect(String(calls[0].params?.url)).toContain('client=dict-chrome-ex');
     expect(String(calls[0].params?.url)).toContain('tk=');
   });

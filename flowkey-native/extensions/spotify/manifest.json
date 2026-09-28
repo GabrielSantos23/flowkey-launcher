@@ -10,35 +10,50 @@
       "title": "Spotify Search",
       "keywords": ["music", "song", "artist", "album"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "your-library",
       "title": "Your Library",
       "keywords": ["spotify", "saved"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "now-playing",
       "title": "Now Playing",
       "keywords": ["spotify", "player"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "queue",
       "title": "Spotify Queue",
       "keywords": ["spotify"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "devices",
       "title": "Spotify Devices",
       "keywords": ["spotify", "connect"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "just-play",
@@ -181,7 +196,10 @@
       "title": "Current Track",
       "keywords": ["spotify"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "copy-url",
@@ -228,21 +246,30 @@
       "title": "Add Playing Song to Playlist",
       "keywords": ["spotify"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "remove-playing-from-playlist",
       "title": "Remove Playing Song from Playlist",
       "keywords": ["spotify"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "find-lyrics",
       "title": "Find Lyrics",
       "keywords": ["spotify", "lyrics"],
       "icon": "spotify",
-      "iconColor": "#1DB954"
+      "iconColor": "#1DB954",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     }
   ],
   "nativeMethods": [

@@ -190,10 +190,11 @@ public class WebViewProtocolTests
     }
 
     [Fact]
-    public void ParseViewStateReadsPrimaryActionFiltersAndFlags()
+    public void ParseViewStateReadsPrimaryActionFiltersAndActions()
     {
         var json = """
-            {"type":"viewState","primaryTitle":"Pause","canGoBack":true,"hasActions":true,"paletteOpen":true,
+            {"type":"viewState","primaryTitle":"Pause","canGoBack":true,"hasActions":true,
+             "actions":[{"id":"copy","title":"Copy","icon":"copy"},{"id":"shuffle","title":"Shuffle"}],
              "filters":[{"value":"all","label":"All"},{"value":"artists","label":"Artists"}]}
             """;
 
@@ -203,10 +204,17 @@ public class WebViewProtocolTests
         Assert.Equal("Pause", state!.PrimaryTitle);
         Assert.True(state.CanGoBack);
         Assert.True(state.HasActions);
-        Assert.True(state.PaletteOpen);
         Assert.Equal(2, state.Filters!.Count);
         Assert.Equal("artists", state.Filters[1].Value);
         Assert.Equal("Artists", state.Filters[1].Label);
+        Assert.NotNull(state.Actions);
+        Assert.Equal(2, state.Actions!.Count);
+        Assert.Equal("copy", state.Actions[0].Id);
+        Assert.Equal("Copy", state.Actions[0].Title);
+        Assert.Equal("copy", state.Actions[0].Icon);
+        Assert.Equal("shuffle", state.Actions[1].Id);
+        Assert.Equal("Shuffle", state.Actions[1].Title);
+        Assert.Null(state.Actions[1].Icon);
     }
 
     [Fact]
@@ -217,14 +225,30 @@ public class WebViewProtocolTests
         Assert.Equal("", minimal!.PrimaryTitle);
         Assert.False(minimal.CanGoBack);
         Assert.False(minimal.HasActions);
-        Assert.False(minimal.PaletteOpen);
         Assert.Null(minimal.Filters);
+        Assert.Null(minimal.Actions);
 
         Assert.Null(WebViewProtocol.ParseViewState("not json"));
         Assert.Equal("primary", WebViewProtocol.ParseViewAction("""{"type":"pageAction","action":"primary"}"""));
-        Assert.Equal("openPalette", WebViewProtocol.ParseViewAction("""{"type":"pageAction","action":"openPalette"}"""));
         Assert.Null(WebViewProtocol.ParseViewAction("""{"type":"other"}"""));
         Assert.Null(WebViewProtocol.ParseViewAction("not json"));
+    }
+
+    [Fact]
+    public void SerializePaletteActionTargetsThePage()
+    {
+        var json = WebViewProtocol.SerializePaletteAction("copy-pronunciation");
+
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        var root = document.RootElement;
+        Assert.Equal("paletteAction", root.GetProperty("type").GetString());
+        Assert.Equal("copy-pronunciation", root.GetProperty("action").GetString());
+    }
+
+    [Fact]
+    public void ParseMessageRecognizesThePagePaletteRequest()
+    {
+        Assert.Equal(WebViewProtocol.WebMessageType.OpenPalette, WebViewProtocol.ParseMessage("""{"type":"openPalette"}""").Type);
     }
 
     [Fact]

@@ -13,7 +13,8 @@
         FontFamily="{DynamicResource AppFontFamily}"
         PreviewKeyDown="OnPanelPreviewKeyDown"
         Deactivated="OnDeactivated">
-  <Border CornerRadius="{DynamicResource WindowCornerRadius}"
+  <!-- Same rounding as the floating footer pills, so the floating chrome matches. -->
+  <Border CornerRadius="{DynamicResource FooterPillCornerRadius}"
           BorderThickness="1"
           BorderBrush="{DynamicResource KeycapBorderBrush}"
           Background="{DynamicResource ActionPanelBackgroundBrush}"
@@ -27,6 +28,7 @@
       <ListBox x:Name="ActionsList"
                Background="Transparent"
                BorderThickness="0"
+               Padding="6,2,6,2"
                Foreground="{DynamicResource TextPrimaryBrush}"
                MouseDoubleClick="OnDoubleClick"
                PreviewMouseLeftButtonDown="OnPreviewMouseDown">

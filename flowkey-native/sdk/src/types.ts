@@ -278,6 +278,8 @@ export interface WebCallMessage {
   bridgeId: string;
   extensionId: string;
   method: string;
+  /** Bridge-level deadline for the relayed call (absent = sidecar default). */
+  timeoutMs?: number;
   params?: Record<string, unknown>;
 }
 

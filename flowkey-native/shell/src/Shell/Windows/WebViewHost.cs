@@ -34,6 +34,9 @@ public sealed class WebViewHost : IDisposable
     /// <summary>The mounted page reported new chrome state (primary action, filters, back-stack).</summary>
     public event Action<string, string>? ViewStateEmitted;
 
+    /// <summary>The page asked for the action panel (Ctrl+K while the page has keyboard focus).</summary>
+    public event Action? PaletteRequested;
+
     public WebViewHost(Grid container)
     {
         this.container = container;
@@ -162,6 +165,13 @@ public sealed class WebViewHost : IDisposable
     public void PostPageAction(string action) =>
         Post(JsonSerializer.Serialize(new { type = "pageAction", action }));
 
+    /// <summary>
+    /// Runs the palette action the user committed in the native action panel;
+    /// the page resolves the id against the actions it reported in viewState.
+    /// </summary>
+    public void PostPaletteAction(string actionId) =>
+        Post(WebViewProtocol.SerializePaletteAction(actionId));
+
     private void Post(string json)
     {
         if (webView?.CoreWebView2 is not null)
@@ -232,6 +242,9 @@ public sealed class WebViewHost : IDisposable
                         {
                             PostProps(lastMount);
                         }
+                        break;
+                    case WebViewProtocol.WebMessageType.OpenPalette:
+                        PaletteRequested?.Invoke();
                         break;
                     case WebViewProtocol.WebMessageType.Call:
                         CallRequested?.Invoke(

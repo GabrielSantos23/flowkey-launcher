@@ -80,6 +80,7 @@
       "bridgeId": "w-1",
       "extensionId": "speedtest",
       "method": "http.fetch",
+      "timeoutMs": 20000,
       "params": {
         "url": "https://speed.cloudflare.com/__down?bytes=4000000",
         "discardBody": true

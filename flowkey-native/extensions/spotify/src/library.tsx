@@ -2,19 +2,15 @@ import { createElement, useEffect, useMemo, useState, type ReactNode } from 'rea
 import type { CommandProps } from '@flowkey-cli/react-ui';
 import { Action, ActionPanel, Grid, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient } from './api/client';
-import { buildGridItems, buildListSections, collectArtworkUrls, type SearchResults } from './search';
+import { buildGridItems, buildListSections } from './search';
+import {
+  collectArtworkUrls,
+  filterLibrary,
+  SEARCH_FILTERS,
+  type SearchResults,
+} from './search-model';
 import { likedSongsKey } from './subviews';
 import { loadArtwork, loadLibrary, type LibraryData } from './store';
-
-const LIBRARY_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'artists', label: 'Artists' },
-  { value: 'tracks', label: 'Songs' },
-  { value: 'albums', label: 'Albums' },
-  { value: 'playlists', label: 'Playlists' },
-  { value: 'shows', label: 'Podcasts & Shows' },
-  { value: 'episodes', label: 'Episodes' },
-];
 
 const LIKED_SONGS_ICON = 'https://misc.scdn.co/liked-songs-64.png';
 const GRID_FILTERS = new Set(['artists', 'albums', 'shows']);
@@ -22,7 +18,9 @@ const GRID_FILTERS = new Set(['artists', 'albums', 'shows']);
 export function LibraryCommand({ query, filterValue, native, signal }: CommandProps) {
   const client = useMemo(() => new SpotifyClient(native.call), [native]);
   const filter = filterValue ?? 'all';
-  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>('checking');
+  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>(
+    'checking',
+  );
   const [data, setData] = useState<LibraryData | null>(() => null);
   const [error, setError] = useState('');
   const [artwork, setArtwork] = useState<Record<string, string>>({});
@@ -81,7 +79,7 @@ export function LibraryCommand({ query, filterValue, native, signal }: CommandPr
 
   if (authState === 'checking') {
     return (
-      <List filter={LIBRARY_FILTERS}>
+      <List filter={SEARCH_FILTERS}>
         <List.EmptyView title="Checking Spotify connection…" />
       </List>
     );
@@ -89,19 +87,23 @@ export function LibraryCommand({ query, filterValue, native, signal }: CommandPr
 
   if (authState === 'unauthorized') {
     return (
-      <List filter={LIBRARY_FILTERS}>
+      <List filter={SEARCH_FILTERS}>
         <List.EmptyView
           title="Connect Spotify"
           description="Authorize FlowKey to browse your library. Use Spotify Search → Connect Spotify if the client id is not set yet."
         />
-        <LibraryConnectItem client={client} signal={signal} onConnected={() => setAuthState('authorized')} />
+        <LibraryConnectItem
+          client={client}
+          signal={signal}
+          onConnected={() => setAuthState('authorized')}
+        />
       </List>
     );
   }
 
   if (error) {
     return (
-      <List filter={LIBRARY_FILTERS}>
+      <List filter={SEARCH_FILTERS}>
         <List.EmptyView title="Could not load your library" description={error} />
       </List>
     );
@@ -109,7 +111,7 @@ export function LibraryCommand({ query, filterValue, native, signal }: CommandPr
 
   if (!data) {
     return (
-      <List filter={LIBRARY_FILTERS}>
+      <List filter={SEARCH_FILTERS}>
         <List.EmptyView title="Loading your library…" />
       </List>
     );
@@ -140,16 +142,12 @@ export function LibraryCommand({ query, filterValue, native, signal }: CommandPr
   });
   if (sections.length === 0) {
     return (
-      <List filter={LIBRARY_FILTERS}>
+      <List filter={SEARCH_FILTERS}>
         <List.EmptyView title="Nothing here" description={emptyDescription(query)} />
       </List>
     );
   }
-  return (
-    <List filter={LIBRARY_FILTERS}>
-      {sections}
-    </List>
-  );
+  return <List filter={SEARCH_FILTERS}>{sections}</List>;
 }
 
 function LibraryConnectItem({
@@ -161,40 +159,42 @@ function LibraryConnectItem({
   signal: AbortSignal;
   onConnected: () => void;
 }): ReactNode {
-  return createElement(
-    List.Item,
-    {
-      id: 'connect-spotify',
-      title: 'Connect Spotify',
-      icon: { lucide: 'plug', color: '#1DB954' },
-      actions: createElement(
-        ActionPanel,
-        null,
-        createElement(Action, {
-          title: 'Connect Spotify',
-          onAction: async () => {
-            try {
-              const result = await client.authorize(signal);
-              if (result.ok) {
-                onConnected();
-              }
-            } catch {
+  return createElement(List.Item, {
+    id: 'connect-spotify',
+    title: 'Connect Spotify',
+    icon: { lucide: 'plug', color: '#1DB954' },
+    actions: createElement(
+      ActionPanel,
+      null,
+      createElement(Action, {
+        title: 'Connect Spotify',
+        onAction: async () => {
+          try {
+            const result = await client.authorize(signal);
+            if (result.ok) {
+              onConnected();
             }
-          },
-        }),
-      ),
-    },
-  );
+          } catch {}
+        },
+      }),
+    ),
+  });
 }
 
-function likedSongsItem(data: LibraryData, artwork: Record<string, string>, client: SpotifyClient): ReactNode {
+function likedSongsItem(
+  data: LibraryData,
+  artwork: Record<string, string>,
+  client: SpotifyClient,
+): ReactNode {
   const total = data.likedTotal;
   return createElement(List.Item, {
     id: 'liked-songs',
     title: 'Liked Songs',
     subtitle: `${total} songs`,
     kind: 'playlist',
-    icon: artwork[LIKED_SONGS_ICON] ? { uri: artwork[LIKED_SONGS_ICON] } : { lucide: 'heart', color: '#1DB954' },
+    icon: artwork[LIKED_SONGS_ICON]
+      ? { uri: artwork[LIKED_SONGS_ICON] }
+      : { lucide: 'heart', color: '#1DB954' },
     actions: createElement(
       ActionPanel,
       null,
@@ -214,33 +214,6 @@ function likedSongsItem(data: LibraryData, artwork: Record<string, string>, clie
   });
 }
 
-function filterLibrary(results: SearchResults, query: string): SearchResults {
-  const needle = query.trim().toLowerCase();
-  if (needle.length === 0) {
-    return results;
-  }
-  const match = (haystacks: string[]) => haystacks.some((value) => value.toLowerCase().includes(needle));
-  const filtered: SearchResults = {};
-  const writable = filtered as Record<string, unknown>;
-  for (const key of ['tracks', 'artists', 'albums', 'playlists', 'shows', 'episodes'] as const) {
-    const page = results[key];
-    if (!page) continue;
-    writable[key] = {
-      ...page,
-      items: page.items.filter((item) => {
-        const candidate = item as { name?: string; artists?: { name: string }[]; owner?: { display_name?: string }; publisher?: string };
-        return match([
-          candidate.name ?? '',
-          ...(candidate.artists?.map((artist) => artist.name) ?? []),
-          candidate.owner?.display_name ?? '',
-          candidate.publisher ?? '',
-        ]);
-      }),
-    };
-  }
-  return filtered as SearchResults;
-}
-
 function emptyDescription(query: string): string {
   return query.trim().length > 0
     ? `Nothing in your library matches "${query.trim()}"`
@@ -248,5 +221,5 @@ function emptyDescription(query: string): string {
 }
 
 function gridTitle(filter: string): string {
-  return LIBRARY_FILTERS.find((option) => option.value === filter)?.label ?? 'Library';
+  return SEARCH_FILTERS.find((option) => option.value === filter)?.label ?? 'Library';
 }

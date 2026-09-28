@@ -4,8 +4,16 @@ import { Action, ActionPanel, Detail, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient, type NativeCallFn } from './api/client';
 import type { SpotifyDevice, SpotifyPlaybackState, SpotifyTrack } from './api/types';
 import { formatMs } from './format';
+import {
+  activeLineIndex,
+  parseLrc,
+  projectedPositionMs,
+  sameMedia,
+  type LyricsState,
+  type MediaState,
+} from './lyrics';
+import { describeError, isAborted } from './search-model';
 import { loadLibrary } from './store';
-import { describeError, isAborted } from './search';
 
 const VOLUME_STEP = 10;
 const SEEK_STEP_MS = 15_000;
@@ -19,28 +27,6 @@ function isTrack(item: SpotifyPlaybackState['item']): item is SpotifyTrack {
 export interface PlaybackContext {
   track: SpotifyTrack;
   state: SpotifyPlaybackState;
-}
-
-interface MediaState {
-  playing: boolean;
-  title: string | null;
-  artist: string | null;
-  album: string | null;
-  positionMs: number;
-  durationMs: number;
-  updatedAtMs: number;
-}
-
-interface LyricLine {
-  timeMs: number;
-  text: string;
-}
-
-interface LyricsState {
-  synced: boolean;
-  lines: LyricLine[];
-  plain: string;
-  title: string;
 }
 
 type RunOutcome =
@@ -901,38 +887,6 @@ export function RemoveFromPlaylistCommand(props: CommandProps): ReactNode {
   );
 }
 
-function parseLrc(source: string): LyricLine[] {
-  const lines: LyricLine[] = [];
-  for (const raw of source.split('\n')) {
-    const match = raw.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)$/);
-    if (!match) continue;
-    const text = match[3].trim();
-    if (!text) continue;
-    lines.push({
-      timeMs: Math.round((parseInt(match[1], 10) * 60 + parseFloat(match[2])) * 1000),
-      text,
-    });
-  }
-  return lines;
-}
-
-function projectedPositionMs(media: MediaState): number {
-  if (!media.playing) return media.positionMs;
-  return media.positionMs + Math.max(0, Date.now() - media.updatedAtMs);
-}
-
-function activeLineIndex(lines: LyricLine[], positionMs: number): number {
-  let index = -1;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].timeMs <= positionMs) {
-      index = i;
-    } else {
-      break;
-    }
-  }
-  return index;
-}
-
 function lyricsMarkdown(
   lyrics: LyricsState,
   media: MediaState | null,
@@ -952,16 +906,6 @@ function lyricsMarkdown(
     : lyrics.lines.map((line) => ' ' + line.text).join('\n\n');
   return (header.length > 0 ? header.join('\n\n') + '\n\n---\n\n' : '') + body;
 }
-function sameMedia(a: MediaState | null, b: MediaState | null): boolean {
-  if (!a || !b) return false;
-  return (
-    a.playing === b.playing &&
-    a.title === b.title &&
-    a.artist === b.artist &&
-    Math.abs(projectedPositionMs(a) - projectedPositionMs(b)) < 900
-  );
-}
-
 export function FindLyricsCommand(props: CommandProps): ReactNode {
   const client = useMemo(() => new SpotifyClient(props.native.call), [props.native]);
   const [media, setMedia] = useState<MediaState | null>(null);

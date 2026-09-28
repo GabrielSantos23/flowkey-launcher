@@ -214,6 +214,8 @@ public sealed class WebCallMessage
     public string BridgeId { get; set; } = "";
     public string ExtensionId { get; set; } = "";
     public string Method { get; set; } = "";
+    /// <summary>Bridge-level deadline for the relayed call (null = sidecar default).</summary>
+    public int? TimeoutMs { get; set; }
     public Dictionary<string, JsonElement>? Params { get; set; }
 }
 

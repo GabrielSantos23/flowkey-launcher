@@ -408,6 +408,43 @@ describe('web commands', () => {
     expect(result?.error?.code).toBe('aborted');
   });
 
+  test('webCall timeoutMs bounds the relayed call deadline', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], (message) => emitted.push(message));
+    await dispatcher.handleWebCall({
+      type: 'webCall',
+      bridgeId: 'w-3',
+      extensionId: 'web-ext',
+      method: 'oauth.authorize',
+      timeoutMs: 30,
+      params: { provider: 'spotify' },
+    });
+
+    // No nativeResult arrives; the bridge deadline (30ms) must fire well
+    // before the 5s default.
+    await new Promise((resolve) => setTimeout(resolve, 80));
+
+    const result = emitted.find((m) => m.type === 'webResult') as WebResultMessage | undefined;
+    expect(result?.bridgeId).toBe('w-3');
+    expect(result?.ok).toBe(false);
+    expect(result?.error?.code).toBe('nativeTimeout');
+  });
+
+  test('webCall without timeoutMs keeps the default bridge deadline', async () => {
+    const emitted: SidecarMessage[] = [];
+    const dispatcher = new Dispatcher([webModule], (message) => emitted.push(message));
+    await dispatcher.handleWebCall({
+      type: 'webCall',
+      bridgeId: 'w-4',
+      extensionId: 'web-ext',
+      method: 'oauth.authorize',
+      params: { provider: 'spotify' },
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(emitted.find((m) => m.type === 'webResult')).toBeUndefined();
+  });
+
   test('opening a web command emits a fresh webView mount', async () => {
     const emitted: SidecarMessage[] = [];
     const dispatcher = new Dispatcher([webModule], () => {});

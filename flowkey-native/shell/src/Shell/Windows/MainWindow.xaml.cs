@@ -622,8 +622,15 @@ public partial class MainWindow : Window
         previousForegroundWindow = GetForegroundWindow();
         suppressAutoHideUntil = Environment.TickCount64 + 400;
         Show();
-        ForceForeground();
         Activate();
+        ForceForeground();
+        if (GetForegroundWindow() != Handle)
+        {
+            // Activation can lose a race right after the show (foreground
+            // locks, freshly-restored focus); one bounded retry keeps a
+            // single hotkey press reliable instead of needing a second one.
+            ForceForeground();
+        }
         SearchBox.Focus();
         SearchBox.SelectAll();
         InvalidateVisual();
@@ -654,8 +661,14 @@ public partial class MainWindow : Window
         {
             actionPanel?.Close();
             var previous = previousForegroundWindow;
+            var foreground = GetForegroundWindow();
             Hide();
-            if (previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
+            // Only restore the pre-summon app when this window still owns the
+            // foreground (escape / hotkey toggle). If the user already clicked
+            // into another app, that app owns the foreground — yanking the
+            // stale one back steals focus and breaks the next summon's
+            // activation.
+            if (foreground == Handle && previous != IntPtr.Zero && previous != Handle && IsWindow(previous))
             {
                 SetForegroundWindow(previous);
             }
@@ -697,8 +710,6 @@ public partial class MainWindow : Window
         DebugLog.Write("foreground moved to another process — hiding");
         HideWindow();
     }
-
-    private void OnDeactivated(object sender, EventArgs e) => HideWindow();
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {
@@ -779,15 +790,11 @@ public partial class MainWindow : Window
                     e.Handled = true;
                     break;
                 case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
-                    PostWebViewPageAction("openPalette");
+                    OpenWebViewActionPanel();
                     e.Handled = true;
                     break;
                 case Key.Escape:
-                    if (webViewState?.PaletteOpen == true)
-                    {
-                        PostWebViewPageAction("closePalette");
-                    }
-                    else if (webViewState?.CanGoBack == true)
+                    if (webViewState?.CanGoBack == true)
                     {
                         PostWebViewPageAction("goBack");
                     }
@@ -1547,11 +1554,6 @@ public partial class MainWindow : Window
 
     private void OnBackButtonClick(object sender, MouseButtonEventArgs e)
     {
-        if (webViewVisible && webViewState?.PaletteOpen == true)
-        {
-            PostWebViewPageAction("closePalette");
-            return;
-        }
         if (webViewVisible && webViewState?.CanGoBack == true)
         {
             PostWebViewPageAction("goBack");
@@ -1894,14 +1896,20 @@ public partial class MainWindow : Window
                 return;
             }
             DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
-            if (RunPushAction(extensionId, action))
+            if (RunPushAction(extensionId, new UiAction
+            {
+                Id = action.Id,
+                Title = action.Title,
+                Push = action.Push,
+                Primary = action.Primary,
+            }))
             {
                 return;
             }
             var requestId = sidecar.SendAction(extensionId, action.Id, item);
             searchState.TrackAction(requestId, extensionId);
             BeginOperation();
-            if (action.Primary == true)
+            if (action.Primary)
             {
                 HideWindow();
             }
@@ -1913,7 +1921,53 @@ public partial class MainWindow : Window
                 HideWindow();
             }
         };
-        actionPanel.Open(actions, item.Title, Left + Width, Top + Height, FooterHeightValue);
+        actionPanel.Open(
+            actions.Select(a => new ActionPanel.PanelAction(a.Id, a.Title, null, a.Style, a.Primary == true, a.Push)).ToList(),
+            item.Title,
+            Left + Width,
+            Top + Height,
+            FooterHeightValue);
+    }
+
+    /// <summary>
+    /// Opens the native action panel over a mounted web command: the page
+    /// reports its actions in viewState; committing one is forwarded back into
+    /// the page, which runs it.
+    /// </summary>
+    private void OpenWebViewActionPanel()
+    {
+        var actions = webViewState?.Actions;
+        if (actions is not { Count: > 0 })
+        {
+            return;
+        }
+        var top = searchState.Top;
+        var extension = top?.ExtensionId is null
+            ? null
+            : readyExtensions.FirstOrDefault(e => e.Id == top.ExtensionId);
+        var commandTitle = top?.CommandId is null || extension is null
+            ? null
+            : extension.Commands.FirstOrDefault(c => c.Id == top.CommandId)?.Title;
+        actionPanel?.Close();
+        actionPanel = new ActionPanel();
+        actionPanel.Committed += action =>
+        {
+            DebugLog.Write("paletteAction ext=" + top?.ExtensionId + " action=" + action.Id);
+            webViewHost?.PostPaletteAction(action.Id);
+        };
+        actionPanel.FocusLostToOtherApp += () =>
+        {
+            if (GetForegroundWindow() != Handle)
+            {
+                HideWindow();
+            }
+        };
+        actionPanel.Open(
+            actions.Select(a => new ActionPanel.PanelAction(a.Id, a.Title, a.Icon)).ToList(),
+            commandTitle ?? extension?.Name ?? "",
+            Left + Width,
+            Top + Height,
+            FooterHeightValue);
     }
 
     private void OpenCommand(ItemRow row)
@@ -2382,6 +2436,7 @@ public partial class MainWindow : Window
                 "webview viewState primary=" + (webViewState.PrimaryTitle ?? "")
                 + " canGoBack=" + webViewState.CanGoBack
                 + " hasActions=" + webViewState.HasActions
+                + " actions=" + (webViewState.Actions?.Count ?? 0)
                 + " filters=" + (webViewState.Filters?.Count ?? 0));
             var filter = webViewState.Filters is { Count: > 0 }
                 ? new Protocol.UiFilter { Options = webViewState.Filters }
@@ -2440,6 +2495,8 @@ public partial class MainWindow : Window
                 webViewHost.LogEmitted += OnWebViewLogEmitted;
                 webViewHost.ViewStateEmitted -= OnWebViewViewState;
                 webViewHost.ViewStateEmitted += OnWebViewViewState;
+                webViewHost.PaletteRequested -= OpenWebViewActionPanel;
+                webViewHost.PaletteRequested += OpenWebViewActionPanel;
                 DebugLog.Write($"WebView mount ext={message.ExtensionId} cmd={message.CommandId} entry={message.Entry}");
                 var firstPartyExtensionsRoot = repoRoot is null
                     ? null

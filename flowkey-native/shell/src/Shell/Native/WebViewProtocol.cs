@@ -70,12 +70,15 @@ public static class WebViewProtocol
         return $"  --fk-{kebab}: {token.Value};";
     }
 
-    public enum WebMessageType { Ready, Call, Abort, Log, Unknown }
+    public enum WebMessageType { Ready, Call, Abort, Log, OpenPalette, Unknown }
+
+    /// <summary>An action a web page offers in the Ctrl+K action panel.</summary>
+    public sealed record WebAction(string Id, string Title, string? Icon);
 
     /// <summary>
     /// What the mounted web page reports about its current screen so the shell
-    /// chrome (search bar placeholder, footer hints, search-bar filter
-    /// dropdown, back button) can render it natively and forward chrome
+    /// chrome (search bar placeholder, footer hints, action panel, search-bar
+    /// filter dropdown, back button) can render it natively and forward chrome
     /// interactions back.
     /// </summary>
     public sealed record WebViewState(
@@ -83,7 +86,7 @@ public static class WebViewProtocol
         bool CanGoBack,
         bool HasActions,
         List<UiFilterOption>? Filters,
-        bool PaletteOpen = false,
+        List<WebAction>? Actions = null,
         string? SearchPlaceholder = null,
         string? SelectionTitle = null);
 
@@ -126,12 +129,32 @@ public static class WebViewProtocol
                     }
                 }
             }
+            var actions = new List<WebAction>();
+            if (root.TryGetProperty("actions", out var actionsElement)
+                && actionsElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var element in actionsElement.EnumerateArray())
+                {
+                    if (element.ValueKind == JsonValueKind.Object
+                        && element.TryGetProperty("id", out var idElement)
+                        && idElement.ValueKind == JsonValueKind.String)
+                    {
+                        actions.Add(new WebAction(
+                            idElement.GetString() ?? "",
+                            element.TryGetProperty("title", out var titleElement)
+                                && titleElement.ValueKind == JsonValueKind.String
+                                ? titleElement.GetString() ?? ""
+                                : "",
+                            OptionalString(element, "icon")));
+                    }
+                }
+            }
             return new WebViewState(
                 GetString(root, "primaryTitle"),
                 root.TryGetProperty("canGoBack", out var backElement) && backElement.ValueKind == JsonValueKind.True,
-                root.TryGetProperty("hasActions", out var actionsElement) && actionsElement.ValueKind == JsonValueKind.True,
+                root.TryGetProperty("hasActions", out var hasActionsElement) && hasActionsElement.ValueKind == JsonValueKind.True,
                 filters.Count > 0 ? filters : null,
-                root.TryGetProperty("paletteOpen", out var paletteElement) && paletteElement.ValueKind == JsonValueKind.True,
+                actions.Count > 0 ? actions : null,
                 OptionalString(root, "searchPlaceholder"),
                 OptionalString(root, "selectionTitle"));
         }
@@ -208,6 +231,8 @@ public static class WebViewProtocol
             {
                 case "ready":
                     return new ParsedWebMessage(WebMessageType.Ready);
+                case "openPalette":
+                    return new ParsedWebMessage(WebMessageType.OpenPalette);
                 case "webAbort":
                     return new ParsedWebMessage(
                         WebMessageType.Abort,
@@ -386,4 +411,12 @@ public static class WebViewProtocol
 
     public static string SerializeTheme(string css) =>
         JsonSerializer.Serialize(new { type = "theme", css });
+
+    /// <summary>
+    /// Serializes the palette action the user committed in the native action
+    /// panel; the page resolves the id against the actions it reported in its
+    /// last viewState and runs it.
+    /// </summary>
+    public static string SerializePaletteAction(string actionId) =>
+        JsonSerializer.Serialize(new { type = "paletteAction", action = actionId });
 }

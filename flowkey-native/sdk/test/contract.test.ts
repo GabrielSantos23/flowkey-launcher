@@ -341,6 +341,7 @@ describe('protocol contract fixture', () => {
     expect(call.bridgeId).toBe('w-1');
     expect(call.extensionId).toBe('speedtest');
     expect(call.method).toBe('http.fetch');
+    expect(call.timeoutMs).toBe(20000);
     expect(call.params?.discardBody).toBe(true);
 
     const abort: WebAbortMessage = protocolFixture.hostToSidecar.webAbort;

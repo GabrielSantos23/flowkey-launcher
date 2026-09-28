@@ -13,7 +13,8 @@ interface FetchResult {
  * Failure codes surfaced to the UI, kept distinct so the user can tell
  * "the query has no translation" apart from "the endpoint is unusable right now".
  */
-export type TranslateErrorCode = 'rateLimited' | 'invalidResponse' | 'requestFailed' | 'invalidParams';
+export type TranslateErrorCode =
+  'rateLimited' | 'invalidResponse' | 'requestFailed' | 'invalidParams';
 
 export class TranslateError extends Error {
   constructor(
@@ -64,7 +65,11 @@ function utf8Bytes(text: string): number[] {
       bytes[bytes.length] = code;
     } else if (code < 2048) {
       bytes[bytes.length] = (code >> 6) | 192;
-    } else if ((code & 64512) === 55296 && i + 1 < text.length && (text.charCodeAt(i + 1) & 64512) === 56320) {
+    } else if (
+      (code & 64512) === 55296 &&
+      i + 1 < text.length &&
+      (text.charCodeAt(i + 1) & 64512) === 56320
+    ) {
       code = 65536 + ((code & 1023) << 10) + (text.charCodeAt(++i) & 1023);
       bytes[bytes.length] = (code >> 18) | 240;
       bytes[bytes.length] = ((code >> 12) & 63) | 128;
@@ -194,7 +199,10 @@ async function callTranslate(
 
   let result: FetchResult;
   try {
-    result = await call<FetchResult>('http.fetch', init, { signal, timeoutMs: REQUEST_TIMEOUT_MS + 5_000 });
+    result = await call<FetchResult>('http.fetch', init, {
+      signal,
+      timeoutMs: REQUEST_TIMEOUT_MS + 5_000,
+    });
   } catch (caught) {
     if (caught instanceof TranslateError) throw caught;
     const message = caught instanceof Error ? caught.message : String(caught);
@@ -204,12 +212,18 @@ async function callTranslate(
   if (result.status === 429 || result.status === 503) {
     throw new TranslateError(
       'rateLimited',
-      'Google is rate limiting translation requests (HTTP ' + result.status + ') — please try again later.',
+      'Google is rate limiting translation requests (HTTP ' +
+        result.status +
+        ') — please try again later.',
       result.status,
     );
   }
   if (result.status !== 200) {
-    throw new TranslateError('requestFailed', `Google returned HTTP ${result.status} for the translation request.`, result.status);
+    throw new TranslateError(
+      'requestFailed',
+      `Google returned HTTP ${result.status} for the translation request.`,
+      result.status,
+    );
   }
 
   let body: unknown;

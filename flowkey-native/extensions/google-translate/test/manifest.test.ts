@@ -12,8 +12,22 @@ describe('google-translate manifest', () => {
     }
   });
 
+  test('every command renders in the webview on the shared bundle', () => {
+    for (const command of manifest.commands) {
+      expect(command.ui).toBe('web');
+      expect(command.mode).toBe('view');
+      expect(command.webEntry).toBe('app.web.js');
+    }
+  });
+
   test('declares only the native methods it uses and no more', () => {
-    expect([...manifest.nativeMethods].sort()).toEqual(['clipboard.read', 'clipboard.write', 'http.fetch']);
+    expect([...manifest.nativeMethods].sort()).toEqual([
+      'clipboard.read',
+      'clipboard.write',
+      'http.fetch',
+      // the HUD confirms a copy and hides the launcher with it
+      'hud.show',
+    ]);
   });
 
   test('httpHosts are limited to the unofficial translate endpoint', () => {

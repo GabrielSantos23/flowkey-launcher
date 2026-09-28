@@ -207,13 +207,14 @@ public sealed class SidecarHost : IDisposable
     }
 
     public void SendWebCall(
-        string bridgeId, string extensionId, string method, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? parameters)
+        string bridgeId, string extensionId, string method, IReadOnlyDictionary<string, System.Text.Json.JsonElement>? parameters, int? timeoutMs = null)
     {
         Send(new Protocol.WebCallMessage
         {
             BridgeId = bridgeId,
             ExtensionId = extensionId,
             Method = method,
+            TimeoutMs = timeoutMs,
             Params = parameters is null ? null : new Dictionary<string, System.Text.Json.JsonElement>(parameters),
         });
     }

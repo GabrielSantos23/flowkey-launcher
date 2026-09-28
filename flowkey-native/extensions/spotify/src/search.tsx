@@ -3,7 +3,6 @@ import type { CommandProps } from '@flowkey-cli/react-ui';
 import { Action, ActionPanel, Grid, List } from '@flowkey-cli/react-ui';
 import { SpotifyApiError, SpotifyClient } from './api/client';
 import type {
-  Paged,
   SpotifyAlbum,
   SpotifyArtist,
   SpotifyEpisode,
@@ -13,31 +12,31 @@ import type {
 } from './api/types';
 import { externalUrl, formatMs, trackUrl } from './format';
 import { clearRecentSearches, recentSearches, rememberSearch, removeSearch } from './recent';
-import { albumSongsKey, artistAlbumsKey, artistSongsKey, warmAlbumSongs, warmArtistAlbums, warmArtistSongs } from './subviews';
-
-export const SEARCH_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'artists', label: 'Artists' },
-  { value: 'tracks', label: 'Songs' },
-  { value: 'albums', label: 'Albums' },
-  { value: 'playlists', label: 'Playlists' },
-  { value: 'shows', label: 'Podcasts & Shows' },
-  { value: 'episodes', label: 'Episodes' },
-];
+import {
+  collectArtworkUrls,
+  describeError,
+  isAborted,
+  pruneResults,
+  SEARCH_FILTERS,
+  startRadio,
+  typesForFilter,
+  type SearchResults,
+} from './search-model';
+import {
+  albumSongsKey,
+  artistAlbumsKey,
+  artistSongsKey,
+  warmAlbumSongs,
+  warmArtistAlbums,
+  warmArtistSongs,
+} from './subviews';
 
 const SEARCH_DEBOUNCE_MS = 150;
 const RECENT_SAVE_DEBOUNCE_MS = 3000;
 const NOTICE_CLEAR_MS = 4000;
 const GRID_FILTERS = new Set(['artists', 'albums', 'shows']);
 
-export type SearchResults = {
-  tracks?: Paged<SpotifyTrack>;
-  artists?: Paged<SpotifyArtist>;
-  albums?: Paged<SpotifyAlbum>;
-  playlists?: Paged<SpotifyPlaylist>;
-  shows?: Paged<SpotifyShow>;
-  episodes?: Paged<SpotifyEpisode>;
-};
+export { SEARCH_FILTERS } from './search-model';
 
 export function SearchCommand({ query, filterValue, native, signal, preferences }: CommandProps) {
   const client = useMemo(() => new SpotifyClient(native.call), [native]);
@@ -46,7 +45,9 @@ export function SearchCommand({ query, filterValue, native, signal, preferences 
       ? preferences.clientId
       : '';
   const filter = filterValue ?? 'all';
-  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>('checking');
+  const [authState, setAuthState] = useState<'checking' | 'unauthorized' | 'authorized'>(
+    'checking',
+  );
   const [authMessage, setAuthMessage] = useState('');
   const [results, setResults] = useState<SearchResults | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,7 +87,12 @@ export function SearchCommand({ query, filterValue, native, signal, preferences 
       setError('');
       (async () => {
         try {
-          const response = await client.search(query.trim(), typesForFilter(filter), 50, controller.signal);
+          const response = await client.search(
+            query.trim(),
+            typesForFilter(filter),
+            50,
+            controller.signal,
+          );
           setResults(pruneResults(response as SearchResults));
         } catch (caught) {
           if (isAborted(caught)) return;
@@ -178,7 +184,9 @@ export function SearchCommand({ query, filterValue, native, signal, preferences 
                 title="Connect Spotify"
                 onAction={async () => {
                   if (!configuredClientId) {
-                    setNotice('Add your Spotify client id in FlowKey Settings, then connect again.');
+                    setNotice(
+                      'Add your Spotify client id in FlowKey Settings, then connect again.',
+                    );
                     return;
                   }
                   setNotice('Waiting for Spotify authorization…');
@@ -193,7 +201,9 @@ export function SearchCommand({ query, filterValue, native, signal, preferences 
                   } catch (caught) {
                     if (isAborted(caught)) return;
                     if (caught instanceof SpotifyApiError && caught.code === 'notConfigured') {
-                      setNotice('Add your Spotify client id in FlowKey Settings, then connect again.');
+                      setNotice(
+                        'Add your Spotify client id in FlowKey Settings, then connect again.',
+                      );
                     } else {
                       setNotice(describeError(caught));
                     }
@@ -279,67 +289,8 @@ export function SearchCommand({ query, filterValue, native, signal, preferences 
   );
 }
 
-function pruneResults(results: SearchResults): SearchResults {
-  const pruned: SearchResults = {};
-  for (const key of ['tracks', 'artists', 'albums', 'playlists', 'shows', 'episodes'] as const) {
-    const page = results[key];
-    if (page) {
-      pruned[key] = { ...page, items: page.items.filter((item): item is never => Boolean(item)) };
-    }
-  }
-  return pruned;
-}
-
-function typesForFilter(filter: string): string[] {
-  switch (filter) {
-    case 'artists':
-      return ['artist'];
-    case 'tracks':
-      return ['track'];
-    case 'albums':
-      return ['album'];
-    case 'playlists':
-      return ['playlist'];
-    case 'shows':
-      return ['show'];
-    case 'episodes':
-      return ['episode'];
-    default:
-      return ALL_TYPES;
-  }
-}
-
-const ALL_TYPES = ['track', 'artist', 'album', 'playlist', 'show', 'episode'];
-
 function gridTitle(filter: string): string {
   return SEARCH_FILTERS.find((option) => option.value === filter)?.label ?? 'Results';
-}
-
-export function collectArtworkUrls(results: SearchResults | null): string[] {
-  if (!results) return [];
-  const urls: string[] = [];
-  const push = (url?: string | null) => {
-    if (url) urls.push(url);
-  };
-  for (const artist of results.artists?.items ?? []) {
-    push(artist.images?.[0]?.url);
-  }
-  for (const album of results.albums?.items ?? []) {
-    push(album.images?.[0]?.url);
-  }
-  for (const playlist of results.playlists?.items ?? []) {
-    push(playlist.images?.at(-1)?.url);
-  }
-  for (const show of results.shows?.items ?? []) {
-    push(show.images?.[0]?.url);
-  }
-  for (const episode of results.episodes?.items ?? []) {
-    push(episode.show?.images?.at(-1)?.url ?? episode.images?.at(-1)?.url);
-  }
-  for (const track of results.tracks?.items ?? []) {
-    push(track.album?.images?.at(-1)?.url);
-  }
-  return urls;
 }
 
 export interface SectionOptions {
@@ -372,9 +323,17 @@ export function buildListSections(
       createElement(
         List.Section,
         { title: 'Artists', key: 'artists' },
-        artists.slice(0, filter === 'all' ? allLimit(3) : 50).map((artist) =>
-          artistListItem(artist, artwork[artist.images?.[0]?.url ?? ''], client, setNotice, signal),
-        ),
+        artists
+          .slice(0, filter === 'all' ? allLimit(3) : 50)
+          .map((artist) =>
+            artistListItem(
+              artist,
+              artwork[artist.images?.[0]?.url ?? ''],
+              client,
+              setNotice,
+              signal,
+            ),
+          ),
       ),
     );
   }
@@ -383,9 +342,9 @@ export function buildListSections(
       createElement(
         List.Section,
         { title: options.tracksTitle ?? 'Songs', key: 'tracks' },
-        tracks.slice(0, filter === 'all' ? allLimit(4) : 50).map((track) =>
-          trackListItem(track, artwork, client, setNotice, signal),
-        ),
+        tracks
+          .slice(0, filter === 'all' ? allLimit(4) : 50)
+          .map((track) => trackListItem(track, artwork, client, setNotice, signal)),
       ),
     );
   }
@@ -394,24 +353,23 @@ export function buildListSections(
       createElement(
         List.Section,
         { title: 'Albums', key: 'albums' },
-        albums.slice(0, filter === 'all' ? allLimit(6) : 50).map((album) =>
-          albumListItem('list', album, artwork, client, setNotice, signal),
-        ),
+        albums
+          .slice(0, filter === 'all' ? allLimit(6) : 50)
+          .map((album) => albumListItem('list', album, artwork, client, setNotice, signal)),
       ),
     );
   }
-  if ((filter === 'all' || filter === 'playlists') && (playlists.length > 0 || filter === 'playlists')) {
+  if (
+    (filter === 'all' || filter === 'playlists') &&
+    (playlists.length > 0 || filter === 'playlists')
+  ) {
     sections.push(
-      createElement(
-        List.Section,
-        { title: 'Playlists', key: 'playlists' },
-        [
-          ...(options.likedSongsItem ? [options.likedSongsItem] : []),
-          ...playlists.slice(0, filter === 'all' ? allLimit(6) : 50).map((playlist) =>
-            playlistListItem(playlist, artwork, client, setNotice, signal),
-          ),
-        ],
-      ),
+      createElement(List.Section, { title: 'Playlists', key: 'playlists' }, [
+        ...(options.likedSongsItem ? [options.likedSongsItem] : []),
+        ...playlists
+          .slice(0, filter === 'all' ? allLimit(6) : 50)
+          .map((playlist) => playlistListItem(playlist, artwork, client, setNotice, signal)),
+      ]),
     );
   }
   if ((filter === 'all' || filter === 'shows') && shows.length > 0) {
@@ -419,9 +377,9 @@ export function buildListSections(
       createElement(
         List.Section,
         { title: 'Podcasts & Shows', key: 'shows' },
-        shows.slice(0, filter === 'all' ? allLimit(3) : 50).map((show) =>
-          showListItem('list', show, artwork, client, setNotice, signal),
-        ),
+        shows
+          .slice(0, filter === 'all' ? allLimit(3) : 50)
+          .map((show) => showListItem('list', show, artwork, client, setNotice, signal)),
       ),
     );
   }
@@ -430,9 +388,9 @@ export function buildListSections(
       createElement(
         List.Section,
         { title: options.episodesTitle ?? 'Episodes', key: 'episodes' },
-        episodes.slice(0, filter === 'all' ? allLimit(3) : 50).map((episode) =>
-          episodeListItem(episode, artwork, client, setNotice, signal),
-        ),
+        episodes
+          .slice(0, filter === 'all' ? allLimit(3) : 50)
+          .map((episode) => episodeListItem(episode, artwork, client, setNotice, signal)),
       ),
     );
   }
@@ -883,34 +841,8 @@ function episodeActions(
   );
 }
 
-async function startRadio(
-  client: SpotifyClient,
-  seeds: { tracks?: string[]; artists?: string[] },
-  signal: AbortSignal,
-): Promise<void> {
-  const recommendations = await client.recommendations(seeds);
-  const uris = (recommendations.tracks ?? []).map((track) => track.uri);
-  if (uris.length === 0) {
-    throw new SpotifyApiError('noRadioTracks', 'Spotify returned no radio tracks');
-  }
-  await client.play({ uris });
-}
-
 async function copyToClipboard(client: SpotifyClient, text: string): Promise<void> {
   await client.copyText(text);
-}
-
-export function isAborted(error: unknown): boolean {
-  return (error as { code?: string })?.code === 'aborted';
-}
-
-export function describeError(error: unknown): string {
-  if (error instanceof SpotifyApiError) {
-    const suffix = error.status ? ` (${error.status})` : '';
-    return suffix && error.message.endsWith(suffix) ? error.message : `${error.message}${suffix}`;
-  }
-  const candidate = error as { message?: string };
-  return candidate?.message ?? 'Something went wrong';
 }
 
 function describeAuthError(error: unknown): string {

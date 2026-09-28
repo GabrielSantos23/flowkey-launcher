@@ -147,11 +147,16 @@ React/HTML/CSS inside a WebView2 surface hosted by the shell:
 - The web bundle is built by the CLI (`flowkey build`) as an IIFE with
   `react-dom` bundled — no host shims; the page owns its React.
 - The page runs on `https://app.flowkey.local` (host page) and loads the
-  bundle from `https://extensions.flowkey.local/<id>/<webEntry>` — both
-  virtual hosts mapped to local folders by the shell. Strict CSP, no other
-  origins, navigation blocked.
+  bundle from `https://extensions.flowkey.local/<webEntry>` — a virtual host
+  the shell maps to the mounted extension's bundle folder per mount: the
+  installed package directory, or (for first-party extensions loaded from the
+  repo by the sidecar) the repo extension's `dist/` folder. Strict CSP, no
+  other origins, navigation blocked. Artwork fetched through `image.fetch`
+  arrives as `file:` URIs, which the CSP's `img-src` allows.
 - Capability calls (`props.capabilities.*`) are relayed through the sidecar's
-  gated NativeBridge — the same manifest/consent policy as native calls.
+  gated NativeBridge — the same manifest/consent policy as native calls. The
+  page may pass a `timeoutMs` per call (relayed as the `webCall` field);
+  otherwise the sidecar's default bridge deadline applies.
 - `props.theme` carries the shell palette as hex tokens; `props.query`,
   `props.arguments`, `props.preferences` and `props.environment` update live.
 

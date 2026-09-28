@@ -8,42 +8,36 @@
     {
       "id": "translate",
       "title": "Translate",
-      "keywords": [
-        "translate",
-        "translation"
-      ],
+      "keywords": ["translate", "translation"],
       "icon": "languages",
-      "iconColor": "#4A90D9"
+      "iconColor": "#4A90D9",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "quick-translate",
       "title": "Quick Translate",
-      "keywords": [
-        "translate",
-        "multi"
-      ],
+      "keywords": ["translate", "multi"],
       "icon": "copy",
-      "iconColor": "#4A90D9"
+      "iconColor": "#4A90D9",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     },
     {
       "id": "translate-clipboard",
       "title": "Translate Clipboard",
-      "keywords": [
-        "translate",
-        "clipboard"
-      ],
+      "keywords": ["translate", "clipboard"],
       "icon": "clipboard",
-      "iconColor": "#4A90D9"
+      "iconColor": "#4A90D9",
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     }
   ],
-  "nativeMethods": [
-    "http.fetch",
-    "clipboard.read",
-    "clipboard.write"
-  ],
-  "httpHosts": [
-    "translate.google.com"
-  ],
+  "nativeMethods": ["http.fetch", "clipboard.read", "clipboard.write", "hud.show"],
+  "httpHosts": ["translate.google.com"],
   "preferences": [
     {
       "name": "langFrom",
