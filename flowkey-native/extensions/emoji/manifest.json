@@ -1,19 +1,22 @@
 {
   "id": "emoji",
   "name": "Emoji",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Emoji, symbol, and kaomoji picker with categories and keyword search.",
   "icon": "😀",
+  "iconColor": "#4F8CFF",
+  "keywords": ["emoji", "symbols", "kaomoji", "smiley", "unicode"],
   "commands": [
     {
       "id": "open",
       "title": "Emoji & Symbols",
+      "description": "Browse emoji by category or search by name, alias, and keyword.",
       "icon": "smile",
-      "iconColor": "#F59E0B"
+      "ui": "web",
+      "mode": "view",
+      "webEntry": "app.web.js"
     }
   ],
-  "nativeMethods": [
-    "clipboard.write"
-  ],
+  "nativeMethods": ["clipboard.write", "clipboard.paste", "storage.get", "storage.set"],
   "httpHosts": []
 }

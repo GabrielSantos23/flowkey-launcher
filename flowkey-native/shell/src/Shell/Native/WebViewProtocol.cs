@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.Json;
 using FlowKey.Shell.Protocol;
 
@@ -12,12 +13,46 @@ public static class WebViewProtocol
 {
     public const string AppHost = "app.flowkey.local";
     public const string ExtensionsHost = "extensions.flowkey.local";
+    /// <summary>Virtual host mapped to the shell's cached-artwork folder.</summary>
+    public const string ArtHost = "art.flowkey.local";
 
     public static string BuildHostPageUrl(string extensionId, string entry) =>
         $"https://{AppHost}/webhost.html?ext={Uri.EscapeDataString(extensionId)}&entry={Uri.EscapeDataString(entry)}";
 
     public static string BuildExtensionScriptUrl(string extensionId, string entry) =>
-        $"https://{ExtensionsHost}/{Uri.EscapeDataString(extensionId)}/{entry}";
+        $"https://{ExtensionsHost}/{Uri.EscapeDataString(entry)}";
+
+    /// <summary>
+    /// Resolves the folder to map the <see cref="ExtensionsHost"/> virtual host
+    /// to for one web-command mount. The host page loads the bundle straight
+    /// from the host root, so the mapped folder must contain <paramref name="entry"/>.
+    /// First-party extensions (loaded from the repo by the sidecar's bundled
+    /// registry) win over installed copies so dev builds stay fresh; the CLI
+    /// puts their web bundles in a dist/ subfolder. Installed packages keep the
+    /// packaged layout (bundle files beside manifest.json).
+    /// </summary>
+    public static string ResolveExtensionBundleFolder(
+        string extensionId,
+        string entry,
+        string installedRoot,
+        string? firstPartyRoot,
+        Func<string, bool> fileExists)
+    {
+        var installedFolder = Path.Combine(installedRoot, extensionId);
+        if (firstPartyRoot is not null)
+        {
+            var firstPartyFolder = Path.Combine(firstPartyRoot, extensionId);
+            if (fileExists(Path.Combine(firstPartyFolder, "dist", entry)))
+            {
+                return Path.Combine(firstPartyFolder, "dist");
+            }
+            if (fileExists(Path.Combine(firstPartyFolder, entry)))
+            {
+                return firstPartyFolder;
+            }
+        }
+        return installedFolder;
+    }
 
     /// <summary>Converts FlowKey theme brush names into CSS custom properties.</summary>
     public static string BuildThemeCss(IReadOnlyDictionary<string, string> tokens)
@@ -37,12 +72,119 @@ public static class WebViewProtocol
 
     public enum WebMessageType { Ready, Call, Abort, Log, Unknown }
 
-    public readonly record struct ParsedWebMessage(
+    /// <summary>
+    /// What the mounted web page reports about its current screen so the shell
+    /// chrome (search bar placeholder, footer hints, search-bar filter
+    /// dropdown, back button) can render it natively and forward chrome
+    /// interactions back.
+    /// </summary>
+    public sealed record WebViewState(
+        string PrimaryTitle,
+        bool CanGoBack,
+        bool HasActions,
+        List<UiFilterOption>? Filters,
+        bool PaletteOpen = false,
+        string? SearchPlaceholder = null,
+        string? SelectionTitle = null);
+
+    /// <summary>Parses the page's viewState message; null when malformed.</summary>
+    public static WebViewState? ParseViewState(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("type", out var typeElement)
+                || typeElement.ValueKind != JsonValueKind.String
+                || typeElement.GetString() != "viewState")
+            {
+                return null;
+            }
+            var filters = new List<UiFilterOption>();
+            if (root.TryGetProperty("filters", out var filtersElement)
+                && filtersElement.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var element in filtersElement.EnumerateArray())
+                {
+                    if (element.ValueKind == JsonValueKind.Object
+                        && element.TryGetProperty("value", out var valueElement)
+                        && valueElement.ValueKind == JsonValueKind.String)
+                    {
+                        filters.Add(new UiFilterOption
+                        {
+                            Value = valueElement.GetString() ?? "",
+                            Label = element.TryGetProperty("label", out var labelElement)
+                                && labelElement.ValueKind == JsonValueKind.String
+                                ? labelElement.GetString() ?? ""
+                                : valueElement.GetString() ?? "",
+                        });
+                    }
+                }
+            }
+            return new WebViewState(
+                GetString(root, "primaryTitle"),
+                root.TryGetProperty("canGoBack", out var backElement) && backElement.ValueKind == JsonValueKind.True,
+                root.TryGetProperty("hasActions", out var actionsElement) && actionsElement.ValueKind == JsonValueKind.True,
+                filters.Count > 0 ? filters : null,
+                root.TryGetProperty("paletteOpen", out var paletteElement) && paletteElement.ValueKind == JsonValueKind.True,
+                OptionalString(root, "searchPlaceholder"),
+                OptionalString(root, "selectionTitle"));
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>A trimmed string property, or null when absent/blank.</summary>
+    private static string? OptionalString(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var element) || element.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+        var value = element.GetString();
+        return string.IsNullOrWhiteSpace(value) ? null : value;
+    }
+
+    /// <summary>Extracts the action name of a pageAction message, or null.</summary>
+    public static string? ParseViewAction(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return null;
+        }
+        try
+        {
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("type", out var typeElement)
+                || typeElement.ValueKind != JsonValueKind.String
+                || typeElement.GetString() != "pageAction"
+                || !root.TryGetProperty("action", out var actionElement)
+                || actionElement.ValueKind != JsonValueKind.String)
+            {
+                return null;
+            }
+            return actionElement.GetString();
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }    public readonly record struct ParsedWebMessage(
         WebMessageType Type,
         string BridgeId = "",
         string ExtensionId = "",
         string Method = "",
-        string? ParamsJson = null);
+        string? ParamsJson = null,
+        int? TimeoutMs = null);
 
     /// <summary>Parses a webview postMessage payload. Returns Unknown for anything unrecognized.</summary>
     public static ParsedWebMessage ParseMessage(string? json)
@@ -81,12 +223,18 @@ public static class WebViewProtocol
                     var paramsJson = root.TryGetProperty("params", out var paramsElement)
                         ? paramsElement.GetRawText()
                         : null;
+                    var timeoutMs = root.TryGetProperty("timeoutMs", out var timeoutElement)
+                        && timeoutElement.ValueKind == JsonValueKind.Number
+                        && timeoutElement.TryGetInt32(out var parsedTimeout)
+                        ? parsedTimeout
+                        : (int?)null;
                     return new ParsedWebMessage(
                         WebMessageType.Call,
                         GetString(root, "bridgeId"),
                         GetString(root, "extensionId"),
                         GetString(root, "method") ?? "",
-                        paramsJson);
+                        paramsJson,
+                        timeoutMs);
                 default:
                     return new ParsedWebMessage(WebMessageType.Unknown);
             }
@@ -114,15 +262,126 @@ public static class WebViewProtocol
             preferences = message.Props.Preferences,
             environment = message.Props.Environment,
         };
+        // camelCase like every other wire payload: the page reads
+        // props.environment.commandId, which PascalCase would hide
+        return JsonSerializer.Serialize(payload, Protocol.JsonOptions.Default);
+    }
+
+    /// <summary>
+    /// Serializes a webResult payload, rewriting file: URIs that point into
+    /// the shell's artwork cache (produced by the gated image.fetch route) to
+    /// <see cref="ArtHost"/> URLs. Chromium refuses file: subresources on
+    /// https pages no matter what the CSP allows, so the page could never
+    /// display them directly.
+    /// </summary>
+    public static string SerializeResult(WebResultMessage message, string? artworkCacheRoot = null) =>
+        SerializeResultPayload(message, artworkCacheRoot);
+
+    private static string SerializeResultPayload(WebResultMessage message, string? artworkCacheRoot)
+    {
+        object payload;
+        if (message.Ok)
+        {
+            payload = new
+            {
+                type = "result",
+                bridgeId = message.BridgeId,
+                ok = true,
+                result = RewriteResultJson(message.Result, artworkCacheRoot),
+            };
+        }
+        else
+        {
+            payload = new { type = "result", bridgeId = message.BridgeId, ok = false, error = message.Error };
+        }
         return JsonSerializer.Serialize(payload);
     }
 
-    public static string SerializeResult(WebResultMessage message)
+    private static JsonElement? RewriteResultJson(JsonElement? result, string? artworkCacheRoot)
     {
-        object payload = message.Ok
-            ? new { type = "result", bridgeId = message.BridgeId, ok = true, result = message.Result }
-            : (object)new { type = "result", bridgeId = message.BridgeId, ok = false, error = message.Error };
-        return JsonSerializer.Serialize(payload);
+        if (result is null || artworkCacheRoot is null || result.Value.ValueKind != JsonValueKind.Object)
+        {
+            return result;
+        }
+        var rewritten = RewriteArtworkFileUris(result.Value.GetRawText(), artworkCacheRoot);
+        if (rewritten is null)
+        {
+            return result;
+        }
+        return JsonSerializer.Deserialize<JsonElement>(rewritten);
+    }
+
+    /// <summary>
+    /// Replaces file: URI strings under <paramref name="artworkCacheRoot"/>
+    /// with art-host URLs anywhere in the JSON document. Returns the input
+    /// untouched when nothing matches.
+    /// </summary>
+    public static string? RewriteArtworkFileUris(string? json, string artworkCacheRoot)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return json;
+        }
+        string prefix;
+        try
+        {
+            prefix = new Uri(artworkCacheRoot).AbsoluteUri.TrimEnd('/') + '/';
+        }
+        catch (UriFormatException)
+        {
+            return json;
+        }
+        var node = System.Text.Json.Nodes.JsonNode.Parse(json);
+        if (node is null)
+        {
+            return json;
+        }
+        var replaced = ReplaceUriStrings(node, prefix, $"https://{ArtHost}/");
+        return replaced ? node.ToJsonString() : json;
+    }
+
+    private static bool ReplaceUriStrings(System.Text.Json.Nodes.JsonNode? node, string prefix, string replacement)
+    {
+        switch (node)
+        {
+            case System.Text.Json.Nodes.JsonObject jsonObject:
+                var touched = false;
+                foreach (var property in jsonObject.ToList())
+                {
+                    if (property.Value is System.Text.Json.Nodes.JsonValue value
+                        && value.TryGetValue<string>(out var text)
+                        && text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        jsonObject[property.Key] = replacement + text[prefix.Length..];
+                        touched = true;
+                    }
+                    else
+                    {
+                        touched |= ReplaceUriStrings(property.Value, prefix, replacement);
+                    }
+                }
+                return touched;
+            case System.Text.Json.Nodes.JsonArray array:
+                var arrayTouched = false;
+                for (var index = 0; index < array.Count; index++)
+                {
+                    var element = array[index];
+                    if (element is System.Text.Json.Nodes.JsonValue arrayValue
+                        && arrayValue.TryGetValue<string>(out var arrayText)
+                        && arrayText.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        array[index] = replacement + arrayText[prefix.Length..];
+                        arrayTouched = true;
+                    }
+                    else
+                    {
+                        arrayTouched |= ReplaceUriStrings(element, prefix, replacement);
+                    }
+                }
+                return arrayTouched;
+            default:
+                return false;
+        }
     }
 
     public static string SerializeTheme(string css) =>
