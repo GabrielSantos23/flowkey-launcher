@@ -70,17 +70,30 @@ jobs:
           }
           "version=$version" >> $env:GITHUB_OUTPUT
 
+      # flowkey-native is its own pnpm workspace (sdk, sidecar, react-ui,
+      # settings-ui, extensions) — install there, not at the repo root. It
+      # must run before dotnet publish: the settings WebView bundle is built
+      # into shell Assets/Web and ships inside the published payload.
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: flowkey-native
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # The settings window's React bundle (settingshost.html loads
+      # settings/app.js + app.css) is generated — dist-style output that is
+      # gitignored — so build it here or the settings window mounts empty.
+      - name: Build settings UI
+        run: bun run build
+        working-directory: flowkey-native/settings-ui
+
       - name: Publish self-contained win-x64
         run: dotnet publish flowkey-native/shell/src/Shell/Shell.csproj
           -c Release -r win-x64 --self-contained true
           -p:ReleaseVersion=${{ steps.version.outputs.version }}
           -o publish
-
-      # flowkey-native is its own pnpm workspace (sdk, sidecar, react-ui,
-      # extensions) — install there, not at the repo root.
-      - name: Install workspace dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: flowkey-native
 
       # The sidecar runs from source via bun and resolves workspace packages
       # (@flowkey-cli/native-sdk, react-ui, the extensions) through relative pnpm
@@ -92,10 +105,6 @@ jobs:
       # packaging does not preserve pnpm's junction/symlink node_modules layout.
       # Only plain-file trees ship: sidecar sources (the FindRepoRoot marker
       # lives at sidecar/src/main.ts), the compiled exe, and extensions.
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Compile sidecar
         run: bun build --compile --target=bun-windows-x64 src/main.ts --outfile FlowKey.Sidecar.exe
         working-directory: flowkey-native/sidecar

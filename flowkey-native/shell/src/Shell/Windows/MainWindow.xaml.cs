@@ -86,7 +86,7 @@ public partial class MainWindow : Window
     private bool suppressSearchDebounce;
     private HotkeyManager? hotkeyManager;
     private HotkeySettingsStore hotkeySettings = new(AppLauncherService.DataDirectory);
-    private SettingsWindow? settingsWindow;
+    private SettingsWebViewWindow? settingsWindow;
     private ActionPanel? actionPanel;
     private HudWindow? hudWindow;
     /// <summary>The value the search-bar filter dropdown currently shows.</summary>
@@ -453,7 +453,17 @@ public partial class MainWindow : Window
         {
             return;
         }
-        settingsWindow = new SettingsWindow(
+        // one settings window at a time: re-opening focuses the existing one
+        if (settingsWindow is { IsLoaded: true })
+        {
+            if (settingsWindow.WindowState == WindowState.Minimized)
+            {
+                settingsWindow.WindowState = WindowState.Normal;
+            }
+            settingsWindow.Activate();
+            return;
+        }
+        settingsWindow = new SettingsWebViewWindow(
             hotkeyManager,
             hotkeySettings,
             preferencesStore,
@@ -483,14 +493,12 @@ public partial class MainWindow : Window
             RegisterCommandHotkeys();
         };
         settingsWindow.CommandToggled += (_, _, _) => RegisterCommandHotkeys();
-        settingsWindow.DescribeCommandShortcut = _ => "";
         settingsWindow.ShortcutConflict = combo =>
         {
             var settings = hotkeySettings.Load();
             return TryParseCombo(combo, out var modifier, out var virtualKey)
                 && settings.Modifier == modifier && settings.VirtualKey == virtualKey;
         };
-        settingsWindow.RefreshCommandShortcuts = () => { };
         settingsWindow.SuspendGlobalHotkeys = () =>
         {
             hotkeyManager?.Unregister(SummonHotkeyId);

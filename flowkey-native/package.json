@@ -22,12 +22,15 @@
     "sidecar:test": "cd sidecar && bun test",
     "shell:build": "cd shell && dotnet build FlowKey.sln -c Release",
     "shell:test": "cd shell && dotnet test FlowKey.sln",
-    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm cli:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm cli:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm google-translate:typecheck && pnpm google-translate:test && pnpm clipboard-history:typecheck && pnpm clipboard-history:test && pnpm emoji:typecheck && pnpm emoji:test && pnpm lucide-icons:typecheck && pnpm lucide-icons:test && pnpm obsidian-notes:typecheck && pnpm obsidian-notes:test && pnpm sidecar:test && pnpm shell:test",
+    "test": "pnpm sdk:typecheck && pnpm react-ui:typecheck && pnpm cli:typecheck && pnpm sidecar:typecheck && pnpm sdk:test && pnpm react-ui:test && pnpm cli:test && pnpm spotify:typecheck && pnpm spotify:test && pnpm google-translate:typecheck && pnpm google-translate:test && pnpm clipboard-history:typecheck && pnpm clipboard-history:test && pnpm emoji:typecheck && pnpm emoji:test && pnpm lucide-icons:typecheck && pnpm lucide-icons:test && pnpm obsidian-notes:typecheck && pnpm obsidian-notes:test && pnpm settings-ui:typecheck && pnpm settings-ui:test && pnpm sidecar:test && pnpm shell:test",
     "icons:sync": "node scripts/sync-lucide-icons.mjs",
     "lucide-icons:typecheck": "cd extensions/lucide-icons && bunx tsc --noEmit",
     "lucide-icons:test": "cd extensions/lucide-icons && bun test",
     "obsidian-notes:typecheck": "cd extensions/obsidian-notes && bunx tsc --noEmit",
-    "obsidian-notes:test": "cd extensions/obsidian-notes && bun test"
+    "obsidian-notes:test": "cd extensions/obsidian-notes && bun test",
+    "settings-ui:typecheck": "cd settings-ui && bunx tsc --noEmit",
+    "settings-ui:test": "cd settings-ui && bun test",
+    "settings-ui:build": "cd settings-ui && bun run build"
   },
   "devDependencies": {
     "lucide-static": "^0.544.0"
@@ -37,6 +40,7 @@
     "sdk",
     "sidecar",
     "react-ui",
+    "settings-ui",
     "extensions/*"
   ]
 }

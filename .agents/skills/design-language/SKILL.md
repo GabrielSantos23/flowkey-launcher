@@ -9,15 +9,19 @@ This file answers one question: **given what you are building, what do you use?*
 
 FlowKey's UI is native WPF. Extension UI arrives as a serialized tree rendered
 by the shell; the shell's own surfaces (launcher window, settings, action
-panel, HUD) are XAML. The one exception is the launcher **footer**: it renders
-in a WebView2 chrome page fed by shell-pushed state (`Native/FooterStateBuilder`
-→ `Native/FooterProtocol` → `Assets/Web/footerhost.html`), with the native XAML
-footer as its automatic fallback — the two must stay visually identical.
-Everything visual lives in
+panel, HUD) are XAML. Two exceptions render inside WebView2 on
+`app.flowkey.local`, both fed by shell-pushed state and `--fk-*` theme vars
+(never hardcoded colors): the launcher **footer** (`Native/FooterStateBuilder`
+→ `Native/FooterProtocol` → `Assets/Web/footerhost.html`, with the native
+XAML footer as its automatic fallback — the two must stay visually identical),
+and the **settings window** (`Windows/SettingsWebViewWindow` +
+`Assets/Web/settingshost.html`, React + Tailwind + shadcn/ui sources in
+`flowkey-native/settings-ui`, state from `Native/SettingsStateBuilder`,
+operations from `Native/SettingsOperations`). Everything visual lives in
 `flowkey-native/shell/src/Shell/Theme.xaml` as keyed resources — never
-hardcode a color, size, or radius in code-behind, XAML, or the footer page
-(footer CSS consumes `--fk-*` vars built from those same resources by
-`Native/FooterTheme`).
+hardcode a color, size, or radius in code-behind, XAML, or a web page (web
+pages consume `--fk-*` vars built from those same resources by
+`Native/FooterTheme` / `Native/SettingsTheme`).
 
 ## 1. Theme resources — the lookup tables
 
@@ -93,9 +97,10 @@ Rules:
   - 11px subtitle under it.
 - Spacing in XAML uses `DynamicResource` margins (`CellMargin`,
   `HeaderMargin`, `FooterLeftPadding`, …) — same rule as colors.
-- Settings pages: `SettingsRow(label, description, control)` rows, section
-  headers via `SectionTitle`, forms built in code-behind helpers — reuse
-  them, don't hand-roll new row styles.
+- Settings pages: web rows (`SettingsRow` in `settings-ui/src/components/`)
+  with `SectionTitle` headers, controls on the right, all colors/spacing via
+  shadcn tokens aliased to `--fk-*` vars in `settings-ui/src/styles.css` —
+  reuse them, don't hand-roll new row styles.
 
 ## 4. Motion
 

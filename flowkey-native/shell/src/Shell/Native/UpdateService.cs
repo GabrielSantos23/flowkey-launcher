@@ -125,6 +125,47 @@ public sealed class UpdateService
         Raise(tracker.Status);
     }
 
+    /// <summary>
+    /// Downloads the available update without applying it; the phase lands on
+    /// Ready and the install waits for explicit user authorization
+    /// (<see cref="DownloadAndApplyAsync"/> from the settings page's confirm
+    /// dialog). Progress streams through <see cref="StatusChanged"/>.
+    /// </summary>
+    public async Task DownloadUpdateAsync()
+    {
+        tracker.BeginDownload();
+        Raise(tracker.Status);
+        try
+        {
+            var manager = CreateManager();
+            if (manager is null)
+            {
+                tracker.DownloadFailed("Development build — nothing to download");
+                Raise(tracker.Status);
+                return;
+            }
+            var update = await manager.CheckForUpdatesAsync();
+            if (update is null)
+            {
+                tracker.DownloadFailed("Update no longer available");
+                Raise(tracker.Status);
+                return;
+            }
+            await manager.DownloadUpdatesAsync(update, progress =>
+            {
+                Raise(tracker.DownloadProgress(progress));
+            });
+            tracker.DownloadCompleted();
+            Raise(tracker.Status);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("update download failed: " + ex.Message);
+            tracker.DownloadFailed(ex.Message);
+            Raise(tracker.Status);
+        }
+    }
+
     public async Task DownloadAndApplyAsync()
     {
         tracker.BeginDownload();

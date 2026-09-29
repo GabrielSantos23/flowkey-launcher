@@ -1,0 +1,150 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Shadcn tokens mapped onto the shell's pushed --fk-* theme variables (set by
+   the <style id="fk-theme"> element the host page owns). Fallbacks mirror
+   Theme.xaml so the first frame before the theme push is already on-palette.
+   No component below hardcodes a color — design-language rule. */
+:root {
+  --font-sans: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif;
+
+  --background: var(--fk-window-background, #1f1f1f);
+  --foreground: var(--fk-text-primary, #ffffff);
+  --card: var(--fk-surface, #262626);
+  --card-foreground: var(--fk-text-primary, #ffffff);
+  --popover: var(--fk-action-panel-background, #1e1e1e);
+  --popover-foreground: var(--fk-text-primary, #ffffff);
+  --primary: var(--fk-accent, #4f8cff);
+  --primary-foreground: #ffffff;
+  --secondary: var(--fk-keycap-background, #353535);
+  --secondary-foreground: var(--fk-text-primary, #ffffff);
+  --muted: var(--fk-keycap-background, #353535);
+  --muted-foreground: var(--fk-text-secondary, #a6a6a6);
+  --accent: var(--fk-row-selected-background, #363636);
+  --accent-foreground: var(--fk-text-primary, #ffffff);
+  --destructive: var(--fk-footer-toast-error, #e5484d);
+  --border: var(--fk-divider, #363636);
+  --input: var(--fk-keycap-border, #4b4b4b);
+  --ring: var(--fk-accent, #4f8cff);
+
+  --keycap: var(--fk-keycap-background, #353535);
+  --keycap-border: var(--fk-keycap-border, #4b4b4b);
+  --chrome: var(--fk-chrome-background, #2a2a2a);
+  --chrome-divider: var(--fk-chrome-divider, #3f3f3f);
+  --chrome-nav-disabled: var(--fk-chrome-nav-disabled, #484848);
+  --text-secondary: var(--fk-text-secondary, #a6a6a6);
+  --text-tertiary: var(--fk-text-tertiary, #797979);
+  --surface-alt: var(--fk-surface-alt, #161616);
+
+  --radius: var(--fk-row-corner-radius, 8px);
+}
+
+@theme inline {
+  --font-sans: var(--font-sans);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-keycap: var(--keycap);
+  --color-keycap-border: var(--keycap-border);
+  --color-chrome: var(--chrome);
+  --color-chrome-divider: var(--chrome-divider);
+  --color-chrome-nav-disabled: var(--chrome-nav-disabled);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-surface-alt: var(--surface-alt);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./fonts/Inter-Regular.ttf') format('truetype');
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./fonts/Inter-Medium.ttf') format('truetype');
+}
+@font-face {
+  font-family: Inter;
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('./fonts/Inter-SemiBold.ttf') format('truetype');
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    overflow: hidden;
+    user-select: none;
+    cursor: default;
+  }
+  input,
+  textarea {
+    user-select: text;
+  }
+}
+
+/* Window drag regions: the chrome band drags, interactive children opt out.
+   Same mechanism the footer page uses (WebView2 non-client region support). */
+.app-region-drag {
+  app-region: drag;
+  -webkit-app-region: drag;
+}
+.app-region-no-drag {
+  app-region: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+/* Scrollbars: thin dark pills matching the keycap tokens — never the white
+   Chromium default. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--fk-keycap-border, #4b4b4b);
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fk-text-tertiary, #797979);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

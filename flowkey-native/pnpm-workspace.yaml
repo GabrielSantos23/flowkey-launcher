@@ -3,7 +3,9 @@ packages:
   - sdk
   - sidecar
   - react-ui
+  - settings-ui
   - extensions/*
 
 allowBuilds:
+  '@parcel/watcher': set this to true or false
   esbuild: true

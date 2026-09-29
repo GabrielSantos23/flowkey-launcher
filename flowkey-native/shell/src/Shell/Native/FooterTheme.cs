@@ -73,7 +73,7 @@ public static class FooterTheme
     public static string ThicknessToCss(Thickness thickness) =>
         $"{thickness.Top:0.##}px {thickness.Right:0.##}px {thickness.Bottom:0.##}px {thickness.Left:0.##}px";
 
-    private static string? BrushToCss(System.Windows.Media.Brush brush) => brush switch
+    public static string? BrushToCss(System.Windows.Media.Brush brush) => brush switch
     {
         System.Windows.Media.SolidColorBrush solid => ColorToHex(solid.Color),
         System.Windows.Media.LinearGradientBrush gradient => GradientToCss(gradient),

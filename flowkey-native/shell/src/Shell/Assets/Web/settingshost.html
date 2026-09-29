@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src https://app.flowkey.local; style-src 'unsafe-inline' https://app.flowkey.local; img-src data: https://app.flowkey.local https://extensions.flowkey.local https://art.flowkey.local https://clipboard.flowkey.local; font-src https://app.flowkey.local;"
+    />
+    <title>FlowKey Settings</title>
+    <link rel="stylesheet" href="./settings/app.css" />
+    <style id="fk-theme"></style>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: var(--fk-window-background, #1f1f1f);
+      }
+      /* The whole window is web-drawn chrome: the top band drags the window,
+         interactive children opt out via no-drag (same mechanism as the
+         footer). Overridden per-element by the app's own CSS. */
+      #root {
+        height: 100%;
+      }
+      #root:empty::after {
+        content: 'Loading settings…';
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        font-family: Inter, 'Segoe UI Variable', 'Segoe UI', sans-serif;
+        font-size: 13px;
+        color: var(--fk-text-secondary, #a6a6a6);
+        user-select: none;
+        cursor: default;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script src="./settings/app.js"></script>
+  </body>
+</html>

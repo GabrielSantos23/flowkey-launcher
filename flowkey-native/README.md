@@ -124,15 +124,27 @@ tutorial and `docs/extension-format.md` for the package spec.
 
 ## Shell chrome surfaces
 
-Shell chrome (search bar, list/grid/detail hosts, footer) is native WPF — with
-one exception: the launcher **footer** renders inside a WebView2 surface using
-the same pipeline as `ui: "web"` extension commands (a shell-owned host page on
-`app.flowkey.local`, `--fk-*` theme CSS from `Native/FooterTheme`, state pushed
-as JSON by `Native/FooterProtocol` from the testable `Native/FooterStateBuilder`).
-The footer page (`Assets/Web/footerhost.html`) is a pure renderer and never
-loads extension content; the native XAML footer stays as the automatic fallback
-whenever the WebView2 runtime is missing or the page fails. Window dragging
-from the footer background rides WebView2's non-client region support
+Shell chrome (search bar, list/grid/detail hosts) is native WPF. Two surfaces
+render inside WebView2 on `app.flowkey.local` instead, both following the same
+shell-owned pipeline (theme CSS from `--fk-*` tokens, JSON state pushes, a pure
+renderer page that never loads extension content):
+
+- The launcher **footer** (`Assets/Web/footerhost.html`): state built by
+  `Native/FooterStateBuilder` over `Native/FooterProtocol`, with the native
+  XAML footer as the automatic fallback whenever the WebView2 runtime is
+  missing or the page fails.
+- The **settings window** (`Windows/SettingsWebViewWindow` +
+  `Assets/Web/settingshost.html`, React app in `flowkey-native/settings-ui` —
+  Tailwind + shadcn/ui, built by esbuild into `Assets/Web/settings/`): state
+  built by `Native/SettingsStateBuilder` over `Native/SettingsProtocol`, with
+  operations executed by `Native/SettingsOperations`. The page is fully
+  web-drawn (title bar, drag band, window buttons) and never touches a store —
+  every mutation is an invoke op the shell validates and executes. Consent and
+  uninstall confirmations render in the page from `pendingInstall` /
+  `pendingReconsent` payloads, but the stored consent record is always built
+  shell-side from the inspected plan.
+
+Window dragging from web chrome rides WebView2's non-client region support
 (`IsNonClientRegionSupportEnabled` + CSS `app-region: drag`).
 
 ## Bun requirement
