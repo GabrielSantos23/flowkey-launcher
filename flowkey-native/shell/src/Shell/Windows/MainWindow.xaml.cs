@@ -961,6 +961,8 @@ public partial class MainWindow : Window
         var top = searchState.Top;
         ReadyExtension? readyExtension = null;
         FooterExtensionInfo? topExtension = null;
+        string? commandIcon = null;
+        string? commandColor = null;
         if (top?.ExtensionId is not null)
         {
             readyExtension = readyExtensions.FirstOrDefault(e => e.Id == top.ExtensionId);
@@ -970,6 +972,12 @@ public partial class MainWindow : Window
                     readyExtension.Id,
                     readyExtension.Name,
                     readyExtension.Commands.ToDictionary(c => c.Id, c => c.Title));
+                if (top?.CommandId is not null)
+                {
+                    var command = readyExtension.Commands.FirstOrDefault(c => c.Id == top.CommandId);
+                    commandIcon = command?.Icon;
+                    commandColor = command?.IconColor;
+                }
             }
         }
         return FooterStateBuilder.Build(new FooterInput(
@@ -979,30 +987,80 @@ public partial class MainWindow : Window
             top?.ExtensionId,
             topExtension,
             top?.CommandId,
-            FooterIconFor(readyExtension),
+            FooterIconFor(readyExtension, commandIcon, commandColor),
             SelectedPrimaryActionTitle(),
             SelectedItemTitleForFooter(),
             footerToast));
     }
 
     /// <summary>Rasterizes (and caches) the extension icon into a payload the footer surface can render.</summary>
-    private FooterIconState? FooterIconFor(ReadyExtension? extension)
+    private FooterIconState? FooterIconFor(ReadyExtension? extension, string? commandIcon, string? commandColor)
     {
         if (extension is null)
         {
             return null;
         }
-        var key = extension.Id + "|" + (extension.Icon ?? "");
+        var key = string.Join('|', extension.Id, extension.Icon ?? "", commandIcon ?? "", commandColor ?? "");
         if (footerIconCache.TryGetValue(key, out var cached))
         {
             return cached;
         }
-        var icon = Rendering.FooterIconRenderer.FromElement(CreateExtensionIcon(extension));
+        var icon = Rendering.FooterIconRenderer.FromElement(CreateFooterIconElement(extension, commandIcon, commandColor));
         if (icon is not null)
         {
             footerIconCache[key] = icon;
         }
         return icon;
+    }
+
+    /// <summary>
+    /// The footer icon skips tiled images: brand logos render as-is (they are
+    /// logos, not tiles), then the command's Lucide glyph straight and tinted
+    /// with its declared color, and only then the shipped image as fallback.
+    /// </summary>
+    private FrameworkElement? CreateFooterIconElement(ReadyExtension? extension, string? commandIcon, string? commandColor)
+    {
+        if (extension is null)
+        {
+            return null;
+        }
+        FrameworkElement BrandImage(System.Windows.Media.ImageSource source)
+        {
+            var image = new System.Windows.Controls.Image
+            {
+                Source = source,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            image.SetResourceReference(FrameworkElement.HeightProperty, "FooterIconSize");
+            return image;
+        }
+        if (Rendering.BrandIcons.TryGetDrawing(extension.Id, out var brandDrawing))
+        {
+            return BrandImage(brandDrawing);
+        }
+        if (Rendering.BrandIcons.TryGet(extension.Id, out var brandGeometry, out var brandBrush))
+        {
+            return BrandImage(new System.Windows.Media.DrawingImage(
+                new System.Windows.Media.GeometryDrawing { Geometry = brandGeometry, Brush = brandBrush }));
+        }
+        if (Rendering.BrandIcons.TryGetBitmap(extension.Id, out var brandBitmap))
+        {
+            return BrandImage(brandBitmap);
+        }
+        var iconName = string.IsNullOrWhiteSpace(commandIcon) ? extension.Icon : commandIcon;
+        if (!string.IsNullOrWhiteSpace(iconName) && Rendering.LucideIcon.Load(iconName) is { } glyph)
+        {
+            var tint = Rendering.LucideIcon.ColorFromHex(
+                string.IsNullOrWhiteSpace(commandColor) ? null : commandColor,
+                (System.Windows.Media.Brush)FindResource("TextSecondaryBrush"));
+            return BrandImage(new System.Windows.Media.DrawingImage(
+                new System.Windows.Media.GeometryDrawing { Geometry = glyph, Brush = tint }));
+        }
+        if (LoadExtensionImageIcon(extension.Id, extension.Icon, extension.Icon) is { } image)
+        {
+            return BrandImage(image);
+        }
+        return CreateEmojiIcon(extension.Icon);
     }
 
     /// <summary>
@@ -1035,6 +1093,11 @@ public partial class MainWindow : Window
         var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
         if (Rendering.FooterIconRenderer.ToNativeElement(left.Icon, key => TryFindResource(key)) is { } icon)
         {
+            icon.Margin = new Thickness(
+                0,
+                0,
+                (double)FindResource("FooterIconGap"),
+                0);
             panel.Children.Add(icon);
         }
         var name = new TextBlock

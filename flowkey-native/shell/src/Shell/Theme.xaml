@@ -62,11 +62,11 @@
   <sys:Double x:Key="EmptyTitleFontSize">16</sys:Double>
   <sys:Double x:Key="EmptyDescriptionFontSize">13</sys:Double>
   <sys:Double x:Key="GlyphFontSize">12</sys:Double>
-  <sys:Double x:Key="EmojiFontSize">16</sys:Double>
+  <sys:Double x:Key="EmojiFontSize">22</sys:Double>
   <sys:Double x:Key="CellEmojiFontSize">26</sys:Double>
-  <sys:Double x:Key="CommandIconSize">18</sys:Double>
+  <sys:Double x:Key="CommandIconSize">22</sys:Double>
   <sys:Double x:Key="IconTileSize">28</sys:Double>
-  <sys:Double x:Key="IconTileIconSize">16</sys:Double>
+  <sys:Double x:Key="IconTileIconSize">22</sys:Double>
   <CornerRadius x:Key="IconTileCornerRadius">6</CornerRadius>
   <SolidColorBrush x:Key="TileBorderBrush" Color="#333333" />
   <sys:Double x:Key="TitleMaxWidth">420</sys:Double>
@@ -76,6 +76,7 @@
   <sys:Double x:Key="RowMinHeight">40</sys:Double>
   <sys:Double x:Key="RowIconSize">20</sys:Double>
   <sys:Double x:Key="FooterIconSize">16</sys:Double>
+  <sys:Double x:Key="FooterIconGap">8</sys:Double>
   <sys:Double x:Key="FooterDividerHeight">16</sys:Double>
   <sys:Double x:Key="BackButtonSize">32</sys:Double>
   <sys:Double x:Key="CellWidth">62</sys:Double>

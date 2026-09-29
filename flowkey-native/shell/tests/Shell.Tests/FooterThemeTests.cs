@@ -41,6 +41,7 @@ public class FooterThemeTests
             ["FooterIconSize"] = 16d,
             ["FooterDividerHeight"] = 16d,
             ["FooterPillHeight"] = 32d,
+            ["FooterIconGap"] = 8d,
             ["KeycapCornerRadius"] = new CornerRadius(5),
             ["FooterPillCornerRadius"] = new CornerRadius(16),
             ["FooterPillPadding"] = new Thickness(12, 0, 16, 0),
@@ -86,6 +87,7 @@ public class FooterThemeTests
         Assert.Equal("11px", tokens["KeycapFontSize"]);
         Assert.Equal("16px", tokens["FooterIconSize"]);
         Assert.Equal("32px", tokens["FooterPillHeight"]);
+        Assert.Equal("8px", tokens["FooterIconGap"]);
         Assert.Equal("5px", tokens["KeycapCornerRadius"]);
         Assert.Equal("16px", tokens["FooterPillCornerRadius"]);
         Assert.Equal("0px 16px 0px 12px", tokens["FooterPillPadding"]);
@@ -115,6 +117,7 @@ public class FooterThemeTests
         Assert.Contains("--fk-footer-pill-height: 32px", css);
         Assert.Contains("--fk-footer-pill-corner-radius: 16px", css);
         Assert.Contains("--fk-footer-pill-margin: 0px 12px 8px 12px", css);
+        Assert.Contains("--fk-footer-icon-gap: 8px", css);
         Assert.Contains("--fk-footer-pill-icon-padding: 0px 12px 0px 12px", css);
         Assert.Contains("--fk-action-panel-background: #1e1e1e", css);
         Assert.Contains("--fk-keycap-border: #4b4b4b", css);

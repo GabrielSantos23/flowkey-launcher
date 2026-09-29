@@ -20,7 +20,7 @@ public static class FooterTheme
     private static readonly string[] SizeKeys =
     {
         "FooterHeight", "FooterFontSize", "KeycapFontSize", "GlyphFontSize",
-        "FooterIconSize", "FooterDividerHeight", "FooterPillHeight",
+        "FooterIconSize", "FooterDividerHeight", "FooterPillHeight", "FooterIconGap",
     };
 
     private static readonly string[] CornerRadiusKeys = { "KeycapCornerRadius", "FooterPillCornerRadius" };

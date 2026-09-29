@@ -29,7 +29,6 @@
       <Setter Property="FontSize" Value="{DynamicResource KeycapFontSize}" />
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
-    <rendering:IconTileBackgroundConverter x:Key="IconTileBackground" />
   </Window.Resources>
   <Grid>
     <Grid.RowDefinitions>
@@ -298,13 +297,10 @@
               <ColumnDefinition Width="Auto" />
               <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
+            <!-- Icons render bare, Raycast-style: no tile background or border. -->
             <Border Grid.Column="0"
                     Width="{DynamicResource IconTileSize}"
                     Height="{DynamicResource IconTileSize}"
-                    Background="{Binding Item.IconColor, Converter={StaticResource IconTileBackground}}"
-                    BorderBrush="{DynamicResource TileBorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="{DynamicResource IconTileCornerRadius}"
                     Margin="{DynamicResource IconMargin}"
                     VerticalAlignment="Center">
               <Border.Style>
@@ -321,7 +317,7 @@
                   </Style.Triggers>
                 </Style>
               </Border.Style>
-              <Grid Width="{DynamicResource IconTileIconSize}" Height="{DynamicResource IconTileIconSize}">
+              <Grid Width="{DynamicResource IconTileIconSize}" Height="{DynamicResource IconTileIconSize}" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <TextBlock Text="{Binding Item.Icon}" FontSize="{DynamicResource EmojiFontSize}" TextAlignment="Center" />
                 <Image Source="{Binding Bitmap}" HorizontalAlignment="Left" VerticalAlignment="Top">
                   <Image.Style>
