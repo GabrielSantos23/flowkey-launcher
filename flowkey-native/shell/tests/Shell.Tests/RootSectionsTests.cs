@@ -207,4 +207,39 @@ public class RootSectionsBuilderTests
         favorites.Toggle(new FavoriteEntry("app", "steam", "Steam", "", null, null, null));
         Assert.Equal("Remove from Favorite", RootSectionsBuilder.FavoriteAction(favorites, "app", "steam").Title);
     }
+
+    [Fact]
+    public void AppsSectionHonorsCapAndSkipsFavorites()
+    {
+        var favorites = new FavoritesStore(TempDir());
+        favorites.Toggle(new FavoriteEntry("app", "steam", "Steam", "", null, null, null));
+        var apps = new List<(AppEntry, string?)>
+        {
+            (new AppEntry("steam", "Steam", "steam.exe", false, true, "steam"), null),
+            (new AppEntry("discord", "Discord", "discord.exe", false, true, "discord"), null),
+            (new AppEntry("7zip", "7-Zip", "7z.exe", false, true, "7zip"), null),
+        };
+
+        var rows = RootSectionsBuilder.Build(
+            favorites, new UsageTracker(TempDir()), new List<ReadyExtension>(), apps, BuildRow,
+            suggestionCap: 5, appsCap: 2);
+
+        // Steam lives under Favorites; the capped Apps section lists the rest
+        Assert.Equal("Apps", Assert.IsType<HeaderRow>(rows[^3]).Title);
+        Assert.Equal("discord", Assert.IsType<ItemRow>(rows[^2]).Item.Id);
+        Assert.Equal("7zip", Assert.IsType<ItemRow>(rows[^1]).Item.Id);
+    }
+
+    [Fact]
+    public void NoAppsSectionWhenCapIsZero()
+    {
+        var apps = new List<(AppEntry, string?)>
+        {
+            (new AppEntry("discord", "Discord", "discord.exe", false, true, "discord"), null),
+        };
+        var rows = RootSectionsBuilder.Build(
+            new FavoritesStore(TempDir()), new UsageTracker(TempDir()),
+            new List<ReadyExtension>(), apps, BuildRow);
+        Assert.DoesNotContain(rows, row => row is HeaderRow header && header.Title == "Apps");
+    }
 }

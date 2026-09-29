@@ -164,6 +164,35 @@ public class WebViewProtocolTests
     }
 
     [Fact]
+    public void SerializeResultRewritesClipboardAndSourceFilesToTheClipboardHost()
+    {
+        var iconCache = System.IO.Path.Combine(@"C:", "appdata", "icon-cache");
+        var message = new Protocol.WebResultMessage
+        {
+            BridgeId = "w-1",
+            Ok = true,
+            Result = System.Text.Json.JsonSerializer.SerializeToElement(new
+            {
+                iconUri = new Uri(System.IO.Path.Combine(iconCache, "clipboard", "abc_32.png")).AbsoluteUri,
+                previewImageUri = new Uri(System.IO.Path.Combine(iconCache, "clipboard", "abc_320.png")).AbsoluteUri,
+                sourceIconUri = new Uri(System.IO.Path.Combine(iconCache, "sources", "helium.png")).AbsoluteUri,
+                text = "plain text stays",
+            }),
+        };
+
+        var json = WebViewProtocol.SerializeResult(
+            message,
+            System.IO.Path.Combine(iconCache, "images"),
+            iconCache);
+
+        Assert.Contains("https://clipboard.flowkey.local/clipboard/abc_32.png", json);
+        Assert.Contains("https://clipboard.flowkey.local/clipboard/abc_320.png", json);
+        Assert.Contains("https://clipboard.flowkey.local/sources/helium.png", json);
+        Assert.Contains("plain text stays", json);
+        Assert.DoesNotContain("file:", json);
+    }
+
+    [Fact]
     public void RewriteArtworkFileUrisLeavesOtherStringsUntouched()
     {
         var cacheRoot = System.IO.Path.Combine(@"C:", "appdata", "icon-cache", "images");

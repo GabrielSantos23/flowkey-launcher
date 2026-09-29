@@ -29,7 +29,8 @@ public static class RootSectionsBuilder
         IReadOnlyList<ReadyExtension> extensions,
         IReadOnlyList<(AppEntry Entry, string? IconPath)> apps,
         Func<CommandRow, ItemRow?> buildCommandRow,
-        int suggestionCap = 5)
+        int suggestionCap = 5,
+        int appsCap = 0)
     {
         var rows = new List<UiRow>();
 
@@ -104,6 +105,32 @@ public static class RootSectionsBuilder
         {
             rows.Add(UiRow.Header("Suggestions"));
             rows.AddRange(suggestionRows);
+        }
+
+        if (appsCap > 0)
+        {
+            var favoriteAppIds = favorites.All()
+                .Where(favorite => favorite.Kind == AppKind)
+                .Select(favorite => favorite.Id)
+                .ToHashSet();
+            var appRows = new List<UiRow>();
+            foreach (var (entry, iconPath) in apps)
+            {
+                if (appRows.Count >= appsCap)
+                {
+                    break;
+                }
+                if (favoriteAppIds.Contains(entry.Id))
+                {
+                    continue;
+                }
+                appRows.Add(AppRow(entry, iconPath, favorites));
+            }
+            if (appRows.Count > 0)
+            {
+                rows.Add(UiRow.Header("Apps"));
+                rows.AddRange(appRows);
+            }
         }
 
         return rows;

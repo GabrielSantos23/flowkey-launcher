@@ -565,9 +565,11 @@ public partial class MainWindow : Window
             var capture = ClipboardReader.TryCapture();
             DebugLog.Write($"clipboard update text={capture?.Text is not null} image={capture?.HasImage} source={capture?.SourceApp}");
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var recorded = false;
             if (capture is not null && capture.Text is not null)
             {
                 clipboardHistory.Record(capture.Text, timestamp, capture.SourceApp, capture.SourceIconUri);
+                recorded = true;
             }
             else if (capture is { HasFiles: true })
             {
@@ -578,6 +580,7 @@ public partial class MainWindow : Window
                     if (paths.Count > 0)
                     {
                         clipboardHistory.RecordFiles(paths, timestamp, capture.SourceApp, capture.SourceIconUri);
+                        recorded = true;
                     }
                 }
                 catch (Exception ex)
@@ -593,12 +596,19 @@ public partial class MainWindow : Window
                     if (image is not null)
                     {
                         clipboardHistory.RecordImage(image, timestamp, capture.SourceApp, capture.SourceIconUri);
+                        recorded = true;
                     }
                 }
                 catch (Exception ex)
                 {
                     DebugLog.Write("clipboard image capture failed: " + ex.Message);
                 }
+            }
+            // a mounted clipboard page re-queries when the history changes, so
+            // new copies show up without reopening the command
+            if (recorded && webViewVisible)
+            {
+                webViewHost?.PostPageAction("clipboardChanged");
             }
             handled = true;
         }
@@ -1508,17 +1518,29 @@ public partial class MainWindow : Window
 
     private bool PopView()
     {
+        var popStart = System.Diagnostics.Stopwatch.GetTimestamp();
+        DebugLog.Write("pop begin: hiding web surface");
         HideWebViewSurface();
         currentPagination = null;
         currentForm = null;
+        DebugLog.Write("pop: web surface hidden, rows restored");
         if (searchState.Depth > 1 && searchState.Pop())
         {
-            var restored = searchState.CurrentRows;
-            LoadRowIcons(restored);
-            ApplyRows(restored, null);
             SetSearchBoxSilently(searchState.CurrentQuery);
-            SendSearch(searchState.CurrentQuery);
+            // Compose the display the same way the level did when it was
+            // rendered (lean Favorites/Suggestions at the root, extension rows
+            // deeper) — applying the stored raw rows would resurface the whole
+            // merged command+apps list that the root no longer shows.
+            var display = BuildDisplayRows();
+            LoadRowIcons(display);
+            ApplyRows(display, null);
+            // No re-search here: the composed display is already correct, and
+            // re-querying every extension saturates the UI thread right when
+            // the surface swaps back (the blank window after leaving a
+            // command). Freshness returns with the next keystroke or summon.
             UpdateChrome();
+            DebugLog.Write(
+                "pop done in " + System.Diagnostics.Stopwatch.GetElapsedTime(popStart).TotalMilliseconds + "ms");
             return true;
         }
         return false;
@@ -2222,18 +2244,24 @@ public partial class MainWindow : Window
             {
                 lastCalculator = null;
                 var pixelSize = (int)Math.Round(VisualTreeHelper.GetDpi(this).PixelsPerDip * 32);
+                // The root stays lean: Favorites and Suggestions only. The
+                // command/app rows below (43 commands, the whole app list and
+                // their icon extractions) made every root render heavy — they
+                // are all reachable through search, which re-adds them here.
+                // Apps render at the root again — measured ~70ms for a full
+                // pop including all app rows and icons (the lag came from the
+                // post-pop re-search, which is gone), so no cap is needed.
                 result.AddRange(RootSectionsBuilder.Build(
-                    favoritesStore, usageTracker, readyExtensions, appLauncher.List("", pixelSize), BuildCommandRow));
+                    favoritesStore, usageTracker, readyExtensions, appLauncher.List("", pixelSize), BuildCommandRow,
+                    appsCap: int.MaxValue));
+                return result;
             }
-            else
+            var calculatorResult = calculator.Evaluate(query);
+            lastCalculator = calculatorResult;
+            if (calculatorResult is not null)
             {
-                var calculatorResult = calculator.Evaluate(query);
-                lastCalculator = calculatorResult;
-                if (calculatorResult is not null)
-                {
-                    result.Add(UiRow.Header("Calculator"));
-                    result.Add(CalculatorRow.From(calculatorResult));
-                }
+                result.Add(UiRow.Header("Calculator"));
+                result.Add(CalculatorRow.From(calculatorResult));
             }
             result.AddRange(WithGroupHeaders(merged));
             return result;
@@ -3575,6 +3603,7 @@ public partial class MainWindow : Window
                 ["sourceIconUri"] = e.SourceIconUri,
                 ["width"] = e.ImageWidth,
                 ["height"] = e.ImageHeight,
+                ["sizeBytes"] = e.SizeBytes,
             })
             .ToList();
         return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { items }));

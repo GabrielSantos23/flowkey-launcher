@@ -49,6 +49,29 @@ public class ClipboardHistoryTests : IDisposable
     }
 
     [Fact]
+    public void TextEntryCarriesItsUtf8ByteSize()
+    {
+        var store = new ClipboardHistoryStore(tempDir);
+        store.Record("héllo", 1000, "testapp");
+        var entry = store.Query("", 50)[0];
+        Assert.Equal(System.Text.Encoding.UTF8.GetByteCount("héllo"), entry.SizeBytes);
+    }
+
+    [Fact]
+    public void FileEntryCarriesTheSumOfExistingFileSize()
+    {
+        var fileA = Path.Combine(tempDir, "a.txt");
+        var fileB = Path.Combine(tempDir, "b.txt");
+        Directory.CreateDirectory(tempDir);
+        File.WriteAllText(fileA, new string('a', 100));
+        File.WriteAllText(fileB, new string('b', 250));
+        var store = new ClipboardHistoryStore(tempDir);
+        store.RecordFiles(new[] { fileA, fileB, Path.Combine(tempDir, "missing.txt") }, 1000, "testapp");
+        var entry = store.Query("", 50)[0];
+        Assert.Equal(350, entry.SizeBytes);
+    }
+
+    [Fact]
     public void HistoryIsCapped()
     {
         var store = new ClipboardHistoryStore(tempDir);
@@ -174,6 +197,7 @@ public class ClipboardHistoryTests : IDisposable
         Assert.Equal("sharex", entry.SourceApp);
         Assert.Equal(40, entry.ImageWidth);
         Assert.Equal(20, entry.ImageHeight);
+        Assert.True(entry.SizeBytes > 0);
         Assert.True(File.Exists(entry.ImagePath!));
         Assert.NotNull(store.ThumbnailUriFor(entry));
         var reloaded = new ClipboardHistoryStore(tempDir);

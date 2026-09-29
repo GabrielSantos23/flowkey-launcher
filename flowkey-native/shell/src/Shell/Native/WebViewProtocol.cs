@@ -15,6 +15,11 @@ public static class WebViewProtocol
     public const string ExtensionsHost = "extensions.flowkey.local";
     /// <summary>Virtual host mapped to the shell's cached-artwork folder.</summary>
     public const string ArtHost = "art.flowkey.local";
+    /// <summary>
+    /// Virtual host mapped to the icon cache root, so pages can load clipboard
+    /// previews (<c>clipboard/…</c>) and source-app icons (<c>sources/…</c>).
+    /// </summary>
+    public const string ClipboardHost = "clipboard.flowkey.local";
 
     public static string BuildHostPageUrl(string extensionId, string entry) =>
         $"https://{AppHost}/webhost.html?ext={Uri.EscapeDataString(extensionId)}&entry={Uri.EscapeDataString(entry)}";
@@ -295,24 +300,28 @@ public static class WebViewProtocol
     /// <summary>
     /// Serializes a webResult payload, rewriting file: URIs that point into
     /// the shell's artwork cache (produced by the gated image.fetch route) to
-    /// <see cref="ArtHost"/> URLs. Chromium refuses file: subresources on
-    /// https pages no matter what the CSP allows, so the page could never
+    /// <see cref="ArtHost"/> URLs, and clipboard preview/source-app icons to
+    /// <see cref="ClipboardHost"/> URLs. Chromium refuses file: subresources
+    /// on https pages no matter what the CSP allows, so the page could never
     /// display them directly.
     /// </summary>
-    public static string SerializeResult(WebResultMessage message, string? artworkCacheRoot = null) =>
-        SerializeResultPayload(message, artworkCacheRoot);
+    public static string SerializeResult(WebResultMessage message, string? artworkCacheRoot = null, string? iconCacheRoot = null) =>
+        SerializeResultPayload(message, artworkCacheRoot, iconCacheRoot ?? IconUriPolicy.IconCacheRoot);
 
-    private static string SerializeResultPayload(WebResultMessage message, string? artworkCacheRoot)
+    private static string SerializeResultPayload(WebResultMessage message, string? artworkCacheRoot, string iconCacheRoot)
     {
         object payload;
         if (message.Ok)
         {
+            var resultJson = RewriteResultJson(message.Result, artworkCacheRoot);
+            var raw = resultJson is null ? "null" : resultJson.Value.GetRawText();
+            var rewritten = RewriteClipboardFileUris(raw, iconCacheRoot);
             payload = new
             {
                 type = "result",
                 bridgeId = message.BridgeId,
                 ok = true,
-                result = RewriteResultJson(message.Result, artworkCacheRoot),
+                result = System.Text.Json.Nodes.JsonNode.Parse(rewritten),
             };
         }
         else
@@ -356,12 +365,52 @@ public static class WebViewProtocol
         {
             return json;
         }
+        return RewriteFilePrefix(json, prefix, $"https://{ArtHost}/");
+    }
+
+    /// <summary>
+    /// Replaces file: URIs under the icon cache's <c>clipboard</c> (image
+    /// previews and thumbnails) and <c>sources</c> (source-app icons) folders
+    /// with clipboard-host URLs so WebView pages can load them — Chromium
+    /// refuses file: subresources on https pages.
+    /// </summary>
+    public static string? RewriteClipboardFileUris(string? json, string iconCacheRoot)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return json;
+        }
+        var rewritten = RewriteFilePrefix(
+            json,
+            Path.Combine(iconCacheRoot, "clipboard"),
+            $"https://{ClipboardHost}/clipboard/");
+        return RewriteFilePrefix(
+            rewritten,
+            Path.Combine(iconCacheRoot, "sources"),
+            $"https://{ClipboardHost}/sources/");
+    }
+
+    private static string? RewriteFilePrefix(string? json, string folderPath, string urlPrefix)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return json;
+        }
+        string prefix;
+        try
+        {
+            prefix = new Uri(folderPath).AbsoluteUri.TrimEnd('/') + '/';
+        }
+        catch (UriFormatException)
+        {
+            return json;
+        }
         var node = System.Text.Json.Nodes.JsonNode.Parse(json);
         if (node is null)
         {
             return json;
         }
-        var replaced = ReplaceUriStrings(node, prefix, $"https://{ArtHost}/");
+        var replaced = ReplaceUriStrings(node, prefix, urlPrefix);
         return replaced ? node.ToJsonString() : json;
     }
 

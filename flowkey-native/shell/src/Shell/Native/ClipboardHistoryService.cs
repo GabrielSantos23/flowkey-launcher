@@ -14,6 +14,8 @@ public sealed record ClipboardEntry
     public string? ImagePath { get; init; }
     public int ImageWidth { get; init; }
     public int ImageHeight { get; init; }
+    /// <summary>Payload size in bytes: UTF-8 text length, image PNG size, or the summed file sizes.</summary>
+    public long SizeBytes { get; init; }
     public string? SourceApp { get; init; }
     public string? SourceIconUri { get; init; }
 }
@@ -68,7 +70,15 @@ public sealed class ClipboardHistoryStore
                 return;
             }
             entries.RemoveAll(e => e.Kind == kind && e.Text == text);
-            entries.Insert(0, new ClipboardEntry { Text = text, Kind = kind, TimestampUnixMs = timestampUnixMs, SourceApp = sourceApp, SourceIconUri = sourceIconUri });
+            entries.Insert(0, new ClipboardEntry
+            {
+                Text = text,
+                Kind = kind,
+                TimestampUnixMs = timestampUnixMs,
+                SizeBytes = System.Text.Encoding.UTF8.GetByteCount(text),
+                SourceApp = sourceApp,
+                SourceIconUri = sourceIconUri,
+            });
             Trim();
             Persist();
         }
@@ -114,7 +124,15 @@ public sealed class ClipboardHistoryStore
                 return;
             }
             entries.RemoveAll(e => e.Kind == "file" && e.Text == text);
-            entries.Insert(0, new ClipboardEntry { Text = text, Kind = "file", TimestampUnixMs = timestampUnixMs, SourceApp = sourceApp, SourceIconUri = sourceIconUri });
+            entries.Insert(0, new ClipboardEntry
+            {
+                Text = text,
+                Kind = "file",
+                TimestampUnixMs = timestampUnixMs,
+                SizeBytes = paths.Where(File.Exists).Sum(p => new FileInfo(p).Length),
+                SourceApp = sourceApp,
+                SourceIconUri = sourceIconUri,
+            });
             Trim();
             Persist();
         }
@@ -146,6 +164,7 @@ public sealed class ClipboardHistoryStore
                 ImageWidth = image.Width,
                 ImageHeight = image.Height,
                 TimestampUnixMs = timestampUnixMs,
+                SizeBytes = new FileInfo(imagePath).Length,
                 SourceApp = sourceApp,
                 SourceIconUri = sourceIconUri,
             });

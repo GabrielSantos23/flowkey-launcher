@@ -215,6 +215,13 @@ public sealed class WebViewHost : IDisposable
                     WebViewProtocol.ArtHost,
                     artworkCacheRoot,
                     CoreWebView2HostResourceAccessKind.Allow);
+                // Clipboard previews/thumbnails and source-app icons live in
+                // sibling folders of the icon cache; one host covers both.
+                Directory.CreateDirectory(IconUriPolicy.IconCacheRoot);
+                core.SetVirtualHostNameToFolderMapping(
+                    WebViewProtocol.ClipboardHost,
+                    IconUriPolicy.IconCacheRoot,
+                    CoreWebView2HostResourceAccessKind.Allow);
             }
             catch (Exception ex)
             {
