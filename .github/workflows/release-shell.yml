@@ -100,6 +100,19 @@ jobs:
         run: bun build --compile --target=bun-windows-x64 src/main.ts --outfile FlowKey.Sidecar.exe
         working-directory: flowkey-native/sidecar
 
+      # WebView commands load their bundles (dist/<webEntry>) from the shipped
+      # extensions folder; dist is gitignored, so build every extension here or
+      # the installed app mounts web views with no bundle file at all.
+      - name: Build extension bundles
+        working-directory: flowkey-native
+        shell: pwsh
+        run: |
+          Get-ChildItem extensions -Directory | ForEach-Object {
+            Push-Location $_.FullName
+            bun ../../cli/src/main.ts build
+            Pop-Location
+          }
+
       - name: Bundle sidecar and extensions
         shell: pwsh
         run: |
