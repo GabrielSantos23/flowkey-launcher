@@ -217,6 +217,12 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
         void latest.current.refresh(latest.current.query.trim());
         return;
       }
+      if (data.action === 'refresh') {
+        // the surface was re-shown after suspension: re-query so stale state
+        // from before the freeze is replaced
+        void latest.current.refresh(latest.current.query.trim());
+        return;
+      }
       if (data.action === 'moveDown' || data.action === 'moveUp') {
         latest.current.move(data.action === 'moveDown' ? 1 : -1);
         return;

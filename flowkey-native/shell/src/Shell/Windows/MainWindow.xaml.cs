@@ -625,6 +625,7 @@ public partial class MainWindow : Window
 
     public void ToggleVisibility()
     {
+        DebugLog.Write($"toggle visibility: IsVisible={IsVisible}");
         if (IsVisible)
         {
             HideWindow();
@@ -639,6 +640,13 @@ public partial class MainWindow : Window
     {
         previousForegroundWindow = GetForegroundWindow();
         suppressAutoHideUntil = Environment.TickCount64 + 400;
+        CancelWebviewTeardown();
+        if (footerWebViewHost is null && WebViewHost.RuntimeAvailable())
+        {
+            // re-create the footer chrome after an idle teardown; the native
+            // pills cover the gap until the page reports ready
+            _ = InitializeFooterChromeAsync();
+        }
         Show();
         Activate();
         ForceForeground();
@@ -652,6 +660,9 @@ public partial class MainWindow : Window
         SearchBox.Focus();
         SearchBox.SelectAll();
         InvalidateVisual();
+        // Pre-warm the last web command once everything has settled, so
+        // re-entering it is instant (the idle discard releases it if unused).
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(PreWarmLastWebCommand));
         DebugLog.Write("summoned");
     }
 
@@ -681,6 +692,10 @@ public partial class MainWindow : Window
             var previous = previousForegroundWindow;
             var foreground = GetForegroundWindow();
             Hide();
+            // Nothing is on screen once hidden — after a grace period the
+            // whole WebView2 tree is disposed and its memory returns to the
+            // system (see ScheduleWebviewTeardown).
+            ScheduleWebviewTeardown();
             // Only restore the pre-summon app when this window still owns the
             // foreground (escape / hotkey toggle). If the user already clicked
             // into another app, that app owns the foreground — yanking the
@@ -695,6 +710,81 @@ public partial class MainWindow : Window
         {
             DebugLog.Write("HideWindow lost a race with window close: " + ex.Message);
         }
+    }
+
+    /// <summary>
+    /// While the launcher sits hidden, both WebView2 surfaces are disposed so
+    /// the whole Chromium tree exits and its memory returns to the system.
+    /// The native footer pills (visually identical) cover the gap; both hosts
+    /// are recreated on the next summon or web mount.
+    /// </summary>
+    private void ScheduleWebviewTeardown()
+    {
+        var runtime = WebViewHost.RuntimeAvailable();
+        DebugLog.Write(
+            $"ScheduleWebviewTeardown enter: runtime={runtime} "
+            + $"shellHost={webViewHost is not null} footerHost={footerWebViewHost is not null}");
+        if (!WebViewHost.RuntimeAvailable() || (webViewHost is null && footerWebViewHost is null))
+        {
+            return;
+        }
+        webviewTeardownTimer ??= new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(WebviewTeardownAfterHiddenSeconds),
+        };
+        webviewTeardownTimer.Tick -= TeardownWebviews;
+        webviewTeardownTimer.Tick += TeardownWebviews;
+        webviewTeardownTimer.Stop();
+        webviewTeardownTimer.Start();
+        DebugLog.Write("webview teardown scheduled");
+    }
+
+    private void CancelWebviewTeardown() => webviewTeardownTimer?.Stop();
+
+    private void TeardownWebviews(object? sender, EventArgs e)
+    {
+        webviewTeardownTimer?.Stop();
+        if (IsVisible)
+        {
+            return; // the launcher came back while the timer was pending
+        }
+        webViewVisible = false;
+        webViewState = null;
+        // a fresh-mount loading bar that never ended (page crashed before its
+        // first report) must not leak a pending operation
+        if (webviewLoadPending)
+        {
+            webviewLoadPending = false;
+            EndOperation();
+        }
+        webViewHost?.Dispose();
+        webViewHost = null;
+        WebViewContainer.Children.Clear();
+        WebViewSurface.Visibility = Visibility.Collapsed;
+        footerWebViewHost?.Dispose();
+        footerWebViewHost = null;
+        footerWebViewReady = false;
+        FooterWebViewContainer.Children.Clear();
+        FooterWebViewContainer.Visibility = Visibility.Collapsed;
+        FooterNativeContent.Visibility = Visibility.Visible;
+        UpdateFilterDropdown(null);
+        // The disposed page belonged to the restored command level — that view
+        // is gone, so return the shell to the root. Without this, the next
+        // summon renders neither the page nor the root rows: an empty screen.
+        while (searchState.Depth > 1 && searchState.Pop())
+        {
+        }
+        var display = BuildDisplayRows();
+        LoadRowIcons(display);
+        ApplyRows(display, null);
+        UpdateChrome();
+        // The WebView2 browser process stays connected until the environment
+        // objects are finalized — collect explicitly so the memory actually
+        // returns while the launcher sits hidden.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        DebugLog.Write("webviews disposed after idle hide");
     }
 
     private IntPtr Handle => new WindowInteropHelper(this).Handle;
@@ -2478,10 +2568,14 @@ public partial class MainWindow : Window
     }
 
     private bool viewHoldsLoadingBar;
+    private bool webviewLoadPending;
     private WebViewHost? webViewHost;
     private bool webViewVisible;
     private WebViewProtocol.WebViewState? webViewState;
+    private WebViewMessage? lastWebMount;
     private FooterWebViewHost? footerWebViewHost;
+    private const int WebviewTeardownAfterHiddenSeconds = 60;
+    private System.Windows.Threading.DispatcherTimer? webviewTeardownTimer;
     private bool footerWebViewReady;
     private FooterToastState? footerToast;
     private readonly Dictionary<string, FooterIconState> footerIconCache = new(StringComparer.Ordinal);
@@ -2531,6 +2625,12 @@ public partial class MainWindow : Window
                 DebugLog.Write("webview viewState parse failed");
                 return;
             }
+            if (webviewLoadPending)
+            {
+                // the page's first report after a fresh mount — the boot is done
+                webviewLoadPending = false;
+                EndOperation();
+            }
             DebugLog.Write(
                 "webview viewState primary=" + (webViewState.PrimaryTitle ?? "")
                 + " canGoBack=" + webViewState.CanGoBack
@@ -2567,13 +2667,20 @@ public partial class MainWindow : Window
             {
                 EndOperation();
                 webViewVisible = true;
+                lastWebMount = message;
                 // Props-only updates re-render the same mounted page; pages
                 // dedup their viewState posts, so resetting the chrome state
                 // here would leave the footer hints dark until the page's next
                 // real chrome change. Reset only when a different page loads.
-                if (webViewHost is null || !webViewHost.IsShowing(message.ExtensionId, message.Entry))
+                var freshPage = webViewHost is null || !webViewHost.IsShowing(message.ExtensionId, message.Entry);
+                if (freshPage)
                 {
                     webViewState = null;
+                    // a freshly navigated page boots and queries before it has
+                    // anything to show — hold the loading bar until its first
+                    // viewState report lands
+                    webviewLoadPending = true;
+                    BeginOperation();
                 }
                 ResultsList.Visibility = Visibility.Collapsed;
                 GridHostPanel.Visibility = Visibility.Collapsed;
@@ -2582,25 +2689,16 @@ public partial class MainWindow : Window
                 PaneHost.Visibility = Visibility.Collapsed;
                 PaneDivider.Visibility = Visibility.Collapsed;
                 WebViewSurface.Visibility = Visibility.Visible;
-                webViewHost ??= new WebViewHost(WebViewContainer);
-                webViewHost.SetThemeCss(WebViewHost.BuildThemeCssFromResources(key => TryFindResource(key)));
-                webViewHost.CallRequested -= OnWebViewCallRequested;
-                webViewHost.CallRequested += OnWebViewCallRequested;
-                webViewHost.AbortRequested -= OnWebViewAbortRequested;
-                webViewHost.AbortRequested += OnWebViewAbortRequested;
-                webViewHost.LoadFailed -= OnWebViewLoadFailed;
-                webViewHost.LoadFailed += OnWebViewLoadFailed;
-                webViewHost.LogEmitted -= OnWebViewLogEmitted;
-                webViewHost.LogEmitted += OnWebViewLogEmitted;
-                webViewHost.ViewStateEmitted -= OnWebViewViewState;
-                webViewHost.ViewStateEmitted += OnWebViewViewState;
-                webViewHost.PaletteRequested -= OpenWebViewActionPanel;
-                webViewHost.PaletteRequested += OpenWebViewActionPanel;
+                EnsureWebViewHost();
                 DebugLog.Write($"WebView mount ext={message.ExtensionId} cmd={message.CommandId} entry={message.Entry}");
                 var firstPartyExtensionsRoot = repoRoot is null
                     ? null
                     : System.IO.Path.Combine(repoRoot, "extensions");
                 await webViewHost.ShowAsync(message, extensionsRoot, firstPartyExtensionsRoot);
+                webViewHost.SetMemoryTargetNormal();
+                // a page re-shown after an idle discard may hold stale state —
+                // let it re-query (pages that don't use it ignore the action)
+                webViewHost.PostPageAction("refresh");
                 UpdateFooter();
             }
             catch (Exception ex)
@@ -2609,6 +2707,89 @@ public partial class MainWindow : Window
                 ShowToast("Web view failed: " + ex.Message);
             }
         });
+    }
+
+    /// <summary>
+    /// Creates the shared command WebView on first use and (re)wires its
+    /// events; idempotent, used by the mount path and the idle pre-warm.
+    /// </summary>
+    private void EnsureWebViewHost()
+    {
+        webViewHost ??= new WebViewHost(WebViewContainer);
+        webViewHost.SetThemeCss(WebViewHost.BuildThemeCssFromResources(key => TryFindResource(key)));
+        webViewHost.CallRequested -= OnWebViewCallRequested;
+        webViewHost.CallRequested += OnWebViewCallRequested;
+        webViewHost.AbortRequested -= OnWebViewAbortRequested;
+        webViewHost.AbortRequested += OnWebViewAbortRequested;
+        webViewHost.LoadFailed -= OnWebViewLoadFailed;
+        webViewHost.LoadFailed += OnWebViewLoadFailed;
+        webViewHost.LogEmitted -= OnWebViewLogEmitted;
+        webViewHost.LogEmitted += OnWebViewLogEmitted;
+        webViewHost.ViewStateEmitted -= OnWebViewViewState;
+        webViewHost.ViewStateEmitted += OnWebViewViewState;
+        webViewHost.PaletteRequested -= OpenWebViewActionPanel;
+        webViewHost.PaletteRequested += OpenWebViewActionPanel;
+    }
+
+    /// <summary>
+    /// Pre-warms the last web command after summon: the page boots hidden so
+    /// re-entering the command re-shows it with a props update instead of a
+    /// full mount. The idle discard still releases it if it is never opened.
+    /// </summary>
+    private void PreWarmLastWebCommand()
+    {
+        if (webViewVisible || lastWebMount is null)
+        {
+            return;
+        }
+        var top = searchState.Top;
+        var restoredIsLastWebCommand =
+            top is { ExtensionId: not null, CommandId: not null }
+            && top.ExtensionId == lastWebMount.ExtensionId
+            && top.CommandId == lastWebMount.CommandId;
+        var firstPartyExtensionsRoot = repoRoot is null
+            ? null
+            : System.IO.Path.Combine(repoRoot, "extensions");
+        try
+        {
+            EnsureWebViewHost();
+            if (restoredIsLastWebCommand)
+            {
+                // The command level survived the teardown — run the full mount
+                // so the user lands back on the page (with the boot loading
+                // bar) instead of an empty native stub.
+                BeginOperation();
+                OnSidecarWebView(lastWebMount);
+                return;
+            }
+            if (searchState.Depth > 1)
+            {
+                // a different native view is restored — don't boot a page over it
+                return;
+            }
+            var freshMount = !webViewHost.IsShowing(lastWebMount.ExtensionId, lastWebMount.Entry);
+            if (freshMount)
+            {
+                // the discarded page re-mounts here — hold the loading bar
+                // until the page reports its first viewState
+                webviewLoadPending = true;
+                BeginOperation();
+            }
+            DebugLog.Write($"prewarm web command ext={lastWebMount.ExtensionId} entry={lastWebMount.Entry}");
+            _ = PreWarmCoreAsync(firstPartyExtensionsRoot);
+        }
+        catch (Exception ex)
+        {
+            DebugLog.Write("prewarm failed: " + ex.Message);
+        }
+
+        async Task PreWarmCoreAsync(string? firstPartyRoot)
+        {
+            await webViewHost!.ShowAsync(lastWebMount, extensionsRoot, firstPartyRoot);
+            webViewHost.ScheduleDiscard();
+            webViewHost.PostPageAction("refresh");
+            DebugLog.Write("prewarmed web command ext=" + lastWebMount.ExtensionId);
+        }
     }
 
     private void OnWebViewCallRequested(string bridgeId, string extensionId, string method, string? paramsJson, int? timeoutMs)
@@ -2647,6 +2828,17 @@ public partial class MainWindow : Window
         // The page stays mounted while hidden and keeps its chrome; the last
         // reported state is restored as soon as the same page is shown again.
         WebViewSurface.Visibility = Visibility.Collapsed;
+        // The renderer frees its page after the idle-discard window; ShowAsync
+        // re-mounts it fresh before the surface is shown again. The memory
+        // target drops immediately (caches trimmed) and Normal is restored on
+        // the next ShowAsync.
+        if (webviewLoadPending)
+        {
+            webviewLoadPending = false;
+            EndOperation();
+        }
+        webViewHost?.SetMemoryTargetLow();
+        webViewHost?.ScheduleDiscard();
         UpdateFilterDropdown(null);
         // a placeholder the page supplied belongs to that page, not to the root
         if (webViewState?.SearchPlaceholder is { } placeholder)

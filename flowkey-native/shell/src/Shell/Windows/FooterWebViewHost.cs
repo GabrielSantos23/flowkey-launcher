@@ -51,10 +51,33 @@ public sealed class FooterWebViewHost : IDisposable
         initialized = true;
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FlowKey.Shell", "WebView2"));
+            // identical environment options to the command WebView — both
+            // hosts share one user data folder and must match to share the
+            // same browser process (tracking prevention off: shell-owned
+            // content only)
+            var options = new CoreWebView2EnvironmentOptions
+            {
+                EnableTrackingPrevention = false,
+            };
+            CoreWebView2Environment environment;
+            try
+            {
+                environment = await CoreWebView2Environment.CreateAsync(
+                    null,
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "FlowKey.Shell", "WebView2"),
+                    options);
+            }
+            catch (Exception ex)
+            {
+                LogEmitted?.Invoke("footer environment with preferred options failed: " + ex.Message);
+                environment = await CoreWebView2Environment.CreateAsync(
+                    null,
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "FlowKey.Shell", "WebView2"));
+            }
             var webView = new WebView2
             {
                 DefaultBackgroundColor = System.Drawing.Color.Transparent,

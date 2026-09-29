@@ -25,6 +25,10 @@ public sealed class WebViewHost : IDisposable
     private WebViewMessage? lastMount;
     private string themeCss = string.Empty;
     private readonly string artworkCacheRoot = Path.Combine(IconUriPolicy.IconCacheRoot, "images");
+    private readonly System.Windows.Threading.DispatcherTimer discardTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(30),
+    };
 
     /// <summary>bridgeId / extensionId / method / params JSON / timeoutMs for a webview capability call.</summary>
     public event Action<string, string, string, string?, int?>? CallRequested;
@@ -40,6 +44,7 @@ public sealed class WebViewHost : IDisposable
     public WebViewHost(Grid container)
     {
         this.container = container;
+        discardTimer.Tick += (_, _) => DiscardPage();
     }
 
     public static bool RuntimeAvailable()
@@ -80,6 +85,7 @@ public sealed class WebViewHost : IDisposable
         lastMount = message;
         themeCss ??= string.Empty;
         container.Visibility = Visibility.Visible;
+        discardTimer.Stop();
         if (!initialized)
         {
             if (initializationFailed)
@@ -108,10 +114,12 @@ public sealed class WebViewHost : IDisposable
         {
             currentExtensionId = message.ExtensionId;
             currentEntry = message.Entry;
+            LogEmitted?.Invoke("ShowAsync: navigating to " + message.ExtensionId + "/" + message.Entry);
             webView.Source = new Uri(WebViewProtocol.BuildHostPageUrl(message.ExtensionId, message.Entry));
         }
         else
         {
+            LogEmitted?.Invoke("ShowAsync: reusing mounted page, posting props");
             PostProps(message);
         }
     }
@@ -155,12 +163,62 @@ public sealed class WebViewHost : IDisposable
     }
 
     /// <summary>
+    /// Schedules the hidden command page to be discarded (navigated to
+    /// about:blank) so its memory is released while the surface is unused.
+    /// The next ShowAsync re-navigates and re-mounts it fresh.
+    /// </summary>
+    public void ScheduleDiscard()
+    {
+        if (webView is null)
+        {
+            return;
+        }
+        discardTimer.Stop();
+        discardTimer.Start();
+    }
+
+    private void DiscardPage()
+    {
+        discardTimer.Stop();
+        if (webView?.CoreWebView2 is null)
+        {
+            return;
+        }
+        currentExtensionId = null;
+        currentEntry = null;
+        lastMount = null;
+        webView.Source = new Uri("about:blank");
+        LogEmitted?.Invoke("webview page discarded after idle hide");
+    }
+
+    /// <summary>
+    /// Asks the WebView2 runtime to trim caches and page memory. Used while
+    /// the surface is hidden (the discard reclaims the rest later); Normal is
+    /// restored on the next ShowAsync.
+    /// </summary>
+    public void SetMemoryTargetLow()
+    {
+        if (webView?.CoreWebView2 is { } core)
+        {
+            core.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Low;
+        }
+    }
+
+    public void SetMemoryTargetNormal()
+    {
+        if (webView?.CoreWebView2 is { } core)
+        {
+            core.MemoryUsageTargetLevel = CoreWebView2MemoryUsageTargetLevel.Normal;
+        }
+    }
+
+    /// <summary>
     /// Asks the mounted page to run one of its chrome-driven interactions:
     /// "primary" (footer ↵), "openPalette" (footer Ctrl+K), "goBack"
-    /// (back button / escape) or a scroll step ("moveUp"/"moveDown"/"pageUp"/
-    /// "pageDown", which drive row selection or the page's scroll region) —
-    /// used while keyboard focus sits in the launcher search box, where the
-    /// page cannot see the keystrokes.
+    /// (back button / escape), "refresh" (re-query after suspension) or a
+    /// scroll step ("moveUp"/"moveDown"/"pageUp"/"pageDown", which drive row
+    /// selection or the page's scroll region) — used while keyboard focus sits
+    /// in the launcher search box, where the page cannot see the keystrokes.
     /// </summary>
     public void PostPageAction(string action) =>
         Post(JsonSerializer.Serialize(new { type = "pageAction", action }));
@@ -185,10 +243,36 @@ public sealed class WebViewHost : IDisposable
         initialized = true;
         try
         {
-            var environment = await CoreWebView2Environment.CreateAsync(
-                userDataFolder: Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "FlowKey.Shell", "WebView2"));
+            // Both WebView hosts must create identical environments (same user
+            // data folder + options) so they share one browser process. Tracking
+            // prevention is disabled: the shell only renders its own trusted
+            // content, and the engine's per-page overhead is pure memory cost.
+            var options = new CoreWebView2EnvironmentOptions
+            {
+                EnableTrackingPrevention = false,
+            };
+            CoreWebView2Environment environment;
+            try
+            {
+                environment = await CoreWebView2Environment.CreateAsync(
+                    null,
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "FlowKey.Shell", "WebView2"),
+                    options);
+            }
+            catch (Exception ex)
+            {
+                // An older build (installed release vs dev) may hold this user
+                // data folder with default options — 0x8007139F. Join it with
+                // defaults rather than fail the web view.
+                LogEmitted?.Invoke("webview environment with preferred options failed: " + ex.Message);
+                environment = await CoreWebView2Environment.CreateAsync(
+                    null,
+                    Path.Combine(
+                        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                        "FlowKey.Shell", "WebView2"));
+            }
             LogEmitted?.Invoke("initializing webview environment");
             var webView = new WebView2
             {
@@ -273,14 +357,20 @@ public sealed class WebViewHost : IDisposable
                         break;
                 }
             };
-            core.NavigationStarting += (_, args) =>
+        core.NavigationStarting += (_, args) =>
+        {
+            // about: is the discard target; anything else must stay on the
+            // two known hosts
+            if (args.Uri.StartsWith("about:", StringComparison.Ordinal))
             {
-                var uri = new Uri(args.Uri);
-                if (uri.Host is not (WebViewProtocol.AppHost or WebViewProtocol.ExtensionsHost))
-                {
-                    args.Cancel = true;
-                }
-            };
+                return;
+            }
+            var uri = new Uri(args.Uri);
+            if (uri.Host is not (WebViewProtocol.AppHost or WebViewProtocol.ExtensionsHost))
+            {
+                args.Cancel = true;
+            }
+        };
             core.ProcessFailed += (_, args) =>
             {
                 LoadFailed?.Invoke(args.ProcessFailedKind.ToString());

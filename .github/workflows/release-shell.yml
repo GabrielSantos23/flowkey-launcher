@@ -118,7 +118,7 @@ jobs:
         run: |
           Get-ChildItem extensions -Directory | ForEach-Object {
             Push-Location $_.FullName
-            bun ../../cli/src/main.ts build
+            bun ../../cli/src/main.ts build --minify
             Pop-Location
           }
 
