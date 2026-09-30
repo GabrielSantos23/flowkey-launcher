@@ -23,6 +23,7 @@
     <Resource Include="Assets\Fonts\Inter-Medium.ttf" />
     <Resource Include="Assets\Fonts\Inter-SemiBold.ttf" />
     <Resource Include="Assets\AppIcon.ico" />
+    <Resource Include="Assets\logo.png" />
     <Resource Include="Assets\Icons\*.svg" />
     <Resource Include="Assets\Icons\*.png" />
   </ItemGroup>

@@ -279,6 +279,13 @@
         "destructive": true
       }
     },
+    "nativeCallWindowsList": {
+      "type": "nativeCall",
+      "requestId": "n-7",
+      "extensionId": "demo-ext",
+      "method": "windows.list",
+      "params": {}
+    },
     "log": {
       "type": "log",
       "level": "info",

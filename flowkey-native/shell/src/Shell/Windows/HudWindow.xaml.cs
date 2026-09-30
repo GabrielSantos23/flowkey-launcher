@@ -143,44 +143,20 @@ public partial class HudWindow : Window
         {
             foreground = new WindowInteropHelper(this).Handle;
         }
-        var monitor = MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST);
-        var info = MONITORINFO.Create();
-        if (!GetMonitorInfo(monitor, ref info))
+        // Work area in DIPs — device pixels would misplace the HUD on
+        // scaled monitors.
+        var monitor = Native.MonitorInfo.FromWindow(foreground);
+        if (monitor is null)
         {
             return;
         }
-        Left = info.rcWork.Left + (info.rcWork.Right - info.rcWork.Left - ActualWidth) / 2;
-        Top = info.rcWork.Bottom - ActualHeight - HudBottomMargin;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO
-    {
-        public int cbSize;
-        public RECT rcMonitor;
-        public RECT rcWork;
-        public uint dwFlags;
-
-        public static MONITORINFO Create() => new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
+        var work = monitor.WorkArea;
+        Left = work.Left + (work.Width - ActualWidth) / 2;
+        Top = work.Bottom - ActualHeight - HudBottomMargin;
     }
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
 
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hwnd, int index);

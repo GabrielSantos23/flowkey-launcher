@@ -13,6 +13,7 @@
         FontFamily="{DynamicResource AppFontFamily}"
         Visibility="Hidden"
         PreviewKeyDown="OnWindowPreviewKeyDown"
+        UseLayoutRounding="True"
         SourceInitialized="OnSourceInitialized"
         Loaded="OnLoaded">
   <Window.Resources>
@@ -29,7 +30,8 @@
       <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
     </Style>
   </Window.Resources>
-  <Grid>
+  <Border BorderBrush="{DynamicResource WindowBorderBrush}" BorderThickness="1">
+  <Grid x:Name="RootGrid">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto" />
       <RowDefinition Height="*" />
@@ -67,31 +69,75 @@
                      HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
         <Grid Grid.Column="1" Margin="{DynamicResource SearchBarPadding}">
-          <TextBox x:Name="SearchBox"
-                   VerticalAlignment="Center"
-                   FontSize="{DynamicResource SearchFontSize}"
-                   Foreground="{DynamicResource TextPrimaryBrush}"
-                   Background="Transparent"
-                   BorderThickness="0"
-                   CaretBrush="{DynamicResource TextPrimaryBrush}"
-                   TextChanged="OnSearchTextChanged" />
-          <TextBlock x:Name="SearchPlaceholder"
-                     Text="Type to search…"
-                     FontSize="{DynamicResource SearchFontSize}"
-                     Foreground="{DynamicResource TextTertiaryBrush}"
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+          <Image x:Name="SearchBrandIcon"
+                 Grid.Column="0"
+                 Source="pack://application:,,,/Assets/logo.png"
+                 Width="{DynamicResource SearchBrandIconSize}"
+                 Height="{DynamicResource SearchBrandIconSize}"
+                 VerticalAlignment="Center"
+                 Margin="0,0,12,0"
+                 IsHitTestVisible="False" />
+          <Grid Grid.Column="1" VerticalAlignment="Center">
+            <TextBox x:Name="SearchBox"
                      VerticalAlignment="Center"
-                     IsHitTestVisible="False">
-            <TextBlock.Style>
-              <Style TargetType="TextBlock">
-                <Setter Property="Visibility" Value="Collapsed" />
-                <Style.Triggers>
-                  <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
-                    <Setter Property="Visibility" Value="Visible" />
-                  </DataTrigger>
-                </Style.Triggers>
-              </Style>
-            </TextBlock.Style>
-          </TextBlock>
+                     FontSize="{DynamicResource SearchFontSize}"
+                     Foreground="{DynamicResource TextPrimaryBrush}"
+                     Background="Transparent"
+                     BorderThickness="0"
+                     CaretBrush="{DynamicResource TextPrimaryBrush}"
+                     TextChanged="OnSearchTextChanged">
+              <TextBox.Style>
+                <Style TargetType="TextBox">
+                  <Setter Property="Template">
+                    <Setter.Value>
+                      <!-- Chromeless: no theme chrome; the content host is a
+                           bare presenter (no themed border or scrollbars). -->
+                      <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      BorderThickness="0"
+                                      BorderBrush="Transparent"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      VerticalScrollBarVisibility="Hidden">
+                          <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                              <Setter Property="Template">
+                                <Setter.Value>
+                                  <ControlTemplate TargetType="ScrollViewer">
+                                    <ScrollContentPresenter />
+                                  </ControlTemplate>
+                                </Setter.Value>
+                              </Setter>
+                            </Style>
+                          </ScrollViewer.Style>
+                        </ScrollViewer>
+                      </ControlTemplate>
+                    </Setter.Value>
+                  </Setter>
+                </Style>
+              </TextBox.Style>
+            </TextBox>
+            <TextBlock x:Name="SearchPlaceholder"
+                       Text="Search for apps and commands…"
+                       FontSize="{DynamicResource SearchFontSize}"
+                       Foreground="{DynamicResource TextTertiaryBrush}"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False">
+              <TextBlock.Style>
+                <Style TargetType="TextBlock">
+                  <Setter Property="Visibility" Value="Collapsed" />
+                  <Style.Triggers>
+                    <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                      <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                  </Style.Triggers>
+                </Style>
+              </TextBlock.Style>
+            </TextBlock>
+          </Grid>
         </Grid>
         <Grid x:Name="FilterDropdown" Grid.Column="2" Visibility="Collapsed" Margin="{DynamicResource SearchBarPadding}">
           <Border x:Name="FilterButton"
@@ -204,13 +250,10 @@
                        Text="New Update Available"
                        FontSize="{DynamicResource TitleFontSize}"
                        FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       TextTrimming="CharacterEllipsis" />
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
             <TextBlock x:Name="UpdateBannerDetail"
-                       FontSize="{DynamicResource SecondaryFontSize}"
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       Margin="0,1,0,0"
-                       TextTrimming="CharacterEllipsis" />
+                       FontSize="{DynamicResource KindFontSize}"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
           </StackPanel>
           <TextBlock x:Name="UpdateBannerAction"
                      Grid.Column="2"
@@ -222,7 +265,6 @@
         </Grid>
       </Border>
     </StackPanel>
-
     <!-- The list spans into the footer row so rows flow behind the floating
          pills; the mask dissolves the content at the window's bottom edge. -->
     <Grid Grid.Row="1"
@@ -447,7 +489,7 @@
                 <ColumnDefinition Width="*" />
               </Grid.ColumnDefinitions>
               <TextBlock Grid.Column="0"
-                         Text="{Binding Item.Title}"
+                         rendering:MatchHighlight.Row="{Binding}"
                          FontSize="{DynamicResource TitleFontSize}"
                          Foreground="{DynamicResource TextPrimaryBrush}"
                          MaxWidth="{DynamicResource TitleMaxWidth}"
@@ -792,4 +834,5 @@
 
 
   </Grid>
+  </Border>
 </Window>

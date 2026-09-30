@@ -15,7 +15,11 @@
     "@flowkey-cli/extension-google-translate": "workspace:*",
     "@flowkey-cli/extension-lucide-icons": "workspace:*",
     "@flowkey-cli/extension-obsidian-notes": "workspace:*",
+    "@flowkey-cli/extension-quicklinks": "workspace:*",
+    "@flowkey-cli/extension-snippets": "workspace:*",
     "@flowkey-cli/extension-spotify": "workspace:*",
+    "@flowkey-cli/extension-system": "workspace:*",
+    "@flowkey-cli/extension-window-switcher": "workspace:*",
     "@flowkey-cli/native-sdk": "workspace:*",
     "@flowkey-cli/react-ui": "workspace:*"
   },

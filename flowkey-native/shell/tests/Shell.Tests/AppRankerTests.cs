@@ -1,4 +1,5 @@
 using FlowKey.Shell.Native;
+using FlowKey.Shell.Sidecar;
 using Xunit;
 
 namespace FlowKey.Shell.Tests;
@@ -8,16 +9,31 @@ public class AppRankerTests
     private static AppEntry Entry(string name, bool isUwp = false, bool isPerUser = false) =>
         new(Id: name.ToLowerInvariant(), Name: name, LaunchPath: "x", IsUwp: isUwp, IsPerUser: isPerUser, IconKey: name.ToLowerInvariant());
 
-    [Theory]
-    [InlineData("microsoft edge", 100)]
-    [InlineData("micro", 80)]
-    [InlineData("edge", 60)]
-    [InlineData("soft edge", 40)]
-    [InlineData("zzz", 0)]
-    public void MatchQualityRanksCorrectly(string query, int expectedBase)
+    [Fact]
+    public void MatchQualityRanksExactAbovePrefixAboveWordPrefix()
     {
-        var score = AppRanker.Score(Entry("Microsoft Edge"), query, 0);
-        Assert.Equal(expectedBase, score);
+        var exact = AppRanker.Score(Entry("Microsoft Edge"), "microsoft edge", 0);
+        var prefix = AppRanker.Score(Entry("Microsoft Edge"), "micro", 0);
+        var wordPrefix = AppRanker.Score(Entry("Microsoft Edge"), "edge", 0);
+        Assert.True(exact > prefix);
+        Assert.True(prefix > wordPrefix);
+        Assert.Equal(FuzzyMatcher.Match("edge", "Microsoft Edge")!.Score, wordPrefix);
+    }
+
+    [Fact]
+    public void FuzzySubsequenceMatchesRankBelowPrefixes()
+    {
+        var wordPrefix = AppRanker.Score(Entry("Microsoft Edge"), "edge", 0);
+        var fuzzy = AppRanker.Score(Entry("Microsoft Edge"), "soft edge", 0);
+        Assert.True(fuzzy > 0);
+        Assert.True(fuzzy < wordPrefix);
+    }
+
+    [Fact]
+    public void TypoSaysStillFindTheApp()
+    {
+        Assert.True(AppRanker.Score(Entry("Microsoft Edge"), "micosoft edge", 0) > 0);
+        Assert.True(AppRanker.Score(Entry("Visual Studio Code"), "vscode", 0) > 0);
     }
 
     [Fact]
@@ -31,6 +47,12 @@ public class AppRankerTests
 
     [Fact]
     public void NonMatchingEntryScoresZero() => Assert.Equal(0, AppRanker.Score(Entry("Calc"), "firefox", 5));
+
+    [Fact]
+    public void EmptyQueryGivesEveryAppTheBaseScore()
+    {
+        Assert.Equal(10, AppRanker.Score(Entry("Anything"), "", 0));
+    }
 
     [Fact]
     public void DeduplicatePrefersPerUserShortcut()

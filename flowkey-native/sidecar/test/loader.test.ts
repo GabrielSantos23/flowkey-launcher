@@ -464,3 +464,39 @@ describe('web commands', () => {
     expect(mount?.commandId).toBe('test');
   });
 });
+
+describe('background-only extensions', () => {
+  test('root search broadcasts answer with an empty list instead of crashing', async () => {
+    const manifest: ExtensionManifest = {
+      id: 'bg-only-ext',
+      name: 'Background Only',
+      version: '1.0.0',
+      commands: [{ id: 'tick', title: 'Tick', mode: 'background' }],
+      nativeMethods: [],
+      httpHosts: [],
+    };
+    const module = {
+      manifest,
+      source: 'installed',
+      preferences: {},
+      handlers: {
+        async command() {},
+      },
+    } as unknown as LoadedModule;
+
+    const emitted: unknown[] = [];
+    const dispatcher = new Dispatcher([module], (message) => emitted.push(message));
+    await dispatcher.handle(
+      { type: 'search', requestId: 's-bg', extensionId: 'bg-only-ext', query: 'x' },
+      (message) => emitted.push(message),
+    );
+
+    const uiMessages = emitted.filter((m) => (m as { type: string }).type === 'ui');
+    expect(uiMessages).toHaveLength(1);
+    expect((uiMessages[0] as { tree: { type: string; sections: unknown[] } }).tree.type).toBe(
+      'list',
+    );
+    expect((uiMessages[0] as { tree: { sections: unknown[] } }).tree.sections).toEqual([]);
+    expect(emitted.some((m) => (m as { type: string }).type === 'error')).toBe(false);
+  });
+});

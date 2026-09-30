@@ -190,6 +190,7 @@ public class UiTreeFixtureTests
 
         var remove = list.Sections[0].Items[0].Actions!.Single(a => a.Id == "remove");
         Assert.Equal("destructive", remove.Style);
+        Assert.Equal("Edit", remove.Group);
         Assert.Equal("backspace", remove.Shortcut!.Key);
         Assert.Equal(["ctrl"], remove.Shortcut.Modifiers);
     }
@@ -418,6 +419,15 @@ public class ProtocolFixtureTests
         Assert.Equal("alert.confirm", alert.Method);
         Assert.Equal("Delete note?", alert.Params!["title"].GetString());
         Assert.True(alert.Params!["destructive"].GetBoolean());
+    }
+
+    [Fact]
+    public void WindowSwitcherNativeCallsFollowWireShape()
+    {
+        var root = Root();
+        var call = root.GetProperty("sidecarToHost").GetProperty("nativeCallWindowsList").Deserialize<NativeCallMessage>(JsonOptions.Default)!;
+        Assert.Equal("windows.list", call.Method);
+        Assert.Equal("demo-ext", call.ExtensionId);
     }
 
     [Fact]

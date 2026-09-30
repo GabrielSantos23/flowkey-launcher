@@ -29,12 +29,6 @@ export function GeneralPage({ state }: { state: SettingsState }) {
           />
         }
       />
-      <SettingsRow
-        title="Show in System Tray"
-        description="Keep FlowKey in the system tray"
-        disabled={true}
-        control={<Switch checked={false} disabled={true} />}
-      />
 
       <SectionTitle>Launcher</SectionTitle>
       <SettingsRow
@@ -52,10 +46,10 @@ export function GeneralPage({ state }: { state: SettingsState }) {
             <Button
               variant="ghost"
               size="icon"
-              title="Reset to Ctrl+Alt+Space"
+              title="Reset to Alt+Space"
               onClick={() =>
                 void invoke('resetSummonHotkey').then((result) =>
-                  toastResult(result, 'Hotkey reset to Ctrl+Alt+Space'),
+                  toastResult(result, 'Hotkey reset to Alt+Space'),
                 )
               }
             >

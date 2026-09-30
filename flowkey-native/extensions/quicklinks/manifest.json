@@ -1,0 +1,31 @@
+{
+  "id": "quicklinks",
+  "name": "Quicklinks",
+  "version": "1.0.0",
+  "description": "Search and open your saved links, files and folders.",
+  "icon": "\ud83d\udd17",
+  "commands": [
+    {
+      "id": "search",
+      "title": "Quicklinks",
+      "mode": "view",
+      "keywords": ["links", "open", "url", "bookmark"],
+      "icon": "link",
+      "iconColor": "#0EA5E9"
+    },
+    {
+      "id": "add",
+      "title": "Add Quicklink",
+      "mode": "background",
+      "keywords": ["links", "save", "create"],
+      "icon": "plus",
+      "iconColor": "#0EA5E9",
+      "arguments": [
+        { "name": "name", "type": "text", "placeholder": "name", "required": true },
+        { "name": "target", "type": "text", "placeholder": "url or path", "required": true }
+      ]
+    }
+  ],
+  "nativeMethods": ["storage.*", "shell.open", "clipboard.write", "hud.show"],
+  "httpHosts": []
+}

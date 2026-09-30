@@ -2,7 +2,15 @@ using FlowKey.Shell.Protocol;
 
 namespace FlowKey.Shell.Sidecar;
 
-public sealed record CommandRow(string ExtensionId, string ExtensionName, ReadyExtension Extension, CommandInfo Command);
+public sealed record CommandRow(
+    string ExtensionId,
+    string ExtensionName,
+    ReadyExtension Extension,
+    CommandInfo Command)
+{
+    /// <summary>Fuzzy match score from the shell's search; 0 for non-searched rows.</summary>
+    public int Score { get; init; }
+}
 
 public static class CommandCatalog
 {
@@ -10,30 +18,27 @@ public static class CommandCatalog
 
     public static IReadOnlyList<CommandRow> Search(string query, IReadOnlyList<ReadyExtension> extensions)
     {
-        var q = query.Trim().ToLowerInvariant();
+        var q = query.Trim();
         var rows = new List<CommandRow>();
         foreach (var extension in extensions)
         {
             foreach (var command in extension.Commands)
             {
-                var haystacks = new[] { command.Title.ToLowerInvariant() }
-                    .Concat((command.Keywords ?? new List<string>()).Select(k => k.ToLowerInvariant()))
-                    .ToList();
                 var score = q.Length == 0
                     ? 10
-                    : haystacks.Any(h => h == q)
-                        ? 100
-                        : haystacks.Any(h => h.StartsWith(q))
-                            ? 80
-                            : haystacks.Any(h => h.Contains(q))
-                                ? 50
-                                : 0;
+                    : Math.Max(
+                        FuzzyMatcher.Match(q, command.Title)?.Score ?? 0,
+                        (command.Keywords ?? new List<string>())
+                            .Select(keyword => BuiltInCommands.KeywordScore(q, keyword))
+                            .DefaultIfEmpty(0)
+                            .Max());
                 if (score > 0)
                 {
-                    rows.Add(new CommandRow(extension.Id, extension.Name, extension, command));
+                    rows.Add(new CommandRow(extension.Id, extension.Name, extension, command) { Score = score });
                 }
             }
         }
-        return rows;
+        // OrderByDescending is stable, so equal scores keep extension order.
+        return rows.OrderByDescending(row => row.Score).ToList();
     }
 }

@@ -9,6 +9,8 @@ export interface UiAction {
   push?: string;
   /** `destructive` tints the action row in the action panel. */
   style?: 'destructive';
+  /** Groups actions into labeled sections in the action panel. */
+  group?: string;
   /** Display-only shortcut hint (the shell's keycap rendering). */
   shortcut?: UiShortcut;
 }

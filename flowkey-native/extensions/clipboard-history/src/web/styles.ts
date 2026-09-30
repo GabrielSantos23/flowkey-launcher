@@ -15,8 +15,11 @@ body {
 
 .cl-app {
   display: flex;
+  /* the viewport ends right at the footer, so the bottom border sits on
+     top of it */
   height: 100vh;
   color-scheme: dark;
+  border-bottom: 1px solid var(--fk-divider, #363636);
 }
 
 /* ---- entries list ---------------------------------------------------- */

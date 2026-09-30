@@ -132,7 +132,9 @@ public sealed class UiAction
     public string? Push { get; set; }
     /// <summary>`destructive` tints the action row in the action panel.</summary>
     public string? Style { get; set; }
-    /// <summary>Display-only shortcut hint.</summary>
+    /// <summary>Groups actions into labeled sections in the action panel.</summary>
+    public string? Group { get; set; }
+    /// <summary>Live keyboard shortcut; runs the action from the focused view.</summary>
     public UiShortcut? Shortcut { get; set; }
 }
 

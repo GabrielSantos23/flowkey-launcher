@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using FlowKey.Shell.Sidecar;
 
 namespace FlowKey.Shell.Native;
 
@@ -8,29 +9,10 @@ public static class AppRanker
     public static int Score(AppEntry entry, string query, int launchCount)
     {
         var q = query.Trim().ToLowerInvariant();
-        var name = entry.Name.ToLowerInvariant();
-        var baseScore = 0;
-        if (q.Length == 0)
-        {
-            baseScore = 10;
-        }
-        else if (name == q)
-        {
-            baseScore = 100;
-        }
-        else if (name.StartsWith(q))
-        {
-            baseScore = 80;
-        }
-        else if (name.Split(' ', StringSplitOptions.RemoveEmptyEntries).Any(w => w.StartsWith(q)))
-        {
-            baseScore = 60;
-        }
-        else if (name.Contains(q))
-        {
-            baseScore = 40;
-        }
-        else
+        var baseScore = q.Length == 0
+            ? 10
+            : FuzzyMatcher.Match(q, entry.Name)?.Score ?? 0;
+        if (baseScore == 0)
         {
             return 0;
         }

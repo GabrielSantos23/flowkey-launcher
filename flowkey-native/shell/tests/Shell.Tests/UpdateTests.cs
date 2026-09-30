@@ -164,3 +164,23 @@ public class UpdateSettingsStoreTests : IDisposable
         }
     }
 }
+
+public class UpdateFailureMessageTests
+{
+    [Theory]
+    [InlineData("Velopack is not able to locate the application directory")]
+    [InlineData("Application is not installed via Velopack")]
+    [InlineData("The packaged app directory is locked")]
+    public void VelopackEnvironmentFailuresGetTheFriendlyMessage(string raw)
+    {
+        var message = UpdateService.DescribeUpdateFailure(new InvalidOperationException(raw));
+        Assert.Contains("development build", message);
+    }
+
+    [Fact]
+    public void OtherFailuresKeepTheirRawMessage()
+    {
+        var message = UpdateService.DescribeUpdateFailure(new InvalidOperationException("network unreachable"));
+        Assert.Equal("network unreachable", message);
+    }
+}

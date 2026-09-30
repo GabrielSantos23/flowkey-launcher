@@ -1,0 +1,19 @@
+{
+  "id": "window-switcher",
+  "name": "Window Switcher",
+  "version": "1.0.0",
+  "description": "Search open windows and jump to them.",
+  "icon": "\ud83e\ude9f",
+  "commands": [
+    {
+      "id": "switch",
+      "title": "Window Switcher",
+      "mode": "view",
+      "keywords": ["windows", "alt-tab", "switch", "apps"],
+      "icon": "app-window",
+      "iconColor": "#8B5CF6"
+    }
+  ],
+  "nativeMethods": ["windows.list", "windows.focus", "windows.close", "hud.show"],
+  "httpHosts": []
+}

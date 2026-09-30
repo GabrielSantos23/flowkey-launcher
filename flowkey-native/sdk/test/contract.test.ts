@@ -135,6 +135,7 @@ describe('ui-tree contract fixture', () => {
     const list = asList(uiFixture.list);
     const remove = list.sections[0].items[0].actions?.find((a) => a.id === 'remove');
     expect(remove?.style).toBe('destructive');
+    expect(remove?.group).toBe('Edit');
     expect(remove?.shortcut?.key).toBe('backspace');
     expect(remove?.shortcut?.modifiers).toEqual(['ctrl']);
   });
@@ -320,6 +321,12 @@ describe('protocol contract fixture', () => {
     const openUrlCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallOpenUrl;
     expect(openUrlCall.method).toBe('shell.openUrl');
     expect(openUrlCall.params?.url).toBe('https://example.com/release');
+  });
+
+  test('window-switcher native calls follow the wire shape', () => {
+    const windowsCall: NativeCallMessage = protocolFixture.sidecarToHost.nativeCallWindowsList;
+    expect(windowsCall.method).toBe('windows.list');
+    expect(windowsCall.params).toEqual({});
   });
 
   test('windowCommand and launchCommand carry extension attribution', () => {

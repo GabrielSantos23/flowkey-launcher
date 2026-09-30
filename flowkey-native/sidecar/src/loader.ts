@@ -33,6 +33,10 @@ import clipboardHistory from '@flowkey-cli/extension-clipboard-history';
 import spotify from '@flowkey-cli/extension-spotify';
 import lucideIcons from '@flowkey-cli/extension-lucide-icons';
 import obsidianNotes from '@flowkey-cli/extension-obsidian-notes';
+import quicklinks from '@flowkey-cli/extension-quicklinks';
+import windowSwitcher from '@flowkey-cli/extension-window-switcher';
+import system from '@flowkey-cli/extension-system';
+import snippets from '@flowkey-cli/extension-snippets';
 
 /** Where a loaded module came from: the repo's bundled registry or an installed package. */
 export type ModuleSource = 'bundled' | 'installed';
@@ -60,6 +64,10 @@ const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   spotify,
   lucideIcons,
   obsidianNotes,
+  quicklinks,
+  windowSwitcher,
+  system,
+  snippets,
 ];
 
 export function loadExtensions(): LoadedModule[] {
@@ -402,6 +410,13 @@ export class Dispatcher {
             this.renderTransient(ext, requestId, emit, { query, filterValue });
           }
         }
+        return;
+      }
+      if (!ext.handlers.search) {
+        // Background-command-only extensions contribute nothing to the
+        // shell's root search broadcast; answer with an empty list instead
+        // of crashing on the missing handler.
+        emit({ type: 'ui', requestId, tree: { type: 'list', sections: [] } });
         return;
       }
       const tree = await ext.handlers.search(query, this.context(ext, commandId, filterValue));

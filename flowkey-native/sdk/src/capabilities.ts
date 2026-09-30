@@ -109,6 +109,15 @@ export interface FsEntry {
   modifiedAtMs: number;
 }
 
+export interface WindowEntry {
+  /** Opaque window handle (hex string) — pass back to focus/close. */
+  id: string;
+  title: string;
+  processName: string;
+  /** `file:` URI of a cached icon, when one could be extracted. */
+  iconUri?: string;
+}
+
 /**
  * Typed capability groups over the raw native-call transport. Built once per
  * extension by the sidecar and injected into every context and component's
@@ -202,6 +211,37 @@ export interface FlowKeyCapabilities {
     openPath(path: string): Promise<void>;
     /** Reveals a file or folder in the system file manager (gated by manifest fsPaths). */
     revealPath(path: string): Promise<void>;
+    /**
+     * Opens a user-created target: an http(s) URL or an existing file/folder
+     * path. One consent-gated capability for quicklink-style extensions.
+     */
+    open(target: string): Promise<void>;
+  };
+  /**
+   * Top-level window enumeration and focus management (`windows.*` in the
+   * manifest). Powers window-switcher style extensions.
+   */
+  windows: {
+    list(): Promise<WindowEntry[]>;
+    focus(id: string): Promise<void>;
+    close(id: string): Promise<void>;
+  };
+  /**
+   * Whitelisted system operations (`system.control` in the manifest): lock,
+   * sleep, mute, volume, empty recycle bin, restart, shutdown.
+   */
+  systemControl: {
+    execute(
+      op:
+        | 'lock'
+        | 'sleep'
+        | 'mute'
+        | 'volume-up'
+        | 'volume-down'
+        | 'empty-recycle-bin'
+        | 'restart'
+        | 'shutdown',
+    ): Promise<void>;
   };
   /**
    * Scoped filesystem access: every path must match a glob declared in the
@@ -438,6 +478,28 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
       },
       async revealPath(path) {
         await call('shell.revealPath', { path });
+      },
+      async open(target) {
+        const result = await call<{ ok?: boolean }>('shell.open', { target });
+        unwrapOk(result, 'shell.open');
+      },
+    },
+    windows: {
+      async list() {
+        const result = await call<{ windows?: WindowEntry[] }>('windows.list');
+        return result.windows ?? [];
+      },
+      async focus(id) {
+        await call('windows.focus', { id });
+      },
+      async close(id) {
+        await call('windows.close', { id });
+      },
+    },
+    systemControl: {
+      async execute(op) {
+        const result = await call<{ ok?: boolean }>('system.control', { op });
+        unwrapOk(result, 'system.control');
       },
     },
     fs: {

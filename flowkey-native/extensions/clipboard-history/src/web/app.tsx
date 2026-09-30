@@ -37,6 +37,7 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
   const [entries, setEntries] = useState<ClipboardEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const listRef = useRef<HTMLDivElement | null>(null);
   const controllerRef = useRef<ViewController | null>(null);
   const selectedRef = useRef<string | null>(null);
@@ -64,13 +65,13 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
       setSelectedId((current) => selectionForEntries(items, current));
     } catch {
       setLoadError('Could not read the clipboard history');
+    } finally {
+      setLoading(false);
     }
   };
 
   latest.current.runAction = async (actionId: string): Promise<void> => {
-    const entry = latest.current.entries.find(
-      (candidate) => candidate.id === selectedRef.current,
-    );
+    const entry = latest.current.entries.find((candidate) => candidate.id === selectedRef.current);
     if (!entry) return;
     if (actionId === 'paste') {
       // the shell pastes into the foreground app and hides the launcher; the
@@ -94,9 +95,7 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
     }
     if (actionId === 'delete') {
       await capabilities.clipboard.deleteEntry(entry.id);
-      const fresh = latest.current.entries.filter(
-        (candidate) => candidate.id !== entry.id,
-      );
+      const fresh = latest.current.entries.filter((candidate) => candidate.id !== entry.id);
       setEntries(fresh);
       setSelectedId(selectionAfterRemoval(fresh, entry.id));
     }
@@ -305,6 +304,12 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
       { className: 'cl-empty' },
       createElement('div', { className: 'cl-empty-title' }, loadError),
     );
+  } else if (loading && entries.length === 0) {
+    left = createElement(
+      'div',
+      { className: 'cl-empty' },
+      createElement('div', { className: 'cl-empty-title' }, 'Loading clipboard history…'),
+    );
   } else if (entries.length === 0) {
     left = createElement(
       'div',
@@ -349,10 +354,14 @@ export function ClipboardWebApp(props: WebCommandProps): ReactNode {
 
 function RowIcon(props: { entry: ClipboardEntry }): ReactNode {
   if (props.entry.kind === 'image' && props.entry.iconUri) {
-    return createElement('span', { className: 'cl-row-icon' }, createElement('img', {
-      src: props.entry.iconUri,
-      alt: '',
-    }));
+    return createElement(
+      'span',
+      { className: 'cl-row-icon' },
+      createElement('img', {
+        src: props.entry.iconUri,
+        alt: '',
+      }),
+    );
   }
   if (props.entry.kind === 'color') {
     return createElement(

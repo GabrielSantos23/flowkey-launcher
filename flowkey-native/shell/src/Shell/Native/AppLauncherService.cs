@@ -182,6 +182,9 @@ public sealed class AppLauncherService : IDisposable
         System.Diagnostics.Process.Start(psi);
     }
 
+    /// <summary>How many times the user launched this app (for subtitles).</summary>
+    public int GetLaunchCount(string appId) => usage.GetCount(appId);
+
     public void Dispose()
     {
         foreach (var watcher in watchers)

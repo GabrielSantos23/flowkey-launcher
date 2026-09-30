@@ -1,4 +1,4 @@
-import type { FlowKeyCapabilities } from '../capabilities';
+import type { FlowKeyCapabilities, WindowEntry } from '../capabilities';
 import type { WebResultMessage } from '../types';
 
 /**
@@ -250,6 +250,26 @@ export function createWebCapabilities(link: WebHostLink): FlowKeyCapabilities {
       },
       async revealPath(path) {
         await call('shell.revealPath', { path });
+      },
+      async open(target) {
+        await call('shell.open', { target });
+      },
+    },
+    windows: {
+      async list() {
+        const result = await call<{ windows?: WindowEntry[] }>('windows.list');
+        return result.windows ?? [];
+      },
+      async focus(id) {
+        await call('windows.focus', { id });
+      },
+      async close(id) {
+        await call('windows.close', { id });
+      },
+    },
+    systemControl: {
+      async execute(op) {
+        await call('system.control', { op });
       },
     },
     fs: {

@@ -661,6 +661,7 @@ describe('phase 5 serializer features', () => {
                 title: 'Remove',
                 onAction: () => {},
                 style: 'destructive',
+                group: 'Edit',
                 shortcut: { key: 'backspace', modifiers: ['ctrl'] },
               }),
             ),
@@ -671,6 +672,7 @@ describe('phase 5 serializer features', () => {
     const tree = generation!.tree as ListTree;
     const action = tree.sections[0].items[0].actions![0];
     expect(action.style).toBe('destructive');
+    expect(action.group).toBe('Edit');
     expect(action.shortcut).toEqual({ key: 'backspace', modifiers: ['ctrl'] });
   });
 

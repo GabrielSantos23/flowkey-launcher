@@ -11,7 +11,57 @@ namespace FlowKey.Shell.Tests;
 /// known source of "clipboard busy" flakiness.
 /// </summary>
 [CollectionDefinition(nameof(RealClipboardCollection), DisableParallelization = true)]
-public sealed class RealClipboardCollection;
+public sealed class RealClipboardCollection : ICollectionFixture<ClipboardGuardFixture>;
+
+/// <summary>
+/// Saves the real system clipboard before the collection's tests run and
+/// restores it afterwards: the clipboard tests write fixture strings to the
+/// OS clipboard, and without the guard every test run would clobber the
+/// user's actual clipboard content (and pollute a running launcher's
+/// history). The snapshot is plain content (not the IDataObject), because
+/// COM objects cannot cross the STA threads the runner hands out.
+/// </summary>
+public sealed class ClipboardGuardFixture : IDisposable
+{
+    private readonly ClipboardReadContent saved;
+
+    public ClipboardGuardFixture()
+    {
+        saved = RunSta(() => ClipboardService.ReadContent());
+    }
+
+    public void Dispose()
+    {
+        RunSta(() =>
+        {
+            if (saved.Text is null && saved.Html is null && saved.Paths is null)
+            {
+                ClipboardService.Clear();
+            }
+            else
+            {
+                ClipboardService.WriteContent(new ClipboardWriteContent(saved.Text, saved.Html, saved.Paths));
+            }
+        });
+    }
+
+    private static void RunSta(Action action) =>
+        RunSta<object>(() =>
+        {
+            action();
+            return null;
+        });
+
+    private static T RunSta<T>(Func<T> action)
+    {
+        var result = default(T);
+        var thread = new Thread(() => result = action());
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        return result!;
+    }
+}
 
 public class CfHtmlTests
 {
@@ -48,7 +98,7 @@ public class CfHtmlTests
 }
 
 [Collection(nameof(RealClipboardCollection))]
-public class ClipboardRichContentTests
+public class ClipboardRichContentTests(ClipboardGuardFixture guard)
 {
     private static void RunInSta(Action action)
     {
@@ -88,6 +138,25 @@ public class ClipboardRichContentTests
             Thread.Sleep(50);
         }
         return condition();
+    }
+
+    [Fact]
+    public void TestTaggedWritesAreNotCaptured()
+    {
+        var previous = ClipboardService.ExcludeFromMonitor;
+        ClipboardService.ExcludeFromMonitor = true;
+        try
+        {
+            RunInSta(() =>
+            {
+                ClipboardService.WriteText("tagged write must stay out of the history");
+                Assert.Null(ClipboardReader.TryCapture());
+            });
+        }
+        finally
+        {
+            ClipboardService.ExcludeFromMonitor = previous;
+        }
     }
 
     [Fact]

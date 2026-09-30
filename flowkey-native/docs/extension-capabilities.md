@@ -42,6 +42,9 @@ props.native.call('apps.launch', { id: 'spotify' });
 | `storage.get/set/delete/keys`       | `storage.*` or exact | Per-extension JSON KV store, 256 keys / 256 KB                                                                                   |
 | `secrets.get/set/delete`            | exact                | Per-extension DPAPI-encrypted strings, 64 keys / 8 KB values                                                                     |
 | `shell.openUrl`                     | exact                | Absolute http(s) URLs only, opened in the user's browser                                                                         |
+| `shell.open`                        | exact                | Opens a user-created target: http(s) URLs or an existing file/folder path (quicklink-style)                                      |
+| `windows.list/focus/close`          | exact                | Top-level window enumeration and focus management; the shell's own process is never listed                                       |
+| `system.control`                    | exact                | Whitelisted system ops only (`lock`, `sleep`, `mute`, `volume-up/down`, `empty-recycle-bin`, `restart`, `shutdown`)              |
 | `fs.readText/writeText/glob/…`      | exact                | Scoped filesystem access, gated by manifest `fsPaths`; includes `stat`, `mkdir`, `exists`, `copy`, `move`, `trash` (Recycle Bin) |
 | `clipboard.write`                   | exact                | Writes text, HTML and/or a file drop list to the clipboard                                                                       |
 | `clipboard.paste`                   | exact                | Writes text **and** pastes it into the foreground application                                                                    |

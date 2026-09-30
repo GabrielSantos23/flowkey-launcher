@@ -29,9 +29,9 @@ namespace FlowKey.Shell.Windows;
 
 public partial class MainWindow : Window
 {
-    public const uint HotkeyModifier = MOD_CONTROL | MOD_ALT;
+    public const uint HotkeyModifier = MOD_ALT;
     public const uint HotkeyVirtualKey = VK_SPACE;
-    public const string HotkeyDisplayName = "Ctrl+Alt+Space";
+    public const string HotkeyDisplayName = "Alt+Space";
 
     private const int HOTKEY_ID = 0x464B;
     private const int SummonHotkeyId = 0x464B;
@@ -44,6 +44,10 @@ public partial class MainWindow : Window
     private const uint VK_SPACE = 0x20;
 
     private const int SearchDebounceMs = 120;
+
+    // The launcher window is a fixed Raycast-style size; only its position
+    // adapts (per summon, to the focused app's monitor).
+    private const int RootAppsCap = 6;
 
     private readonly SidecarHost sidecar;
     private readonly NativeMethodTable nativeMethods = new();
@@ -59,6 +63,7 @@ public partial class MainWindow : Window
     private readonly TokenVault tokenVault = new(AppLauncherService.DataDirectory);
     private readonly UsageTracker usageTracker = new(AppLauncherService.DataDirectory);
     private readonly FavoritesStore favoritesStore = new(AppLauncherService.DataDirectory);
+    private readonly ActionUsageStore actionUsage = new(AppLauncherService.DataDirectory);
     private readonly SecretsStore secretsStore = new(AppLauncherService.DataDirectory);
     private readonly OAuthService oauthService;
     private readonly ImageFetchService imageFetch = new();
@@ -208,6 +213,11 @@ public partial class MainWindow : Window
         nativeMethods.Register("apps.frontmost", _ => ExecuteAppsFrontmost());
         nativeMethods.Register("apps.default", p => ExecuteAppsDefault(p));
         nativeMethods.Register("system.selectedText", p => ExecuteSystemSelectedText(p));
+        nativeMethods.Register("shell.open", p => ExecuteShellOpen(p));
+        nativeMethods.Register("windows.list", _ => ExecuteWindowsList());
+        nativeMethods.Register("windows.focus", p => ExecuteWindowsFocus(p));
+        nativeMethods.Register("windows.close", p => ExecuteWindowsClose(p));
+        nativeMethods.Register("system.control", p => ExecuteSystemControl(p));
         nativeMethods.Register("clipboard.history", p => ExecuteClipboardHistory(p));
         nativeMethods.Register("clipboard.clearHistory", _ =>
         {
@@ -602,6 +612,14 @@ public partial class MainWindow : Window
         {
             var capture = ClipboardReader.TryCapture();
             DebugLog.Write($"clipboard update text={capture?.Text is not null} image={capture?.HasImage} source={capture?.SourceApp}");
+            // Test runners write fixture strings to the real clipboard during
+            // test runs; recording them would pollute the history with data
+            // the user never copied.
+            if (capture is null || !ClipboardCapturePolicy.ShouldRecord(capture.SourceApp))
+            {
+                handled = true;
+                return IntPtr.Zero;
+            }
             var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var recorded = false;
             if (capture is not null && capture.Text is not null)
@@ -671,6 +689,7 @@ public partial class MainWindow : Window
         previousForegroundWindow = GetForegroundWindow();
         suppressAutoHideUntil = Environment.TickCount64 + 400;
         CancelWebviewTeardown();
+        PlaceLauncherOnMonitor(previousForegroundWindow);
         if (footerWebViewHost is null && WebViewHost.RuntimeAvailable())
         {
             // re-create the footer chrome after an idle teardown; the native
@@ -687,13 +706,36 @@ public partial class MainWindow : Window
             // single hotkey press reliable instead of needing a second one.
             ForceForeground();
         }
-        SearchBox.Focus();
-        SearchBox.SelectAll();
+        if ((object)SearchBox as System.Windows.Controls.TextBox is { } searchTextBox)
+        {
+            searchTextBox.Focus();
+            searchTextBox.SelectAll();
+        }
         InvalidateVisual();
         // Pre-warm the last web command once everything has settled, so
         // re-entering it is instant (the idle discard releases it if unused).
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(PreWarmLastWebCommand));
         DebugLog.Write("summoned");
+    }
+
+
+    /// <summary>
+    /// Raycast behavior: the launcher always appears centered on the monitor
+    /// the user is working on. DWM/DIP conversion via <see cref="MonitorInfo"/>.
+    /// </summary>
+    private void PlaceLauncherOnMonitor(IntPtr otherWindow)
+    {
+        var monitor = Native.MonitorInfo.FromWindow(otherWindow != IntPtr.Zero ? otherWindow : Handle)
+            ?? Native.MonitorInfo.FromWindow(Handle);
+        if (monitor is null)
+        {
+            return;
+        }
+        var width = ActualWidth > 0 ? ActualWidth : Width;
+        var height = ActualHeight > 0 ? ActualHeight : Height;
+        var size = new System.Windows.Size(width, height);
+        var (left, top) = WindowPlacement.CenterInWorkArea(monitor.WorkArea, size);
+        (Left, Top) = WindowPlacement.ClampToWorkArea(monitor.WorkArea, left, top, size);
     }
 
     private void ForceForeground()
@@ -975,8 +1017,35 @@ public partial class MainWindow : Window
                 MoveSelection(-1);
                 e.Handled = true;
                 break;
+            case Key.PageDown:
+                MoveSelectionPage(1);
+                e.Handled = true;
+                break;
+            case Key.PageUp:
+                MoveSelectionPage(-1);
+                e.Handled = true;
+                break;
+            case Key.Home when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                MoveSelectionEdge(-1);
+                e.Handled = true;
+                break;
+            case Key.End when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                MoveSelectionEdge(1);
+                e.Handled = true;
+                break;
             case Key.Enter:
                 RunPrimaryAction();
+                e.Handled = true;
+                break;
+            case Key.D1 or Key.D2 or Key.D3 or Key.D4 or Key.D5 or Key.D6 or Key.D7 or Key.D8 or Key.D9
+                when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                RunNthResult((int)e.Key - (int)Key.D1);
+                e.Handled = true;
+                break;
+            case Key.NumPad1 or Key.NumPad2 or Key.NumPad3 or Key.NumPad4 or Key.NumPad5
+                or Key.NumPad6 or Key.NumPad7 or Key.NumPad8 or Key.NumPad9
+                when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                RunNthResult((int)e.Key - (int)Key.NumPad1);
                 e.Handled = true;
                 break;
             case Key.K when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
@@ -990,6 +1059,14 @@ public partial class MainWindow : Window
             case Key.Escape:
                 PerformEscape();
                 e.Handled = true;
+                break;
+            default:
+                // Extension-declared action shortcuts run from the focused
+                // view; plain text keys never reach here (chrome keys win).
+                if (TryRunActionShortcut(e))
+                {
+                    e.Handled = true;
+                }
                 break;
         }
     }
@@ -1013,6 +1090,63 @@ public partial class MainWindow : Window
         while (list.Items[index] is not ItemRow);
         list.SelectedIndex = index;
         list.ScrollIntoView(list.Items[index]);
+    }
+
+    /// <summary>Page-sized selection jumps for PageUp/PageDown.</summary>
+    private void MoveSelectionPage(int direction)
+    {
+        var rowHeight = (double)FindResource("RowMinHeight");
+        var viewport = ResultsList.ActualHeight > 0 ? ResultsList.ActualHeight : ActualHeight - (double)FindResource("SearchBarHeight") - (double)FindResource("FooterHeight");
+        var pageSize = Math.Max(1, (int)(viewport / rowHeight) - 1);
+        MoveSelection(direction * pageSize);
+    }
+
+    /// <summary>Ctrl+Home / Ctrl+End — jump to the first / last result.</summary>
+    private void MoveSelectionEdge(int direction)
+    {
+        if (direction < 0)
+        {
+            for (var i = 0; i < ResultsList.Items.Count; i++)
+            {
+                if (ResultsList.Items[i] is ItemRow)
+                {
+                    ResultsList.SelectedIndex = i;
+                    ResultsList.ScrollIntoView(ResultsList.Items[i]);
+                    return;
+                }
+            }
+            return;
+        }
+        for (var i = ResultsList.Items.Count - 1; i >= 0; i--)
+        {
+            if (ResultsList.Items[i] is ItemRow)
+            {
+                ResultsList.SelectedIndex = i;
+                ResultsList.ScrollIntoView(ResultsList.Items[i]);
+                return;
+            }
+        }
+    }
+
+    /// <summary>Ctrl+1..9 — run the nth visible result, Raycast-style.</summary>
+    private void RunNthResult(int zeroBased)
+    {
+        var count = 0;
+        foreach (var item in ResultsList.Items)
+        {
+            if (item is not ItemRow)
+            {
+                continue;
+            }
+            if (count == zeroBased)
+            {
+                ResultsList.SelectedIndex = ResultsList.Items.IndexOf(item);
+                ResultsList.ScrollIntoView(item);
+                RunPrimaryAction();
+                return;
+            }
+            count++;
+        }
     }
 
     private void OnFooterDragMove(object sender, MouseButtonEventArgs e)
@@ -1068,7 +1202,11 @@ public partial class MainWindow : Window
 
     private void UpdateChrome()
     {
-        BackButton.Visibility = searchState.Depth > 1 ? Visibility.Visible : Visibility.Collapsed;
+        var insideCommand = searchState.Depth > 1;
+        BackButton.Visibility = insideCommand ? Visibility.Visible : Visibility.Collapsed;
+        // The FlowKey logo identifies the root input only; inside a command
+        // the back button takes the leading slot instead.
+        SearchBrandIcon.Visibility = insideCommand ? Visibility.Collapsed : Visibility.Visible;
         UpdateFooter();
     }
 
@@ -1807,7 +1945,7 @@ public partial class MainWindow : Window
                 PerformEscape();
                 return true;
             default:
-                return false;
+                return TryRunActionShortcut(e);
         }
     }
 
@@ -1864,7 +2002,7 @@ public partial class MainWindow : Window
     {
         pendingArgumentCommand = null;
         pendingArgumentExtensionId = null;
-        SearchPlaceholder.Text = "Type to search…";
+        SearchPlaceholder.Text = "Search for apps and commands…";
     }
 
     /// <summary>
@@ -1958,6 +2096,56 @@ public partial class MainWindow : Window
         searchState.TrackAction(requestId, extensionId);
     }
 
+    /// <summary>
+    /// Runs a shell-owned root command locally — built-ins never reach the
+    /// sidecar.
+    /// </summary>
+    private void RunBuiltIn(string id)
+    {
+        switch (id)
+        {
+            case BuiltInCommands.SettingsId:
+                HideWindow();
+                OpenSettings();
+                break;
+            case BuiltInCommands.ReloadExtensionsId:
+                HideWindow();
+                sidecar.Restart();
+                break;
+            case BuiltInCommands.CheckUpdatesId:
+                // The Velopack banner lives inside the launcher window, so it
+                // stays open for the user to see the result.
+                ShowToast("Checking for updates…");
+                _ = updateService.CheckNowAsync();
+                break;
+            case BuiltInCommands.QuitId:
+                Quit();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Handles the root's web-search fallback row locally; returns false for
+    /// any other action so the caller keeps its normal dispatch path.
+    /// </summary>
+    private bool TryRunWebSearchFallback(UiItem item, string actionId)
+    {
+        if (!actionId.StartsWith(WebSearchFallback.ActionIdPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+        var query = item.Id.StartsWith(WebSearchFallback.ItemIdPrefix, StringComparison.Ordinal)
+            ? item.Id[WebSearchFallback.ItemIdPrefix.Length..]
+            : SearchBox.Text.Trim();
+        if (WebSearchFallback.UrlFor(actionId, query) is not { } url)
+        {
+            return false;
+        }
+        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+        HideWindow();
+        return true;
+    }
+
     private void RunPrimaryAction()
     {
         if (webViewVisible)
@@ -1997,6 +2185,10 @@ public partial class MainWindow : Window
         }
         var action = row.Item.Actions?.FirstOrDefault(a => a.Primary == true) ?? row.Item.Actions?.FirstOrDefault();
         if (action is null)
+        {
+            return;
+        }
+        if (TryRunWebSearchFallback(row.Item, action.Id))
         {
             return;
         }
@@ -2070,40 +2262,20 @@ public partial class MainWindow : Window
     {
         actionPanel?.Close();
         actionPanel = new ActionPanel();
+        // Frequently used actions float to the top; the primary stays first.
+        var ordered = actionUsage.OrderForPanel(extensionId, actions);
         actionPanel.Committed += action =>
         {
-            if (action.Id == RootSectionsBuilder.FavoriteActionId)
-            {
-                var kind = extensionId == "apps" ? "app" : "cmd";
-                favoritesStore.Toggle(new FavoriteEntry(
-                    kind,
-                    item.Id,
-                    item.Title,
-                    item.Subtitle ?? "",
-                    null,
-                    item.IconColor,
-                    item.IconUri));
-                SendSearch(SearchBox.Text);
-                return;
-            }
-            DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
-            if (RunPushAction(extensionId, new UiAction
-            {
-                Id = action.Id,
-                Title = action.Title,
-                Push = action.Push,
-                Primary = action.Primary,
-            }))
-            {
-                return;
-            }
-            var requestId = sidecar.SendAction(extensionId, action.Id, item);
-            searchState.TrackAction(requestId, extensionId);
-            BeginOperation();
-            if (action.Primary)
-            {
-                HideWindow();
-            }
+            CommitItemAction(
+                extensionId,
+                item,
+                new UiAction
+                {
+                    Id = action.Id,
+                    Title = action.Title,
+                    Push = action.Push,
+                    Primary = action.Primary,
+                });
         };
         actionPanel.FocusLostToOtherApp += () =>
         {
@@ -2113,11 +2285,102 @@ public partial class MainWindow : Window
             }
         };
         actionPanel.Open(
-            actions.Select(a => new ActionPanel.PanelAction(a.Id, a.Title, null, a.Style, a.Primary == true, a.Push)).ToList(),
+            ordered.Select(a => new ActionPanel.PanelAction(
+                a.Id, a.Title, null, a.Style, a.Primary == true, a.Push, a.Group, a.Shortcut)).ToList(),
             item.Title,
             Left + Width,
             Top + Height,
             FooterHeightValue);
+    }
+
+    /// <summary>
+    /// Runs the selected item's (or detail view's) extension-declared shortcut
+    /// action for the pressed key. Only shortcuts declaring a real command
+    /// modifier (Ctrl/Alt/Win) match, so plain typing in the search box is
+    /// never stolen.
+    /// </summary>
+    private bool TryRunActionShortcut(KeyEventArgs e)
+    {
+        var mods = Keyboard.Modifiers;
+        if ((mods & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) == 0)
+        {
+            return false;
+        }
+        var (extensionId, item, actions) = CurrentShortcutContext();
+        if (extensionId is null || actions is not { Count: > 0 })
+        {
+            return false;
+        }
+        foreach (var action in actions)
+        {
+            if (ActionShortcutMatcher.Matches(action.Shortcut, mods, e.Key))
+            {
+                CommitItemAction(extensionId, item, action);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private (string? ExtensionId, UiItem Item, IReadOnlyList<UiAction>? Actions) CurrentShortcutContext()
+    {
+        if (DetailHost.Visibility == Visibility.Visible && currentDetail is not null)
+        {
+            return (
+                currentDetailExtensionId,
+                new UiItem { Id = currentDetail.Title, Title = currentDetail.Title },
+                currentDetail.Actions ?? new List<UiAction>());
+        }
+        if (GridHostPanel.Visibility == Visibility.Visible && gridIndex >= 0 && gridIndex < gridItems.Count)
+        {
+            var item = gridItems[gridIndex];
+            return (searchState.Top?.ExtensionId, item, item.Actions ?? new List<UiAction>());
+        }
+        if (ResultsList.SelectedItem is ItemRow row)
+        {
+            return (row.ExtensionId, row.Item, row.Item.Actions ?? new List<UiAction>());
+        }
+        return (null, new UiItem(), null);
+    }
+
+    /// <summary>
+    /// The single dispatch point for a non-chrome item action: favorites
+    /// toggle locally, the web-search fallback opens the browser, pushes move
+    /// the stack, everything else goes to the extension.
+    /// </summary>
+    private void CommitItemAction(string extensionId, UiItem item, UiAction action)
+    {
+        actionUsage.Bump(extensionId, action.Id);
+        if (action.Id == RootSectionsBuilder.FavoriteActionId)
+        {
+            var kind = extensionId == "apps" ? "app" : "cmd";
+            favoritesStore.Toggle(new FavoriteEntry(
+                kind,
+                item.Id,
+                item.Title,
+                item.Subtitle ?? "",
+                null,
+                item.IconColor,
+                item.IconUri));
+            SendSearch(SearchBox.Text);
+            return;
+        }
+        if (TryRunWebSearchFallback(item, action.Id))
+        {
+            return;
+        }
+        DebugLog.Write("SendAction ext=" + extensionId + " action=" + action.Id);
+        if (RunPushAction(extensionId, action))
+        {
+            return;
+        }
+        var requestId = sidecar.SendAction(extensionId, action.Id, item);
+        searchState.TrackAction(requestId, extensionId);
+        BeginOperation();
+        if (action.Primary == true)
+        {
+            HideWindow();
+        }
     }
 
     /// <summary>
@@ -2164,6 +2427,11 @@ public partial class MainWindow : Window
     private void OpenCommand(ItemRow row)
     {
         usageTracker.Increment(row.Item.Id);
+        if (row.ExtensionId == BuiltInCommands.ExtensionId)
+        {
+            RunBuiltIn(row.CommandId!);
+            return;
+        }
         var extension = readyExtensions.FirstOrDefault(e => e.Id == row.ExtensionId);
         var schema = extension?.Preferences ?? (IReadOnlyList<Protocol.PreferenceSchema>)Array.Empty<Protocol.PreferenceSchema>();
         var missing = preferencesStore.MissingRequired(row.ExtensionId!, schema);
@@ -2226,10 +2494,6 @@ public partial class MainWindow : Window
                 {
                     commandHotkeyIds[id] = (extension.Id, command.Id);
                     DebugLog.Write($"registered command hotkey id=0x{CommandHotkeyBase + index:X} {commandKey}={combo}");
-                }
-                else if (false)
-                {
-                    commandHotkeyIds[id] = (extension.Id, command.Id);
                 }
                 else
                 {
@@ -2388,6 +2652,10 @@ public partial class MainWindow : Window
             .Where(cmd => CommandToggles.IsEnabled(cmd.ExtensionId, cmd.Command.Id, cmd.Command.DisabledByDefault != true))
             .Select(BuildCommandRow)
             .ToList();
+        foreach (var (builtIn, score) in BuiltInCommands.Search(query))
+        {
+            commandRows.Add(BuildBuiltInRow(builtIn, score));
+        }
         var extensionRowList = extensionRows.ToList();
         // Every root-level row can be favorited, with or without an active query
         // (only the Favorites/Suggestions sections hide while searching).
@@ -2408,7 +2676,6 @@ public partial class MainWindow : Window
         DebugLog.Write("display rows: commands=" + commandRows.Count + " ext=" + extensionRowList.Count + " depth=" + searchState.Depth);
         if (searchState.Depth == 1)
         {
-            var result = new List<UiRow>();
             if (query.Length == 0)
             {
                 var pixelSize = (int)Math.Round(VisualTreeHelper.GetDpi(this).PixelsPerDip * 32);
@@ -2417,17 +2684,70 @@ public partial class MainWindow : Window
                 // their icon extractions) made every root render heavy — they
                 // are all reachable through search, which re-adds them here.
                 // Apps render at the root again — measured ~70ms for a full
-                // pop including all app rows and icons (the lag came from the
-                // post-pop re-search, which is gone), so no cap is needed.
-                result.AddRange(RootSectionsBuilder.Build(
+                // pop including all app rows and icons — but capped so the
+                // root window stays compact, Raycast-home style; the full
+                // list is one query away.
+                return RootSectionsBuilder.Build(
                     favoritesStore, usageTracker, readyExtensions, appLauncher.List("", pixelSize), BuildCommandRow,
-                    appsCap: int.MaxValue));
-                return result;
+                    appsCap: RootAppsCap);
             }
-            result.AddRange(WithGroupHeaders(merged));
-            return result;
+            // Decorate every row with the query's fuzzy match: indices drive
+            // title highlighting, scores drive cross-source ranking (command
+            // rows already carry their catalog score, which includes keywords).
+            foreach (var row in merged.OfType<ItemRow>())
+            {
+                var match = FuzzyMatcher.Match(query, row.Item.Title);
+                row.MatchIndices = match?.Indices;
+                row.MatchScore ??= match?.Score;
+            }
+            var ranked = RootRanker.Rank(merged, ExtensionDisplayName);
+            if (!merged.OfType<ItemRow>().Any())
+            {
+                return ranked.Concat(BuildFallbackRows(query)).ToList();
+            }
+            return ranked;
         }
         return merged;
+    }
+
+    private string ExtensionDisplayName(string extensionId) =>
+        readyExtensions.FirstOrDefault(e => e.Id == extensionId)?.Name ?? "";
+
+    private IReadOnlyList<UiRow> BuildFallbackRows(string query)
+    {
+        var rows = new List<UiRow>();
+        foreach (var row in WebSearchFallback.Build(query))
+        {
+            if (row is ItemRow itemRow)
+            {
+                itemRow.ExtensionId = WebSearchFallback.ExtensionId;
+                itemRow.VectorIcon = Rendering.LucideIcon.Load("search");
+                itemRow.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+                    null, (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+            }
+            rows.Add(row);
+        }
+        return rows;
+    }
+
+    private ItemRow BuildBuiltInRow(BuiltInCommand command, int score)
+    {
+        var row = UiRow.Item(new UiItem
+        {
+            Id = BuiltInCommands.ItemId(command),
+            Title = command.Title,
+            Subtitle = command.Subtitle,
+            Kind = "Command",
+            Actions = new List<UiAction> { new UiAction { Id = CommandCatalog.OpenActionId, Title = "Run", Primary = true } },
+        });
+        row.ExtensionId = BuiltInCommands.ExtensionId;
+        row.IsCommand = true;
+        row.CommandId = command.Id;
+        row.MatchScore = score;
+        row.VectorIcon = Rendering.LucideIcon.Load(command.IconName);
+        row.VectorIconBrush = Rendering.LucideIcon.ColorFromHex(
+            command.IconColor, (System.Windows.Media.Brush)FindResource("TextPrimaryBrush"));
+        return row;
     }
 
     private ItemRow BuildCommandRow(CommandRow cmd)
@@ -2472,31 +2792,8 @@ public partial class MainWindow : Window
         }
         row.Item.Actions.Add(RootSectionsBuilder.FavoriteAction(
             favoritesStore, "cmd", row.Item.Id));
+        row.MatchScore = cmd.Score;
         return row;
-    }
-
-    private IReadOnlyList<UiRow> WithGroupHeaders(List<UiRow> rows)
-    {
-        var result = new List<UiRow>();
-        string? lastGroup = null;
-        foreach (var row in rows)
-        {
-            var isCommand = row is ItemRow { IsCommand: true };
-            var group = isCommand ? "Commands" : row.ExtensionId;
-            if (group != lastGroup)
-            {
-                var title = isCommand
-                    ? "Commands"
-                    : readyExtensions.FirstOrDefault(e => e.Id == row.ExtensionId)?.Name ?? "";
-                if (title.Length > 0)
-                {
-                    result.Add(UiRow.Header(title));
-                }
-                lastGroup = group;
-            }
-            result.Add(row);
-        }
-        return result;
     }
 
     private void OnSidecarReady(ReadyMessage ready)
@@ -2561,7 +2858,7 @@ public partial class MainWindow : Window
             _ => null,
         };
         SearchPlaceholder.Text = string.IsNullOrWhiteSpace(placeholder)
-            ? "Type to search…"
+            ? "Search for apps and commands…"
             : placeholder;
         var holds = tree is ListTree l ? l.IsLoading == true : tree is GridTree g && g.IsLoading == true;
         if (holds && !viewHoldsLoadingBar)
@@ -2808,7 +3105,7 @@ public partial class MainWindow : Window
         // a placeholder the page supplied belongs to that page, not to the root
         if (webViewState?.SearchPlaceholder is { } placeholder)
         {
-            SearchPlaceholder.Text = "Type to search.";
+            SearchPlaceholder.Text = "Search for apps and commands…";
             DebugLog.Write("webview placeholder reset after hide: " + placeholder);
         }
         UpdateFooter();
@@ -3431,6 +3728,18 @@ public partial class MainWindow : Window
             case Key.Down:
                 MoveGrid(0, 1);
                 return true;
+            case Key.PageDown:
+                MoveGrid(0, 3);
+                return true;
+            case Key.PageUp:
+                MoveGrid(0, -3);
+                return true;
+            case Key.Home when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                MoveGridEdge(-1);
+                return true;
+            case Key.End when Keyboard.Modifiers.HasFlag(ModifierKeys.Control):
+                MoveGridEdge(1);
+                return true;
             case Key.Enter:
                 RunGridPrimary();
                 return true;
@@ -3444,8 +3753,30 @@ public partial class MainWindow : Window
                 PerformEscape();
                 return true;
             default:
-                return false;
+                return TryRunActionShortcut(e);
         }
+    }
+
+    private void MoveGridEdge(int direction)
+    {
+        if (gridCells.Count == 0)
+        {
+            return;
+        }
+        var target = direction < 0 ? 0 : gridCells.Count - 1;
+        if (target == gridIndex)
+        {
+            return;
+        }
+        gridCells[gridIndex].Selected = false;
+        gridIndex = target;
+        gridCells[gridIndex].Selected = true;
+        var row = GridMath.RowOf(gridIndex, gridColumns);
+        if (row >= 0 && row < GridHost.Items.Count)
+        {
+            GridHost.ScrollIntoView(GridHost.Items[row]);
+        }
+        UpdateFooter();
     }
 
     private void OnGridCellClick(object sender, MouseButtonEventArgs e)
@@ -3725,7 +4056,7 @@ public partial class MainWindow : Window
             {
                 ["id"] = a.Entry.Id,
                 ["name"] = a.Entry.Name,
-                ["launchCount"] = 0,
+                ["launchCount"] = appLauncher.GetLaunchCount(a.Entry.Id),
             };
             if (a.Item2 is not null)
             {
@@ -4236,6 +4567,107 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             return NativeCallOutcome.Failure("openFailed", ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Opens a user-created target (quicklink style): http/https URLs go to
+    /// the browser, anything else must be an existing file or folder. The
+    /// `shell.open` capability itself is the consent surface.
+    /// </summary>
+    private NativeCallOutcome ExecuteShellOpen(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("target", out var targetElement) || targetElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "shell.open requires a string 'target' parameter");
+        }
+        var target = targetElement.GetString() ?? "";
+        if (!ShellOpenService.IsHttpUrl(target) && !File.Exists(target) && !Directory.Exists(target))
+        {
+            return NativeCallOutcome.Failure("pathNotFound", $"target '{target}' is neither an http(s) URL nor an existing file or folder");
+        }
+        return ShellOpenService.Open(target) is { } error
+            ? NativeCallOutcome.Failure(error, "the system refused to open the target")
+            : NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+    }
+
+    private NativeCallOutcome ExecuteWindowsList()
+    {
+        var windows = WindowEnumerationService.List();
+        return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new
+        {
+            windows = windows.Select(w => new
+            {
+                id = w.Id,
+                title = w.Title,
+                processName = w.ProcessName,
+                iconUri = w.IconPath is null ? null : new Uri(w.IconPath).AbsoluteUri,
+            }),
+        }));
+    }
+
+    private NativeCallOutcome ExecuteWindowsFocus(Dictionary<string, JsonElement>? parameters)
+    {
+        if (!TryGetWindowId(parameters, out var hwnd))
+        {
+            return NativeCallOutcome.Failure("invalidParams", "windows.focus requires a 'id' window handle parameter");
+        }
+        try
+        {
+            WindowEnumerationService.Focus(hwnd);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NativeCallOutcome.Failure("windowNotFound", "the window no longer exists");
+        }
+    }
+
+    private NativeCallOutcome ExecuteWindowsClose(Dictionary<string, JsonElement>? parameters)
+    {
+        if (!TryGetWindowId(parameters, out var hwnd))
+        {
+            return NativeCallOutcome.Failure("invalidParams", "windows.close requires a 'id' window handle parameter");
+        }
+        try
+        {
+            WindowEnumerationService.Close(hwnd);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (KeyNotFoundException)
+        {
+            return NativeCallOutcome.Failure("windowNotFound", "the window no longer exists");
+        }
+    }
+
+    private static bool TryGetWindowId(Dictionary<string, JsonElement>? parameters, out IntPtr hwnd)
+    {
+        hwnd = IntPtr.Zero;
+        return parameters is not null
+            && parameters.TryGetValue("id", out var idElement)
+            && idElement.ValueKind == JsonValueKind.String
+            && WindowEnumerationService.TryParseWindowId(idElement.GetString(), out hwnd);
+    }
+
+    private NativeCallOutcome ExecuteSystemControl(Dictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || !parameters.TryGetValue("op", out var opElement) || opElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "system.control requires a string 'op' parameter");
+        }
+        var op = opElement.GetString() ?? "";
+        if (!SystemControlService.IsAllowedOp(op))
+        {
+            return NativeCallOutcome.Failure("opNotSupported", $"system op '{op}' is not on the shell's allowlist");
+        }
+        try
+        {
+            SystemControlService.Execute(op);
+            return NativeCallOutcome.Success(JsonSerializer.SerializeToElement(new { ok = true }));
+        }
+        catch (Exception ex)
+        {
+            return NativeCallOutcome.Failure("systemControlFailed", ex.Message);
         }
     }
 

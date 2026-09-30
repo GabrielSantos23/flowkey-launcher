@@ -18,7 +18,7 @@ public sealed record SettingsOpOutcome(bool Ok, string? Error = null, bool Refre
 /// </summary>
 public sealed class SettingsOperations
 {
-    public const uint DefaultModifier = HotkeyManager.MOD_ALT | HotkeyManager.MOD_CONTROL;
+    public const uint DefaultModifier = HotkeyManager.MOD_ALT;
     public const uint DefaultVirtualKey = 0x20;
 
     private readonly HotkeySettingsStore hotkeySettings;

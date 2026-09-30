@@ -233,44 +233,20 @@ public sealed class ToastWindow : Window
         {
             foreground = new WindowInteropHelper(this).Handle;
         }
-        var monitor = MonitorFromWindow(foreground, MONITOR_DEFAULTTONEAREST);
-        var info = MONITORINFO.Create();
-        if (!GetMonitorInfo(monitor, ref info))
+        // Work area in DIPs — device pixels would misplace the toast on
+        // scaled monitors.
+        var monitor = Native.MonitorInfo.FromWindow(foreground);
+        if (monitor is null)
         {
             return;
         }
-        Left = info.rcWork.Right - ActualWidth - ToastEdgeMargin;
-        Top = info.rcWork.Bottom - ActualHeight - ToastEdgeMargin;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct MONITORINFO
-    {
-        public int cbSize;
-        public RECT rcMonitor;
-        public RECT rcWork;
-        public uint dwFlags;
-
-        public static MONITORINFO Create() => new() { cbSize = Marshal.SizeOf<MONITORINFO>() };
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct RECT
-    {
-        public int Left;
-        public int Top;
-        public int Right;
-        public int Bottom;
+        var work = monitor.WorkArea;
+        Left = work.Right - ActualWidth - ToastEdgeMargin;
+        Top = work.Bottom - ActualHeight - ToastEdgeMargin;
     }
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint flags);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO info);
 
     [DllImport("user32.dll")]
     private static extern int GetWindowLong(IntPtr hwnd, int index);

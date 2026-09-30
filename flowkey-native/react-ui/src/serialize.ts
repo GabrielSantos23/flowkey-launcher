@@ -70,7 +70,7 @@ const GRID_ITEM_ALLOWED = [
 ];
 const GRID_SECTION_ALLOWED = ['title', 'subtitle'];
 const ACTION_PANEL_ALLOWED: string[] = [];
-const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id', 'style', 'shortcut'];
+const ACTION_ALLOWED = ['title', 'primary', 'push', 'onAction', 'id', 'style', 'group', 'shortcut'];
 const EMPTY_VIEW_ALLOWED = ['title', 'description'];
 
 const ROOT_TYPES = new Set(['list', 'detail', 'grid', 'form']);
@@ -874,11 +874,13 @@ function serializeActionElement(
   if (style !== undefined && style !== 'destructive') {
     throw new ReactUiError(`<action> prop 'style' must be 'destructive'`);
   }
+  const group = optionalString('action', props, 'group');
   const shortcut = optionalShortcut(props);
   const extras = {
     primary,
     push,
     style: style as UiAction['style'],
+    group,
     shortcut,
   };
   const explicitId = optionalString('action', props, 'id');
@@ -904,12 +906,14 @@ function finishAction(
     primary?: boolean;
     push?: string;
     style?: UiAction['style'];
+    group?: string;
     shortcut?: UiAction['shortcut'];
   },
 ): UiAction {
   if (extras.primary === true) action.primary = true;
   if (extras.push !== undefined) action.push = extras.push;
   if (extras.style !== undefined) action.style = extras.style;
+  if (extras.group !== undefined) action.group = extras.group;
   if (extras.shortcut !== undefined) action.shortcut = extras.shortcut;
   return action;
 }

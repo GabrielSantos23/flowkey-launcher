@@ -196,10 +196,29 @@ public sealed class UpdateService
         }
         catch (Exception ex)
         {
-            DebugLog.Write("update download failed: " + ex.Message);
-            tracker.DownloadFailed(ex.Message);
+            DebugLog.Write("update apply failed: " + ex.Message);
+            tracker.DownloadFailed(DescribeUpdateFailure(ex));
             Raise(tracker.Status);
         }
+    }
+
+    /// <summary>
+    /// Velopack's raw apply failures are cryptic ("not a Velopack packaged
+    /// app", lock-file and directory errors); the most common one — running
+    /// from a dev checkout — gets a plain-language message. The confirmation
+    /// dialog surfaces this text as the failure toast.
+    /// </summary>
+    internal static string DescribeUpdateFailure(Exception ex)
+    {
+        var message = ex.Message;
+        if (message.Contains("Velopack", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not installed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("packaged", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("application directory", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Updates can only be installed from the installed app — the development build can't self-update.";
+        }
+        return message;
     }
 
     private UpdateManager? CreateManager()

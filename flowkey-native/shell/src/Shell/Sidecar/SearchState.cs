@@ -267,6 +267,10 @@ public class ItemRow : UiRow
     public bool VectorIconFilled { get; set; }
     public bool IsCommand { get; set; }
     public string? CommandId { get; set; }
+    /// <summary>Shell-side fuzzy score used by RootRanker at the root; null when not computed.</summary>
+    public int? MatchScore { get; set; }
+    /// <summary>Title character indices that matched the query, for accent highlighting.</summary>
+    public IReadOnlyList<int>? MatchIndices { get; set; }
 }
 
 public static class RowBuilder

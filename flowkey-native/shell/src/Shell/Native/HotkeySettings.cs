@@ -7,7 +7,8 @@ namespace FlowKey.Shell.Native;
 
 public sealed class HotkeySettings
 {
-    public uint Modifier { get; set; } = 0x0003;
+    /// <summary>MOD_ALT — Raycast's summon default (Alt+Space).</summary>
+    public uint Modifier { get; set; } = 0x0001;
     public uint VirtualKey { get; set; } = 0x20;
     public Dictionary<string, string> CommandShortcuts { get; set; } = new(StringComparer.Ordinal);
 }

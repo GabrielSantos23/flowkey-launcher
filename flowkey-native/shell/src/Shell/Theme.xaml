@@ -19,6 +19,59 @@
 
   <Color x:Key="ChromeBackgroundColor">#2A2A2A</Color>
 
+  <!-- Window outline (Raycast draws a subtle border around the whole app). -->
+  <SolidColorBrush x:Key="WindowBorderBrush" Color="#3F3F3F" />
+
+  <!-- Tray context menu (dark, Raycast-style: icon + label rows over a
+       version info block). -->
+  <Style x:Key="TrayContextMenu" TargetType="ContextMenu">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="ContextMenu">
+          <Border Background="{DynamicResource WindowBackgroundBrush}"
+                  BorderBrush="{DynamicResource WindowBorderBrush}"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="5">
+            <StackPanel IsItemsHost="True" />
+          </Border>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+  <Style x:Key="TrayMenuItem" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="MenuItem">
+          <Border x:Name="Bd"
+                  Background="Transparent"
+                  CornerRadius="5"
+                  Padding="10,7">
+            <Grid>
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="22" />
+                <ColumnDefinition Width="*" />
+              </Grid.ColumnDefinitions>
+              <ContentPresenter Grid.Column="0" ContentSource="Icon" VerticalAlignment="Center" />
+              <ContentPresenter Grid.Column="1" ContentSource="Header" VerticalAlignment="Center" RecognizesAccessKey="True" />
+            </Grid>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsHighlighted" Value="True">
+              <Setter TargetName="Bd" Property="Background" Value="{DynamicResource RowSelectedBackgroundBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+            </Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+
   <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
   <SolidColorBrush x:Key="ChromeBackgroundBrush" Color="{StaticResource ChromeBackgroundColor}" />
   <SolidColorBrush x:Key="RowSelectedBackgroundBrush" Color="#363636" />
@@ -53,6 +106,7 @@
   <CornerRadius x:Key="FooterPillCornerRadius">16</CornerRadius>
 
   <sys:Double x:Key="SearchFontSize">16</sys:Double>
+  <sys:Double x:Key="SearchBrandIconSize">24</sys:Double>
   <sys:Double x:Key="TitleFontSize">14</sys:Double>
   <sys:Double x:Key="SecondaryFontSize">14</sys:Double>
   <sys:Double x:Key="KindFontSize">13</sys:Double>

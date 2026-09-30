@@ -1,6 +1,7 @@
 <Window x:Class="FlowKey.Shell.Windows.ActionPanel"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:windows="clr-namespace:FlowKey.Shell.Windows"
         Title="Actions"
         Width="310" SizeToContent="Height"
         MaxHeight="360"
@@ -51,12 +52,22 @@
             </Setter>
           </Style>
         </ListBox.ItemContainerStyle>
+        <ListBox.Resources>
+          <DataTemplate DataType="{x:Type windows:PanelHeaderRow}">
+            <TextBlock Text="{Binding Title}"
+                       FontSize="{DynamicResource HeaderFontSize}"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextTertiaryBrush}"
+                       Margin="0,8,0,2" />
+          </DataTemplate>
+        </ListBox.Resources>
         <ListBox.ItemTemplate>
           <DataTemplate>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
               </Grid.ColumnDefinitions>
               <Path Grid.Column="0"
@@ -76,7 +87,32 @@
                          Foreground="{Binding TitleBrush}"
                          VerticalAlignment="Center"
                          TextTrimming="CharacterEllipsis" />
-              <Border Grid.Column="2"
+              <ItemsControl Grid.Column="2"
+                            ItemsSource="{Binding ShortcutChips}"
+                            VerticalAlignment="Center"
+                            Margin="10,0,0,0"
+                            Visibility="{Binding ShortcutVisibility}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate>
+                    <Border Background="{DynamicResource EnterKeycapBackgroundBrush}"
+                            BorderBrush="{DynamicResource KeycapBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="{DynamicResource KeycapCornerRadius}"
+                            Padding="{DynamicResource KeycapPadding}"
+                            Margin="3,0,0,0">
+                      <TextBlock Text="{Binding}"
+                                 FontSize="{DynamicResource KeycapFontSize}"
+                                 Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <Border Grid.Column="3"
                       Background="{DynamicResource EnterKeycapBackgroundBrush}"
                       BorderBrush="{DynamicResource KeycapBorderBrush}"
                       BorderThickness="1"

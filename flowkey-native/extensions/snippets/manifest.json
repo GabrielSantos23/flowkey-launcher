@@ -1,0 +1,31 @@
+{
+  "id": "snippets",
+  "name": "Snippets",
+  "version": "1.0.0",
+  "description": "Save and paste text snippets into any app.",
+  "icon": "\u2702\ufe0f",
+  "commands": [
+    {
+      "id": "search",
+      "title": "Snippets",
+      "mode": "view",
+      "keywords": ["snippets", "text", "expand", "paste"],
+      "icon": "scissors",
+      "iconColor": "#22C55E"
+    },
+    {
+      "id": "add",
+      "title": "Add Snippet",
+      "mode": "background",
+      "keywords": ["snippets", "save", "create"],
+      "icon": "plus",
+      "iconColor": "#22C55E",
+      "arguments": [
+        { "name": "name", "type": "text", "placeholder": "name", "required": true },
+        { "name": "text", "type": "text", "placeholder": "snippet text", "required": true }
+      ]
+    }
+  ],
+  "nativeMethods": ["storage.*", "clipboard.paste", "clipboard.write", "hud.show"],
+  "httpHosts": []
+}

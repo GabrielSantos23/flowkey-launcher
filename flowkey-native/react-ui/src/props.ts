@@ -190,6 +190,8 @@ export interface ActionProps {
   id?: string;
   /** `destructive` tints the action row in the action panel. */
   style?: 'destructive';
+  /** Groups actions into labeled sections in the action panel. */
+  group?: string;
   /** Display-only shortcut hint rendered as keycaps. */
   shortcut?: ShortcutSpec;
 }

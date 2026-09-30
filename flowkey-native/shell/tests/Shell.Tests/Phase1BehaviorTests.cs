@@ -7,7 +7,7 @@ using Xunit;
 namespace FlowKey.Shell.Tests;
 
 [Collection(nameof(RealClipboardCollection))]
-public class NativeMethodTableTests
+public class NativeMethodTableTests(ClipboardGuardFixture guard)
 {
     private static Dictionary<string, JsonElement> Params(string key, string value) =>
         new() { [key] = JsonDocument.Parse($"\"{value}\"").RootElement };

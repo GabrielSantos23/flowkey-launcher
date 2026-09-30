@@ -13,13 +13,33 @@ public sealed record ClipboardReadContent(string? Text, string? Html, IReadOnlyL
 
 public static class ClipboardService
 {
+    /// <summary>
+    /// When set (the test suite), clipboard writes carry the standard
+    /// ExcludeClipboardContentFromMonitorProcessing format so clipboard
+    /// managers — including a running launcher — skip them. Fixture strings
+    /// must never land in a real clipboard history.
+    /// </summary>
+    public static bool ExcludeFromMonitor { get; set; }
+
+    private const string ExcludeFromMonitorFormat = "ExcludeClipboardContentFromMonitorProcessing";
+
     public static void WriteText(string text)
     {
         for (var attempt = 0; attempt < 25; attempt++)
         {
             try
             {
-                Clipboard.SetDataObject(text, true);
+                if (ExcludeFromMonitor)
+                {
+                    var data = new DataObject();
+                    data.SetData(DataFormats.UnicodeText, text);
+                    TagExcluded(data);
+                    Clipboard.SetDataObject(data, true);
+                }
+                else
+                {
+                    Clipboard.SetDataObject(text, true);
+                }
                 return;
             }
             catch (System.Runtime.InteropServices.COMException)
@@ -56,6 +76,10 @@ public static class ClipboardService
             list.AddRange(content.Paths.ToArray());
             data.SetFileDropList(list);
         }
+        if (ExcludeFromMonitor)
+        {
+            TagExcluded(data);
+        }
         for (var attempt = 0; attempt < 25; attempt++)
         {
             try
@@ -70,6 +94,9 @@ public static class ClipboardService
         }
         throw new InvalidOperationException("clipboard busy");
     }
+
+    private static void TagExcluded(DataObject data) =>
+        data.SetData(ExcludeFromMonitorFormat, Convert.ToInt32(1));
 
     /// <summary>Reads every rich format currently on the clipboard.</summary>
     public static ClipboardReadContent ReadContent()

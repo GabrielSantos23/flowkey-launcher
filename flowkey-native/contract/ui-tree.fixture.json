@@ -46,6 +46,7 @@
                 "id": "remove",
                 "title": "Remove",
                 "style": "destructive",
+                "group": "Edit",
                 "shortcut": {
                   "key": "backspace",
                   "modifiers": ["ctrl"]

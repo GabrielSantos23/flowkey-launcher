@@ -196,6 +196,18 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
+  extensions/quicklinks:
+    dependencies:
+      '@flowkey-cli/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+
+  extensions/snippets:
+    dependencies:
+      '@flowkey-cli/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+
   extensions/spotify:
     dependencies:
       '@flowkey-cli/native-sdk':
@@ -223,6 +235,18 @@ importers:
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
+
+  extensions/system:
+    dependencies:
+      '@flowkey-cli/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+
+  extensions/window-switcher:
+    dependencies:
+      '@flowkey-cli/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
 
   react-ui:
     dependencies:
@@ -363,9 +387,21 @@ importers:
       '@flowkey-cli/extension-obsidian-notes':
         specifier: workspace:*
         version: link:../extensions/obsidian-notes
+      '@flowkey-cli/extension-quicklinks':
+        specifier: workspace:*
+        version: link:../extensions/quicklinks
+      '@flowkey-cli/extension-snippets':
+        specifier: workspace:*
+        version: link:../extensions/snippets
       '@flowkey-cli/extension-spotify':
         specifier: workspace:*
         version: link:../extensions/spotify
+      '@flowkey-cli/extension-system':
+        specifier: workspace:*
+        version: link:../extensions/system
+      '@flowkey-cli/extension-window-switcher':
+        specifier: workspace:*
+        version: link:../extensions/window-switcher
       '@flowkey-cli/native-sdk':
         specifier: workspace:*
         version: link:../sdk
