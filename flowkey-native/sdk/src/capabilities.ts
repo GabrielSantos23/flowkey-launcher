@@ -33,6 +33,24 @@ export interface FrontmostApp {
   path?: string | null;
 }
 
+export interface UploadOptions {
+  /** Payload size in bytes; generated and streamed shell-side. */
+  bytes?: number;
+  method?: string;
+  headers?: Record<string, string>;
+  /** Per-call deadline; also extends the sidecar bridge timeout. */
+  timeoutMs?: number;
+  /** Aborts the in-flight request (transport-level, never serialized as a param). */
+  signal?: AbortSignal;
+}
+
+export interface UploadResult {
+  status: number;
+  bytesSent: number;
+  /** Wall-clock duration of the transfer, in milliseconds. */
+  elapsedMs: number;
+}
+
 export interface FetchOptions {
   method?: string;
   headers?: Record<string, string>;
@@ -103,6 +121,12 @@ export interface FlowKeyCapabilities {
   http: {
     fetch(url: string, options?: FetchOptions): Promise<HttpResponse>;
     fetchJson<T = unknown>(url: string, options?: FetchOptions): Promise<T>;
+    /**
+     * Streams a shell-generated payload to an allowlisted host and reports the
+     * transfer time. The body never crosses the extension bridge, so
+     * throughput measurement stays off the relay.
+     */
+    upload(url: string, options?: UploadOptions): Promise<UploadResult>;
   };
   clipboard: {
     read(): Promise<string | null>;
@@ -265,9 +289,15 @@ export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
     );
   };
 
+  const httpUpload = async (url: string, options?: UploadOptions): Promise<UploadResult> => {
+    const { signal, ...params } = options ?? {};
+    return await call<UploadResult>('http.upload', { url, ...params }, { signal });
+  };
+
   return {
     http: {
       fetch: httpFetch,
+      upload: httpUpload,
       async fetchJson<T = unknown>(url: string, options?: FetchOptions): Promise<T> {
         const response = await httpFetch(url, options);
         return JSON.parse(response.body ?? '{}') as T;

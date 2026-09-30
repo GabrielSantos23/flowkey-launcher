@@ -19,6 +19,8 @@ public sealed class HttpFetchService
     public const int MaxRedirects = 5;
     public const int DefaultTimeoutMs = 10000;
     public const int MaxAuthAttempts = 2;
+    public const int MaxUploadBytes = 8 * 1024 * 1024;
+    public const int DefaultUploadBytes = 1024 * 1024;
     private static readonly TimeSpan RetryAfterCap = TimeSpan.FromSeconds(5);
 
     public Task<NativeCallOutcome> FetchAsync(
@@ -27,6 +29,145 @@ public sealed class HttpFetchService
         CancellationToken cancellationToken)
     {
         return FetchAsync(parameters, httpHosts, cancellationToken, resolveAuth: null, handlerFactory: null);
+    }
+
+    /// <summary>
+    /// Streams a shell-generated payload to an allowlisted host and reports how
+    /// long the transfer took. The body never crosses the extension bridge —
+    /// the counterpart of <c>discardBody</c> for throughput measurement.
+    /// </summary>
+    public async Task<NativeCallOutcome> UploadAsync(
+        Dictionary<string, JsonElement>? parameters,
+        IReadOnlyList<string> httpHosts,
+        CancellationToken cancellationToken,
+        Func<HttpMessageHandler>? handlerFactory = null)
+    {
+        if (parameters is null || !parameters.TryGetValue("url", out var urlElement) || urlElement.ValueKind != JsonValueKind.String)
+        {
+            return NativeCallOutcome.Failure("invalidParams", "http.upload requires a string 'url' parameter");
+        }
+        Uri uri;
+        try
+        {
+            uri = new Uri(urlElement.GetString()!);
+        }
+        catch (UriFormatException)
+        {
+            return NativeCallOutcome.Failure("invalidUrl", $"malformed url '{urlElement.GetString()}'");
+        }
+        var initial = HttpPolicy.ValidateRequest(uri, httpHosts);
+        if (!initial.Allowed)
+        {
+            return NativeCallOutcome.Failure(initial.ErrorCode!, initial.Message!);
+        }
+
+        var method = parameters.TryGetValue("method", out var m) && m.ValueKind == JsonValueKind.String
+            ? m.GetString()!.ToUpperInvariant()
+            : "POST";
+        var timeoutMs = parameters.TryGetValue("timeoutMs", out var t) && t.ValueKind == JsonValueKind.Number
+            ? t.GetInt32()
+            : DefaultTimeoutMs;
+        var payloadBytes = parameters.TryGetValue("bytes", out var b) && b.ValueKind == JsonValueKind.Number
+            ? Math.Clamp(b.GetInt64(), 1, MaxUploadBytes)
+            : DefaultUploadBytes;
+        var headers = parameters.TryGetValue("headers", out var h) && h.ValueKind == JsonValueKind.Object
+            ? h.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.ToString())
+            : new Dictionary<string, string>();
+
+        var payload = new byte[payloadBytes];
+        Random.Shared.NextBytes(payload);
+
+        using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(Math.Max(1, timeoutMs));
+
+        var current = uri;
+        long sentBytes = 0;
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        for (var redirect = 0; redirect <= MaxRedirects; redirect++)
+        {
+            if (redirect > 0)
+            {
+                var decision = HttpPolicy.ValidateRedirect(current, uri, httpHosts);
+                if (!decision.Allowed)
+                {
+                    return NativeCallOutcome.Failure(decision.ErrorCode!, decision.Message!);
+                }
+            }
+
+            using var handler = handlerFactory is not null
+                ? handlerFactory()
+                : new SocketsHttpHandler
+                {
+                    UseCookies = false,
+                    UseProxy = false,
+                    AllowAutoRedirect = false,
+                    AutomaticDecompression = DecompressionMethods.All,
+                    ConnectCallback = (context, ct) => ConnectValidatedAsync(context, httpHosts, ct),
+                };
+            using var client = new HttpClient(handler);
+            using var request = new HttpRequestMessage(new HttpMethod(method), uri);
+            foreach (var (key, value) in headers)
+            {
+                request.Headers.TryAddWithoutValidation(key, value);
+            }
+            request.Content = new ByteArrayContent(payload);
+
+            HttpResponseMessage response;
+            try
+            {
+                response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+            }
+            catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested)
+            {
+                return NativeCallOutcome.Failure("timeout", $"http.upload timed out after {timeoutMs} ms");
+            }
+            catch (Exception ex)
+            {
+                return NativeCallOutcome.Failure("networkError", ex.Message);
+            }
+
+            using (response)
+            {
+                if ((int)response.StatusCode is 301 or 302 or 303)
+                {
+                    if (response.Headers.Location is null)
+                    {
+                        return NativeCallOutcome.Failure("networkError", "redirect without Location header");
+                    }
+                    current = uri;
+                    uri = response.Headers.Location.IsAbsoluteUri
+                        ? response.Headers.Location
+                        : new Uri(uri, response.Headers.Location);
+                    continue;
+                }
+                if ((int)response.StatusCode is 307 or 308 && response.Headers.Location is not null)
+                {
+                    current = uri;
+                    uri = response.Headers.Location.IsAbsoluteUri
+                        ? response.Headers.Location
+                        : new Uri(uri, response.Headers.Location);
+                    continue;
+                }
+
+                // drain and discard the response so the connection completes
+                var stream = await response.Content.ReadAsStreamAsync(timeoutCts.Token);
+                var drain = new byte[64 * 1024];
+                while (await stream.ReadAsync(drain.AsMemory(0, drain.Length), timeoutCts.Token) > 0)
+                {
+                }
+
+                sentBytes = payloadBytes;
+                stopwatch.Stop();
+                var result = JsonSerializer.SerializeToElement(new
+                {
+                    status = (int)response.StatusCode,
+                    bytesSent = sentBytes,
+                    elapsedMs = stopwatch.Elapsed.TotalMilliseconds,
+                });
+                return NativeCallOutcome.Success(result);
+            }
+        }
+        return NativeCallOutcome.Failure("tooManyRedirects", $"more than {MaxRedirects} redirects");
     }
 
     public async Task<NativeCallOutcome> FetchAsync(

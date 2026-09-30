@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
@@ -471,6 +471,7 @@ public partial class MainWindow : Window
             extensionManager,
             readyFailures,
             RequestExtensionsRefresh,
+            RestartApplication,
             AssetsDirResolver,
             oauthService,
             updateService,
@@ -527,18 +528,52 @@ public partial class MainWindow : Window
     /// Applies an extensions-store change: restarts the sidecar so the new
     /// set of extensions loads, then reopens settings so the lists refresh.
     /// </summary>
+    /// <summary>
+    /// Full-process restart, used after an extension install: the sidecar, the
+    /// extension registry and every mounted web view rebuild from a clean boot
+    /// instead of restarting the sidecar under a live session.
+    /// </summary>
+    private void RestartApplication()
+    {
+        var exePath = Environment.ProcessPath;
+        Dispatcher.BeginInvoke(() =>
+        {
+            (System.Windows.Application.Current as App)?.ReleaseSingleInstanceMutex();
+            if (!string.IsNullOrWhiteSpace(exePath))
+            {
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = exePath,
+                        Arguments = "--settings",
+                        UseShellExecute = true,
+                    });
+                }
+                catch (Exception ex)
+                {
+                    DebugLog.Write("app restart: failed to spawn a new instance: " + ex.Message);
+                }
+            }
+            Quit();
+            // ShutdownMode is OnExplicitShutdown: closing the main window alone
+            // leaves the settings window (and the process) running, so end the
+            // app explicitly — the same path the tray Quit uses.
+            Dispatcher.BeginInvoke(
+                new Action(() => System.Windows.Application.Current.Shutdown()),
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+        });
+    }
+
     private void RequestExtensionsRefresh()
     {
         sidecar.DisabledExtensionIds = installedExtensionsStore.GetAll()
             .Where(record => !record.Enabled)
             .Select(record => record.Id)
             .ToList();
-        Dispatcher.BeginInvoke(() =>
-        {
-            settingsWindow?.Close();
-            sidecar.Restart();
-            OpenSettings();
-        });
+        // The sidecar restart reloads installed extensions; the open settings
+        // window is refreshed by OnSidecarReady once the new registry arrives.
+        Dispatcher.BeginInvoke(sidecar.Restart);
     }
 
     protected override void OnDeactivated(EventArgs e)
@@ -2550,13 +2585,9 @@ public partial class MainWindow : Window
             var first = ready.Extensions.FirstOrDefault();
             SetStatusBar(first is null ? "no extensions" : $"{first.Name} v{first.Version} ready");
             SendSearch(SearchBox.Text);
-            // A settings window open across a sidecar restart would show the
-            // stale extension list — reopen it with the fresh data.
-            if (settingsWindow is { IsLoaded: true })
-            {
-                settingsWindow.Close();
-                OpenSettings();
-            }
+            // A settings window open across a sidecar restart refreshes in
+            // place — closing and reopening it reads as window flicker.
+            settingsWindow?.UpdateExtensions(ready.Extensions, readyFailures);
         });
     }
 
@@ -4073,6 +4104,17 @@ public partial class MainWindow : Window
             _ = Task.Run(async () =>
             {
                 var outcome = await httpFetch.FetchAsync(parameters, hosts, CancellationToken.None, ResolveAuth);
+                CompleteNativeCall(requestId, method, outcome);
+            });
+            return;
+        }
+
+        if (method == "http.upload")
+        {
+            var hosts = declarations?.HttpHosts ?? (IReadOnlyList<string>)Array.Empty<string>();
+            _ = Task.Run(async () =>
+            {
+                var outcome = await httpFetch.UploadAsync(parameters, hosts, CancellationToken.None);
                 CompleteNativeCall(requestId, method, outcome);
             });
             return;

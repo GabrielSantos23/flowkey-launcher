@@ -1,4 +1,4 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using FlowKey.Shell.Windows;
@@ -120,6 +120,24 @@ public partial class App : Application
         // Shutdown must not run inside the menu click callback — the close
         // sequence still needs the dispatcher to pump.
         Dispatcher.BeginInvoke(new Action(() => Shutdown(0)), DispatcherPriority.ApplicationIdle);
+    }
+
+    /// <summary>
+    /// Releases the single-instance mutex so a restart can claim it before
+    /// this process fully exits.
+    /// </summary>
+    public void ReleaseSingleInstanceMutex()
+    {
+        try
+        {
+            singleInstanceMutex?.ReleaseMutex();
+        }
+        catch (ApplicationException)
+        {
+            // the startup thread already released it
+        }
+        singleInstanceMutex?.Dispose();
+        singleInstanceMutex = null;
     }
 
     protected override void OnExit(ExitEventArgs e)

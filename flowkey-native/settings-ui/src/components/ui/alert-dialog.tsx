@@ -8,6 +8,7 @@ const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 
 function AlertDialogContent({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
   return (
@@ -17,7 +18,6 @@ function AlertDialogContent({
         className={cn(
           'fixed inset-0 z-50 bg-background/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         )}
-        {...props}
       />
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
@@ -26,7 +26,9 @@ function AlertDialogContent({
           className,
         )}
         {...props}
-      />
+      >
+        {children}
+      </AlertDialogPrimitive.Content>
     </AlertDialogPrimitive.Portal>
   );
 }

@@ -7,5 +7,5 @@ packages:
   - extensions/*
 
 allowBuilds:
-  '@parcel/watcher': set this to true or false
+  '@parcel/watcher': true
   esbuild: true

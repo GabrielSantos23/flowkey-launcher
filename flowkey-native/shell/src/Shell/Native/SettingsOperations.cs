@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using FlowKey.Shell.Protocol;
 
 namespace FlowKey.Shell.Native;
@@ -24,7 +24,7 @@ public sealed class SettingsOperations
     private readonly HotkeySettingsStore hotkeySettings;
     private readonly PreferencesStore preferencesStore;
     private readonly ExtensionPackageManager extensionManager;
-    private readonly IReadOnlyList<ReadyExtension> extensions;
+    private IReadOnlyList<ReadyExtension> extensions;
     private readonly Action<string> showToast;
     private readonly Func<uint, uint, bool> applySummonHotkey;
     private readonly Func<string, bool> shortcutConflict;
@@ -61,6 +61,15 @@ public sealed class SettingsOperations
         this.setLoginLauncher = setLoginLauncher;
         this.clearClipboardHistory = clearClipboardHistory;
         this.setCommandToggle = setCommandToggle;
+    }
+
+    /// <summary>
+    /// Replaces the ready-extension snapshot after a sidecar restart so ops
+    /// keep resolving against the live registry without rebuilding the window.
+    /// </summary>
+    public void UpdateExtensions(IReadOnlyList<ReadyExtension> ready)
+    {
+        extensions = ready;
     }
 
     public SettingsOpOutcome SetOpenAtLogin(bool enabled)

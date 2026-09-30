@@ -125,6 +125,19 @@ export function createWebCapabilities(link: WebHostLink): FlowKeyCapabilities {
         const response = await this.fetch(url, options);
         return JSON.parse((response.body as string | undefined) ?? '{}');
       },
+      async upload(url, options) {
+        const { signal, ...params } = options ?? {};
+        const result = await call<Record<string, unknown>>(
+          'http.upload',
+          { url, ...params },
+          { signal },
+        );
+        return {
+          status: result.status as number,
+          bytesSent: result.bytesSent as number,
+          elapsedMs: result.elapsedMs as number,
+        };
+      },
     },
     clipboard: {
       async read() {

@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,10 +24,11 @@ public partial class SettingsWebViewWindow : Window
 {
     private readonly HotkeySettingsStore hotkeySettings;
     private readonly PreferencesStore preferencesStore;
-    private readonly IReadOnlyList<ReadyExtension> extensions;
+    private IReadOnlyList<ReadyExtension> extensions;
     private readonly ExtensionPackageManager extensionManager;
-    private readonly IReadOnlyList<ReadyFailure> loadFailures;
+    private IReadOnlyList<ReadyFailure> loadFailures;
     private readonly Action requestExtensionsRefresh;
+    private readonly Action restartApplication;
     private readonly Func<string, string?> assetsDirResolver;
     private readonly OAuthService oauthService;
     private readonly UpdateService updateService;
@@ -68,6 +69,7 @@ public partial class SettingsWebViewWindow : Window
         ExtensionPackageManager extensionManager,
         IReadOnlyList<ReadyFailure> loadFailures,
         Action requestExtensionsRefresh,
+        Action restartApplication,
         Func<string, string?> assetsDirResolver,
         OAuthService oauthService,
         UpdateService updateService,
@@ -82,6 +84,7 @@ public partial class SettingsWebViewWindow : Window
         this.extensionManager = extensionManager;
         this.loadFailures = loadFailures;
         this.requestExtensionsRefresh = requestExtensionsRefresh;
+        this.restartApplication = restartApplication;
         this.assetsDirResolver = assetsDirResolver;
         this.oauthService = oauthService;
         this.updateService = updateService;
@@ -233,6 +236,23 @@ public partial class SettingsWebViewWindow : Window
     }
 
     /// <summary>Builds and pushes the full state snapshot; coalesces rapid updates to one push per dispatcher pass.</summary>
+    /// <summary>
+    /// Replaces the extension snapshots after a sidecar restart and pushes the
+    /// fresh state to the open page — the window survives the restart instead
+    /// of being closed and reopened.
+    /// </summary>
+    public void UpdateExtensions(IReadOnlyList<ReadyExtension> ready, IReadOnlyList<ReadyFailure> failures)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+        extensions = ready;
+        loadFailures = failures;
+        operations.UpdateExtensions(ready);
+        Dispatcher.BeginInvoke(PushState);
+    }
+
     private void PushState()
     {
         if (pushQueued)
@@ -692,9 +712,12 @@ public partial class SettingsWebViewWindow : Window
         pendingInstallPath = null;
         if (outcome.Ok)
         {
-            operations.ShowToast($"{name} v{version} installed");
+            operations.ShowToast($"{name} v{version} installed — restarting FlowKey…");
             ReplyInvoke(id, ok: true);
-            requestExtensionsRefresh();
+            // a clean full restart rebuilds the sidecar and every mounted web
+            // view; restarting just the sidecar under a live session was the
+            // source of slowdowns and sidecar crashes
+            restartApplication();
         }
         else
         {

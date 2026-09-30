@@ -103,6 +103,20 @@
             return JSON.parse(r.bodyText || '{}');
           });
         },
+        upload: function (url, options) {
+          options = options || {};
+          return call(
+            'http.upload',
+            {
+              url: url,
+              bytes: options.bytes,
+              method: options.method,
+              headers: options.headers,
+              timeoutMs: options.timeoutMs,
+            },
+            { signal: options.signal },
+          );
+        },
       },
       clipboard: {
         read: function () {
