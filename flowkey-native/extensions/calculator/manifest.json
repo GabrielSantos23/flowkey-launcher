@@ -1,0 +1,27 @@
+{
+  "id": "calculator",
+  "name": "Calculator",
+  "version": "1.0.0",
+  "description": "Inline math, unit conversion, currency and date answers as you type.",
+  "icon": "🧮",
+  "commands": [
+    {
+      "id": "open",
+      "title": "Calculator",
+      "keywords": ["calc", "math", "convert", "currency"],
+      "mode": "view",
+      "icon": "🧮"
+    },
+    {
+      "id": "panel",
+      "title": "Calculator Panel",
+      "keywords": ["calculator", "calc", "convert", "currency", "exchange"],
+      "mode": "view",
+      "ui": "web",
+      "webEntry": "app.web.js",
+      "icon": "🧮"
+    }
+  ],
+  "nativeMethods": ["http.fetch", "storage.*", "clipboard.write"],
+  "httpHosts": ["api.frankfurter.dev"]
+}

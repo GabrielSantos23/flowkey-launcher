@@ -17,6 +17,8 @@
     "clipboard-history:test": "cd extensions/clipboard-history && bun test",
     "google-translate:typecheck": "cd extensions/google-translate && bunx tsc --noEmit",
     "google-translate:test": "cd extensions/google-translate && bun test",
+    "calculator:typecheck": "cd extensions/calculator && bunx tsc --noEmit",
+    "calculator:test": "cd extensions/calculator && bun test",
     "emoji:typecheck": "cd extensions/emoji && bunx tsc --noEmit",
     "emoji:test": "cd extensions/emoji && bun test",
     "sidecar:test": "cd sidecar && bun test",

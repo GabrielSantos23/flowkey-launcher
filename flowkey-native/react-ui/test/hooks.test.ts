@@ -144,7 +144,8 @@ describe('useFetch', () => {
     const call = (async (method: string, params?: Record<string, unknown>) => {
       if (method !== 'http.fetch') throw new Error(`unexpected route ${method}`);
       expect(params?.url).toBe('https://api.example.com/me');
-      return { status: 200, headers: {}, body: JSON.stringify({ name: 'flowkey' }) };
+      // the shell returns the body under `bodyText` (the SDK maps it to `body`)
+      return { status: 200, headers: {}, bodyText: JSON.stringify({ name: 'flowkey' }) };
     }) as unknown as NativeCaller;
     const { root } = renderHarness((props) => {
       const state = useFetch<{ name: string }>('https://api.example.com/me');

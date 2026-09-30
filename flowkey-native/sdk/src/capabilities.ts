@@ -282,11 +282,19 @@ function unwrapOk(result: { ok?: boolean } | undefined, method: string): void {
 export function createCapabilities(call: NativeCaller): FlowKeyCapabilities {
   const httpFetch = async (url: string, options?: FetchOptions): Promise<HttpResponse> => {
     const { signal, ...params } = options ?? {};
-    return await call<{ status: number; headers: Record<string, string>; body?: string }>(
-      'http.fetch',
-      { url, ...params },
-      { signal },
-    );
+    // the shell returns the body as `bodyText` (null when discardBody is set)
+    const result = await call<{
+      status: number;
+      headers: Record<string, string>;
+      bodyText?: string | null;
+      bytesReceived?: number;
+    }>('http.fetch', { url, ...params }, { signal });
+    return {
+      status: result.status,
+      headers: result.headers,
+      body: result.bodyText ?? undefined,
+      bytesReceived: result.bytesReceived,
+    };
   };
 
   const httpUpload = async (url: string, options?: UploadOptions): Promise<UploadResult> => {

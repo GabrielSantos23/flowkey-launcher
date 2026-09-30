@@ -230,7 +230,21 @@ public abstract class UiRow
     public bool IsHeader => this is HeaderRow;
 
     public static HeaderRow Header(string title) => new() { Title = title };
-    public static ItemRow Item(UiItem item) => new() { Item = item };
+    /// <summary>
+    /// Creates the row for an extension item. Items with Kind "calculator"
+    /// render as the centered expression → answer card.
+    /// </summary>
+    public static ItemRow Item(UiItem item) =>
+        item.Kind == "calculator" ? new CalculatorItemRow { Item = item } : new ItemRow { Item = item };
+}
+
+/// <summary>
+/// Calculator-style result row (expression → answer), rendered by its own
+/// DataTemplate as a centered two-column card. Created automatically for
+/// UiItems with Kind "calculator", so any extension can emit one.
+/// </summary>
+public sealed class CalculatorItemRow : ItemRow
+{
 }
 
 public sealed class HeaderRow : UiRow
@@ -244,7 +258,7 @@ public sealed class LoadMoreRow : UiRow
     public static LoadMoreRow Instance { get; } = new();
 }
 
-public sealed class ItemRow : UiRow
+public class ItemRow : UiRow
 {
     public UiItem Item { get; init; } = new();
     public System.Windows.Media.ImageSource? Bitmap { get; set; }

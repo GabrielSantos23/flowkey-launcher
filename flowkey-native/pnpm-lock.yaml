@@ -43,6 +43,31 @@ importers:
         specifier: workspace:*
         version: link:../../sdk
 
+  extensions/calculator:
+    dependencies:
+      '@flowkey-cli/native-sdk':
+        specifier: workspace:*
+        version: link:../../sdk
+      react:
+        specifier: 19.3.0
+        version: 19.3.0
+      react-dom:
+        specifier: 19.3.0
+        version: 19.3.0(react@19.3.0)
+    devDependencies:
+      '@types/bun':
+        specifier: ^1.4.2
+        version: 1.4.2
+      '@types/react':
+        specifier: ^19.3.0
+        version: 19.3.0
+      '@types/react-dom':
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@19.3.0)
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   extensions/clipboard-history:
     dependencies:
       '@flowkey-cli/native-sdk':
@@ -170,22 +195,6 @@ importers:
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
-
-  extensions/react-demo:
-    dependencies:
-      '@flowkey-cli/native-sdk':
-        specifier: workspace:*
-        version: link:../../sdk
-      '@flowkey-cli/react-ui':
-        specifier: workspace:*
-        version: link:../../react-ui
-      react:
-        specifier: 19.3.0
-        version: 19.3.0
-    devDependencies:
-      '@types/react':
-        specifier: ^19.3.0
-        version: 19.3.0
 
   extensions/spotify:
     dependencies:
@@ -336,6 +345,9 @@ importers:
       '@flowkey-cli/extension-apps':
         specifier: workspace:*
         version: link:../extensions/apps
+      '@flowkey-cli/extension-calculator':
+        specifier: workspace:*
+        version: link:../extensions/calculator
       '@flowkey-cli/extension-clipboard-history':
         specifier: workspace:*
         version: link:../extensions/clipboard-history
@@ -351,9 +363,6 @@ importers:
       '@flowkey-cli/extension-obsidian-notes':
         specifier: workspace:*
         version: link:../extensions/obsidian-notes
-      '@flowkey-cli/extension-react-demo':
-        specifier: workspace:*
-        version: link:../extensions/react-demo
       '@flowkey-cli/extension-spotify':
         specifier: workspace:*
         version: link:../extensions/spotify

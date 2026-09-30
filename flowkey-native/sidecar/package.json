@@ -9,12 +9,12 @@
   },
   "dependencies": {
     "@flowkey-cli/extension-apps": "workspace:*",
+    "@flowkey-cli/extension-calculator": "workspace:*",
     "@flowkey-cli/extension-clipboard-history": "workspace:*",
     "@flowkey-cli/extension-emoji": "workspace:*",
     "@flowkey-cli/extension-google-translate": "workspace:*",
     "@flowkey-cli/extension-lucide-icons": "workspace:*",
     "@flowkey-cli/extension-obsidian-notes": "workspace:*",
-    "@flowkey-cli/extension-react-demo": "workspace:*",
     "@flowkey-cli/extension-spotify": "workspace:*",
     "@flowkey-cli/native-sdk": "workspace:*",
     "@flowkey-cli/react-ui": "workspace:*"

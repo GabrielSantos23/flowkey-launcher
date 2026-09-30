@@ -28,9 +28,9 @@ import { RootManager, type ManagedRoot } from './roots';
 import emoji from '@flowkey-cli/extension-emoji';
 import googleTranslate from '@flowkey-cli/extension-google-translate';
 import apps from '@flowkey-cli/extension-apps';
+import calculator from '@flowkey-cli/extension-calculator';
 import clipboardHistory from '@flowkey-cli/extension-clipboard-history';
 import spotify from '@flowkey-cli/extension-spotify';
-import reactDemo from '@flowkey-cli/extension-react-demo';
 import lucideIcons from '@flowkey-cli/extension-lucide-icons';
 import obsidianNotes from '@flowkey-cli/extension-obsidian-notes';
 
@@ -54,9 +54,9 @@ function isWebOnlyModule(module: LoadedModule): boolean {
 const REGISTRY: (ExtensionModule | ReactExtensionModule)[] = [
   emoji,
   apps,
+  calculator,
   clipboardHistory,
   googleTranslate,
-  reactDemo,
   spotify,
   lucideIcons,
   obsidianNotes,
