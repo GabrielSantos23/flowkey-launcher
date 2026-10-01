@@ -20,13 +20,24 @@
           BorderBrush="{DynamicResource KeycapBorderBrush}"
           Background="{DynamicResource ActionPanelBackgroundBrush}"
           Margin="6">
-    <StackPanel>
-      <TextBlock x:Name="PanelTitle"
+    <!-- A Grid (not a StackPanel) so the list row is height-constrained when
+         MaxHeight clamps the window: a StackPanel measures the ListBox with
+         infinite height, its ScrollViewer never engages and long action lists
+         cannot scroll. -->
+    <Grid>
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+        <RowDefinition Height="Auto" />
+      </Grid.RowDefinitions>
+      <TextBlock Grid.Row="0"
+                 x:Name="PanelTitle"
                  FontSize="{DynamicResource HeaderFontSize}"
                  FontWeight="SemiBold"
                  Foreground="{DynamicResource TextSecondaryBrush}"
                  Margin="12,8,12,4" />
-      <ListBox x:Name="ActionsList"
+      <ListBox Grid.Row="1"
+               x:Name="ActionsList"
                Background="Transparent"
                BorderThickness="0"
                Padding="6,2,6,2"
@@ -126,7 +137,8 @@
           </DataTemplate>
         </ListBox.ItemTemplate>
       </ListBox>
-      <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Margin="8,4,8,0">
+      <Border Grid.Row="2"
+              BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Margin="8,4,8,0">
         <Grid Margin="6,0,6,0">
           <TextBox x:Name="FilterBox"
                    VerticalAlignment="Center"
@@ -157,6 +169,6 @@
           </TextBlock>
         </Grid>
       </Border>
-    </StackPanel>
+    </Grid>
   </Border>
 </Window>
