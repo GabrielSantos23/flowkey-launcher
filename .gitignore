@@ -60,3 +60,13 @@ design-reference/
 # ZCode session artifacts (plans are internal to the tool)
 .zcode/
 flowkey-native/shell/src/Shell/Assets/Web/settings/
+
+# Local-only workspace files — kept out of the published repo
+/.agents/
+/.husky/
+/.vscode/
+/.zcode/plans/
+/docs/
+/AGENTS.md
+/CONTRIBUTING.md
+/FUNDING.yml
