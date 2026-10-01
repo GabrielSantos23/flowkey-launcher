@@ -27,6 +27,7 @@ public sealed class SettingsOperations
     private IReadOnlyList<ReadyExtension> extensions;
     private readonly Action<string> showToast;
     private readonly Func<uint, uint, bool> applySummonHotkey;
+    private readonly Action clearSummonHotkey;
     private readonly Func<string, bool> shortcutConflict;
     private readonly Action<bool> setLoginLauncher;
     private readonly Action clearClipboardHistory;
@@ -46,6 +47,7 @@ public sealed class SettingsOperations
         IReadOnlyList<ReadyExtension> extensions,
         Action<string> showToast,
         Func<uint, uint, bool> applySummonHotkey,
+        Action clearSummonHotkey,
         Func<string, bool> shortcutConflict,
         Action<bool> setLoginLauncher,
         Action clearClipboardHistory,
@@ -57,6 +59,7 @@ public sealed class SettingsOperations
         this.extensions = extensions;
         this.showToast = showToast;
         this.applySummonHotkey = applySummonHotkey;
+        this.clearSummonHotkey = clearSummonHotkey;
         this.shortcutConflict = shortcutConflict;
         this.setLoginLauncher = setLoginLauncher;
         this.clearClipboardHistory = clearClipboardHistory;
@@ -92,6 +95,21 @@ public sealed class SettingsOperations
         CommitSummon(
             HotkeyCombo.Describe(DefaultModifier, DefaultVirtualKey),
             "The default hotkey is already registered by another app");
+
+    /// <summary>
+    /// Removes the summon hotkey entirely: the global registration is dropped
+    /// and the stored combo is cleared, so no summon hotkey is re-registered
+    /// on the next start (the launcher stays reachable through the tray).
+    /// </summary>
+    public SettingsOpOutcome ClearSummonHotkey()
+    {
+        clearSummonHotkey();
+        var settings = hotkeySettings.Load();
+        settings.Modifier = 0;
+        settings.VirtualKey = 0;
+        hotkeySettings.Save(settings);
+        return SettingsOpOutcome.Succeed();
+    }
 
     private SettingsOpOutcome CommitSummon(string combo, string registrationFailureMessage)
     {

@@ -58,7 +58,7 @@ public class SettingsOperationsTests : IDisposable
         return packagePath;
     }
 
-    private SettingsOperations CreateOperations() => new(
+    private SettingsOperations CreateOperations(Action? clearSummon = null) => new(
         hotkeySettings,
         preferencesStore,
         extensionManager,
@@ -70,6 +70,7 @@ public class SettingsOperationsTests : IDisposable
             appliedVirtualKey = virtualKey;
             return registrationSucceeds;
         },
+        clearSummon ?? (() => { }),
         combo => combo.Equals(conflictingCombo, StringComparison.OrdinalIgnoreCase),
         enabled => { },
         () => { },
@@ -139,6 +140,17 @@ public class SettingsOperationsTests : IDisposable
         Assert.True(outcome.Ok, outcome.Error);
         Assert.Equal(SettingsOperations.DefaultModifier, hotkeySettings.Load().Modifier);
         Assert.Equal(SettingsOperations.DefaultVirtualKey, hotkeySettings.Load().VirtualKey);
+    }
+
+    [Fact]
+    public void ClearSummonUnregistersAndPersistsEmptyCombo()
+    {
+        var unregistered = false;
+        var outcome = CreateOperations(() => unregistered = true).ClearSummonHotkey();
+        Assert.True(outcome.Ok, outcome.Error);
+        Assert.True(unregistered);
+        Assert.Equal(0u, hotkeySettings.Load().Modifier);
+        Assert.Equal(0u, hotkeySettings.Load().VirtualKey);
     }
 
     // --- command shortcuts ---

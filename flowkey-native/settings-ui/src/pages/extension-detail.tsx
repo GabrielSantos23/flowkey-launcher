@@ -4,7 +4,12 @@ import { toastResult } from '@/feedback';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { SettingsRow, SectionTitle, ComboChips } from '@/components/settings-row';
+import {
+  SettingsRow,
+  SectionTitle,
+  ComboChips,
+  ClearHotkeyButton,
+} from '@/components/settings-row';
 import { ExtensionIcon } from '@/components/extension-icon';
 import { PreferenceFieldRow } from '@/components/preference-field';
 import { currentRecorderError, subscribeRecorderErrors } from '@/recorder-errors';
@@ -250,19 +255,33 @@ function CommandRowView({
         Add Alias
       </span>
       <div className="flex items-center gap-1.5 w-44 justify-center flex-none">
-        <Button
-          variant={recording ? 'default' : 'outline'}
-          title={recording ? 'Recording…' : 'Click to record a shortcut'}
-          onClick={() =>
-            void invoke('beginHotkeyCapture', { scope: 'command', commandKey: command.commandKey })
-          }
-        >
-          {command.shortcut ? (
-            <ComboChips combo={command.shortcut} />
-          ) : (
-            <span className="text-text-tertiary">Record Hotkey</span>
-          )}
-        </Button>
+        <div className="group/keys flex items-center gap-0.5">
+          <Button
+            variant={recording ? 'default' : 'outline'}
+            title={recording ? 'Recording…' : 'Click to record a shortcut'}
+            onClick={() =>
+              void invoke('beginHotkeyCapture', {
+                scope: 'command',
+                commandKey: command.commandKey,
+              })
+            }
+          >
+            {command.shortcut ? (
+              <ComboChips combo={command.shortcut} />
+            ) : (
+              <span className="text-text-tertiary">Record Hotkey</span>
+            )}
+          </Button>
+          <ClearHotkeyButton
+            combo={command.shortcut}
+            label="Remove shortcut"
+            onClear={() =>
+              void invoke('clearCommandShortcut', { commandKey: command.commandKey }).then(
+                (result) => toastResult(result, 'Shortcut removed'),
+              )
+            }
+          />
+        </div>
         {error && <span className="text-[11px] text-destructive">{error}</span>}
       </div>
       <div className="w-7 flex justify-center flex-none">

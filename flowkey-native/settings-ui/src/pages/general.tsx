@@ -4,7 +4,12 @@ import { toast } from 'sonner';
 import { RotateCcwIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { SettingsRow, SectionTitle, ComboChips } from '@/components/settings-row';
+import {
+  ClearHotkeyButton,
+  SettingsRow,
+  SectionTitle,
+  ComboChips,
+} from '@/components/settings-row';
 import { UpdateSection } from '@/components/update-section';
 import type { SettingsState } from '@/types';
 
@@ -36,13 +41,31 @@ export function GeneralPage({ state }: { state: SettingsState }) {
         description="Click the field and press a combination. Escape cancels."
         control={
           <>
-            <Button
-              variant="outline"
-              title="Record a new hotkey"
-              onClick={() => void invoke('beginHotkeyCapture', { scope: 'summon' })}
-            >
-              <ComboChips combo={state.general.summonHotkey} />
-            </Button>
+            <div className="group/keys flex items-center gap-0.5">
+              <Button
+                variant="outline"
+                title="Record a new hotkey"
+                onClick={() => void invoke('beginHotkeyCapture', { scope: 'summon' })}
+              >
+                {state.general.summonHotkey ? (
+                  <ComboChips combo={state.general.summonHotkey} />
+                ) : (
+                  <span className="text-text-tertiary">Record Hotkey</span>
+                )}
+              </Button>
+              <ClearHotkeyButton
+                combo={state.general.summonHotkey}
+                label="Remove hotkey"
+                onClear={() =>
+                  void invoke('clearSummonHotkey').then((result) =>
+                    toastResult(
+                      result,
+                      'Hotkey removed — the launcher stays reachable from the tray',
+                    ),
+                  )
+                }
+              />
+            </div>
             <Button
               variant="ghost"
               size="icon"

@@ -355,7 +355,13 @@ public partial class MainWindow : Window
         hotkeyManager = new HotkeyManager(DispatchGlobalHotkey, m => DebugLog.Write(m));
         hotkeyManager.Start();
         var hotkeySettingsLoaded = hotkeySettings.Load();
-        if (!hotkeyManager.Register(SummonHotkeyId, hotkeySettingsLoaded.Modifier, hotkeySettingsLoaded.VirtualKey))
+        if (hotkeySettingsLoaded.Modifier == 0 || hotkeySettingsLoaded.VirtualKey == 0)
+        {
+            // the summon hotkey was removed in Settings — the launcher stays
+            // reachable through the tray until a new combo is recorded
+            DebugLog.Write("summon hotkey cleared; skipping global registration");
+        }
+        else if (!hotkeyManager.Register(SummonHotkeyId, hotkeySettingsLoaded.Modifier, hotkeySettingsLoaded.VirtualKey))
         {
             ShowToast("Failed to register global hotkey — another app may own it. Open Settings to pick a new one.");
             DebugLog.Write("RegisterHotKey failed");
@@ -482,7 +488,8 @@ public partial class MainWindow : Window
             updateService,
             () => clipboardHistory.Clear(),
             ShowToast,
-            ApplySummonHotkey);
+            ApplySummonHotkey,
+            () => hotkeyManager?.Unregister(SummonHotkeyId));
         settingsWindow.PreferencesChanged += (extensionId, values) => sidecar.SendPreferences(extensionId, values);
         settingsWindow.CommandShortcutChanged += (commandKey, combo) =>
         {
@@ -514,7 +521,10 @@ public partial class MainWindow : Window
         settingsWindow.RestoreGlobalHotkeys = () =>
         {
             var settings = hotkeySettings.Load();
-            hotkeyManager?.Register(SummonHotkeyId, settings.Modifier, settings.VirtualKey);
+            if (settings.Modifier != 0 && settings.VirtualKey != 0)
+            {
+                hotkeyManager?.Register(SummonHotkeyId, settings.Modifier, settings.VirtualKey);
+            }
             RegisterCommandHotkeys();
             DebugLog.Write("global hotkeys restored");
         };
@@ -845,6 +855,16 @@ public partial class MainWindow : Window
         // summon renders neither the page nor the root rows: an empty screen.
         while (searchState.Depth > 1 && searchState.Pop())
         {
+        }
+        // Whatever the user typed into the main input drove the closed page;
+        // keeping it would resurface stale text over the restored root. The
+        // input is cleared with the view it belongs to and the root re-queried
+        // so rows match the empty box on the next summon.
+        if (SearchBox.Text.Length > 0)
+        {
+            searchDebounce.Stop();
+            SetSearchBoxSilently("");
+            SendSearch("");
         }
         var display = BuildDisplayRows();
         LoadRowIcons(display);
@@ -1892,14 +1912,31 @@ public partial class MainWindow : Window
             }
             else
             {
-                HideWindow();
+                EscapeAtRoot();
             }
             return;
         }
         if (!PopView())
         {
-            HideWindow();
+            EscapeAtRoot();
         }
+    }
+
+    /// <summary>
+    /// The root Esc route from <see cref="EscapeBehavior"/>: typed text is
+    /// erased (and the root re-queried) so the window stays; only an empty
+    /// main input lets Escape hide the launcher.
+    /// </summary>
+    private void EscapeAtRoot()
+    {
+        if (EscapeBehavior.Resolve(searchState.Depth, SearchBox.Text) != EscapeOutcome.ClearInput)
+        {
+            HideWindow();
+            return;
+        }
+        searchDebounce.Stop();
+        SetSearchBoxSilently("");
+        SendSearch("");
     }
 
     private void OnBackButtonClick(object sender, MouseButtonEventArgs e)

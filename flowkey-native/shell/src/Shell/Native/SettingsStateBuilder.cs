@@ -51,7 +51,7 @@ public static class SettingsStateBuilder
             Nav: nav,
             General: new SettingsGeneralState(
                 OpenAtLogin: input.OpenAtLogin,
-                SummonHotkey: HotkeyCombo.Describe(input.Hotkeys.Modifier, input.Hotkeys.VirtualKey),
+                SummonHotkey: DescribeSummon(input.Hotkeys),
                 AutoUpdateCheck: input.AutoUpdateCheck),
             Extensions: new SettingsExtensionsState(
                 LoadFailures: input.LoadFailures
@@ -71,6 +71,12 @@ public static class SettingsStateBuilder
             PendingReconsent: input.PendingReconsent,
             Capture: input.Capture);
     }
+
+    /// <summary>A cleared hotkey (no modifiers or no key) describes as empty, never as a "0x0" combo.</summary>
+    private static string DescribeSummon(HotkeySettings hotkeys) =>
+        hotkeys.Modifier == 0 || hotkeys.VirtualKey == 0
+            ? ""
+            : HotkeyCombo.Describe(hotkeys.Modifier, hotkeys.VirtualKey);
 
     private static SettingsExtensionDetail BuildDetail(ReadyExtension extension, SettingsStateInput input)
     {

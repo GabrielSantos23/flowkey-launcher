@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
+import { XIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 /** A settings row: card surface, label + optional description on the left, control on the right. */
 export function SettingsRow({
@@ -76,5 +78,35 @@ export function ComboChips({
         <Keycap key={`${part}-${index}`} label={part} />
       ))}
     </span>
+  );
+}
+
+/**
+ * Hover-revealed ✕ that removes a recorded hotkey. Mounts only when a combo
+ * exists, stays invisible (and inert) until the cursor enters the surrounding
+ * `group/keys` hotkey area, and reappears for keyboard focus.
+ */
+export function ClearHotkeyButton({
+  combo,
+  label,
+  onClear,
+}: {
+  combo: string | null | undefined;
+  label: string;
+  onClear: () => void;
+}) {
+  if (!combo) {
+    return null;
+  }
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="size-6 opacity-0 pointer-events-none transition-opacity group-hover/keys:pointer-events-auto group-hover/keys:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
+      title={label}
+      onClick={onClear}
+    >
+      <XIcon />
+    </Button>
   );
 }

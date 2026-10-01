@@ -72,6 +72,14 @@ public class SettingsStateBuilderTests
     }
 
     [Fact]
+    public void GeneralStateDescribesAClearedSummonHotkeyAsEmpty()
+    {
+        var hotkeys = new HotkeySettings { Modifier = 0, VirtualKey = 0 };
+        var state = SettingsStateBuilder.Build(Input([Extension("alpha", "Alpha")], hotkeys));
+        Assert.Equal("", state.General.SummonHotkey);
+    }
+
+    [Fact]
     public void ExtensionDetailCarriesPreferencesCommandsAndInstalledState()
     {
         var extension = Extension("alpha", "Alpha");

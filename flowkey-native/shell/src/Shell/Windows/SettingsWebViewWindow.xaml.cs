@@ -75,7 +75,8 @@ public partial class SettingsWebViewWindow : Window
         UpdateService updateService,
         Action clearClipboardHistory,
         Action<string> showToast,
-        Func<uint, uint, bool> applySummonHotkey)
+        Func<uint, uint, bool> applySummonHotkey,
+        Action clearSummonHotkey)
     {
         InitializeComponent();
         this.hotkeySettings = hotkeySettings;
@@ -98,6 +99,7 @@ public partial class SettingsWebViewWindow : Window
             extensions,
             showToast,
             applySummonHotkey,
+            clearSummonHotkey,
             combo => ShortcutConflict(combo),
             enabled => LoginLauncher.SetEnabled(enabled),
             clearClipboardHistory,
@@ -473,6 +475,9 @@ public partial class SettingsWebViewWindow : Window
                 return;
             case "resetSummonHotkey":
                 FinishOutcome(id, operations.ResetSummonHotkey());
+                return;
+            case "clearSummonHotkey":
+                FinishOutcome(id, operations.ClearSummonHotkey());
                 return;
             case "clearClipboardHistory":
                 FinishOutcome(id, operations.ClearClipboardHistory());
