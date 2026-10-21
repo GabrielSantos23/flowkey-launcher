@@ -216,6 +216,8 @@ export interface ManifestCommand {
   interval?: number;
   /** Positional arguments captured by the search bar before the command runs. */
   arguments?: CommandArgument[];
+  /** Also render this view command as a compact widget in the shell's notch (tree UI only). */
+  notch?: boolean;
 }
 
 export interface ExtensionManifest {

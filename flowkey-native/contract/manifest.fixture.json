@@ -155,6 +155,24 @@
       }
     },
     {
+      "name": "notch-widget",
+      "manifest": {
+        "id": "notch-demo",
+        "name": "Notch Demo",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "today",
+            "title": "Today",
+            "mode": "view",
+            "notch": true
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      }
+    },
+    {
       "name": "no-optional-fields",
       "manifest": {
         "id": "bare.minimum",
@@ -191,6 +209,26 @@
     }
   ],
   "invalid": [
+    {
+      "name": "notch-on-background-command",
+      "manifest": {
+        "id": "hello-world",
+        "name": "Hello World",
+        "version": "1.0.0",
+        "commands": [
+          {
+            "id": "sync",
+            "title": "Sync",
+            "mode": "background",
+            "notch": true
+          }
+        ],
+        "nativeMethods": [],
+        "httpHosts": []
+      },
+      "expectedField": "commands[0].notch",
+      "expectedCode": "format"
+    },
     {
       "name": "id-uppercase",
       "manifest": {

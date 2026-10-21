@@ -217,6 +217,19 @@ public static class ExtensionManifestValidator
                 {
                     Add(errors, $"{field}.disabledByDefault", "format", "command disabledByDefault must be a boolean");
                 }
+                if (command.TryGetProperty("notch", out var notch) && notch.ValueKind != JsonValueKind.Undefined)
+                {
+                    if (notch.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    {
+                        Add(errors, $"{field}.notch", "format", "command notch must be a boolean");
+                    }
+                    else if (notch.ValueKind == JsonValueKind.True
+                        && ((command.TryGetProperty("mode", out var notchMode) && notchMode.ValueKind == JsonValueKind.String && notchMode.GetString() == "background")
+                            || (command.TryGetProperty("ui", out var notchUi) && notchUi.ValueKind == JsonValueKind.String && notchUi.GetString() == "web")))
+                    {
+                        Add(errors, $"{field}.notch", "format", "command notch requires a view command with ui 'tree'");
+                    }
+                }
                 if (command.TryGetProperty("ui", out var ui) && ui.ValueKind != JsonValueKind.Undefined)
                 {
                     var uiValue = ui.ValueKind == JsonValueKind.String ? ui.GetString() : null;
