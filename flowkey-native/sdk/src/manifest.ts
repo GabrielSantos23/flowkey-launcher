@@ -262,6 +262,13 @@ export function validateManifest(manifest: unknown): ManifestValidationResult {
           'command disabledByDefault must be a boolean',
         );
       }
+      if (command.notch !== undefined) {
+        if (typeof command.notch !== 'boolean') {
+          error(`${field}.notch`, 'format', 'command notch must be a boolean');
+        } else if (command.notch && (command.mode === 'background' || command.ui === 'web')) {
+          error(`${field}.notch`, 'format', "command notch requires a view command with ui 'tree'");
+        }
+      }
       if (command.ui !== undefined) {
         if (command.ui !== 'web' && command.ui !== 'tree') {
           error(`${field}.ui`, 'format', "command ui must be 'tree' or 'web'");
